@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}Setup Inicial - Attendance Collector{% endblock %}
+
+{% block content %}
+<div class="min-h-[calc(100vh-4rem)] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-2xl w-full space-y-8">
+        <div>
+            <h2 class="text-center text-3xl font-extrabold text-gray-900">
+                Configuración Inicial
+            </h2>
+            <p class="mt-2 text-center text-sm text-gray-600">
+                Crea el usuario administrador para comenzar
+            </p>
+        </div>
+
+        <form class="mt-8 space-y-6" method="POST" action="/auth/setup" x-data="{ 
+            showPassword: false, 
+            password: '',
+            errors: [],
+            validatePassword() {
+                this.errors = []
+                if (this.password.length < 12) this.errors.push('Mínimo 12 caracteres')
+                if (!/[A-Z]/.test(this.password)) this.errors.push('Al menos una mayúscula')
+                if (!/[a-z]/.test(this.password)) this.errors.push('Al menos una minúscula')
+                if (!/[0-9]/.test(this.password)) this.errors.push('Al menos un número')
+                if (!/[!@#$%^&*()_+\-=\[\]{};':\\|,.<>\/?]/.test(this.password)) this.errors.push('Al menos un carácter especial')
+            }
+        }">
+            <div class="rounded-md shadow-sm space-y-4">
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-700 mb-1">
+                        Usuario Administrador *
+                    </label>
+                    <input id="username" name="username" type="text" required minlength="3"
+                        class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="admin">
+                </div>
+
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
+                        Email de recuperación
+                    </label>
+                    <input id="email" name="email" type="email"
+                        class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="admin@empresa.com">
+                </div>
+
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
+                        Contraseña *
+                    </label>
+                    <div class="relative">
+                        <input id="password" name="password" type="password" required x-model="password"
+                            @input="validatePassword()"
+                            class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                            placeholder="••••••••">
+                        <button type="button" @click="showPassword = !showPassword" 
+                            class="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5">
+                            <svg x-show="!showPassword" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                            </svg>
+                            <svg x-show="showPassword" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <!-- Validación de contraseña -->
+                    <div class="mt-2">
+                        <div class="flex flex-wrap gap-2">
+                            <span :class="password.length >= 12 ? 'text-green-600' : 'text-gray-400'" class="text-xs">
+                                <span x-text="password.length >= 12 ? '✓' : '○'"></span> 12 caracteres
+                            </span>
+                            <span :class="/[A-Z]/.test(password) ? 'text-green-600' : 'text-gray-400'" class="text-xs">
+                                <span x-text="/[A-Z]/.test(password) ? '✓' : '○'"></span> Mayúscula
+                            </span>
+                            <span :class="/[a-z]/.test(password) ? 'text-green-600' : 'text-gray-400'" class="text-xs">
+                                <span x-text="/[a-z]/.test(password) ? '✓' : '○'"></span> Minúscula
+                            </span>
+                            <span :class="/[0-9]/.test(password) ? 'text-green-600' : 'text-gray-400'" class="text-xs">
+                                <span x-text="/[0-9]/.test(password) ? '✓' : '○'"></span> Número
+                            </span>
+                            <span :class="/[!@#$%^&*()_+]/.test(password) ? 'text-green-600' : 'text-gray-400'" class="text-xs">
+                                <span x-text="/[!@#$%^&*()_+]/.test(password) ? '✓' : '○'"></span> Especial
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="password_confirm" class="block text-sm font-medium text-gray-700 mb-1">
+                        Confirmar Contraseña *
+                    </label>
+                    <input id="password_confirm" name="password_confirm" type="password" required
+                        x-model="password"
+                        class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="••••••••">
+                </div>
+            </div>
+
+            <div class="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                <div class="flex">
+                    <svg class="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-yellow-800">Importante</h3>
+                        <p class="mt-1 text-sm text-yellow-700">
+                            Guarda estas credenciales en un lugar seguro. No hay recuperación de contraseña configurada aún.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <button type="submit" 
+                    class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Completar Configuración
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

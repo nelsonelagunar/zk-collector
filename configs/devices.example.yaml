@@ -1,0 +1,35 @@
+# Ejemplo de configuración de dispositivos
+# Usar como referencia para agregar múltiples dispositivos
+
+devices:
+  # Entrada Principal
+  - ip: "192.168.1.101"
+    port: 4370
+    timeout: 5
+    password: 0
+    name: "Entrada Principal"
+    enabled: true
+
+  # Salida Emergencia
+  - ip: "192.168.1.102"
+    port: 4370
+    timeout: 5
+    password: 0
+    name: "Salida Emergencia"
+    enabled: true
+
+  # Recepción
+  - ip: "192.168.1.103"
+    port: 4370
+    timeout: 5
+    password: 0
+    name: "Recepción"
+    enabled: true
+
+  # Almacén
+  - ip: "192.168.1.104"
+    port: 4370
+    timeout: 5
+    password: 0
+    name: "Almacén"
+    enabled: false  # Deshabilitado temporalmente

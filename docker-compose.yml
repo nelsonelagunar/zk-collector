@@ -1,0 +1,23 @@
+services:
+  zk-collector:
+    build: .
+    container_name: zk-collector
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - zk-data:/app/data
+      - ./configs:/app/configs:ro
+    environment:
+      - ZK_ADMIN_PASSWORD=${ZK_ADMIN_PASSWORD:-changeme}
+      - ZK_COLLECTOR_DATA=/app/data
+      - ZK_SYNC_URL=${ZK_SYNC_URL:-}
+      - ZK_SYNC_TOKEN=${ZK_SYNC_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  zk-data:

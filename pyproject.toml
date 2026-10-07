@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=75.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zk-collector"
+version = "2.0.0-alpha.1"
+description = "Reuse legacy ZKTeco biometric attendance devices with a modern web dashboard — no ZKAccess license needed"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.12"
+authors = [
+    {name = "Nelson Laguna", email = "nelson@zk-collector.dev"},
+]
+keywords = ["zkteco", "attendance", "biometric", "hr", "time-tracking", "raspberry-pi"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business",
+    "Topic :: System :: Hardware",
+]
+dependencies = [
+    "pyzk>=0.9.0",
+    "requests>=2.32.0",
+    "PyYAML>=6.0.0",
+    "cryptography>=44.0.0",
+    "python-dateutil>=2.9.0",
+    "flask>=3.1.0",
+    "flask-login>=0.6.3",
+    "gunicorn>=23.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "bandit>=1.8.0",
+]
+docker = [
+    "pyinstaller>=6.11.0",
+]
+
+[project.scripts]
+zk-collector = "src.main:main"
+
+[project.urls]
+Homepage = "https://github.com/nelsonelagunar/zk-collector"
+Documentation = "https://github.com/nelsonelagunar/zk-collector/tree/master/docs"
+Repository = "https://github.com/nelsonelagunar/zk-collector"
+Issues = "https://github.com/nelsonelagunar/zk-collector/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+addopts = "-v --tb=short"

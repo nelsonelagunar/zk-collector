@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}Nuevo Dispositivo - Attendance Collector{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="mb-6">
+        <a href="/devices" class="text-sm text-blue-600 hover:text-blue-500 flex items-center">
+            <svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+            Volver a dispositivos
+        </a>
+        <h2 class="text-2xl font-bold text-gray-900 mt-2">Nuevo Dispositivo ZKTeco</h2>
+    </div>
+
+    <!-- Formulario -->
+    <form class="bg-white shadow rounded-lg" method="POST" action="/devices/new" x-data="{ 
+        testing: false,
+        testResult: null,
+        async testConnection() {
+            this.testing = true
+            this.testResult = null
+            try {
+                const response = await fetch('/api/devices/test', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        address: document.getElementById('address').value,
+                        port: parseInt(document.getElementById('port').value),
+                        password: parseInt(document.getElementById('device_password').value),
+                        protocol: document.getElementById('protocol').value
+                    })
+                })
+                const data = await response.json()
+                this.testResult = data
+            } catch (e) {
+                this.testResult = {success: false, message: 'Error de conexión: ' + e.message}
+            }
+            this.testing = false
+        }
+    }">
+        <div class="px-6 py-5 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Información del Dispositivo</h3>
+        </div>
+
+        <div class="px-6 py-5 space-y-6">
+            <!-- Nombre -->
+            <div>
+                <label for="name" class="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre del Dispositivo *
+                </label>
+                <input type="text" id="name" name="name" required
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2"
+                    placeholder="Ej: Entrada Principal">
+            </div>
+
+            <!-- Ubicación y Zona -->
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="location" class="block text-sm font-medium text-gray-700 mb-1">
+                        Ubicación
+                    </label>
+                    <input type="text" id="location" name="location"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2"
+                        placeholder="Ej: Edificio A - Planta Baja">
+                </div>
+                <div>
+                    <label for="zone" class="block text-sm font-medium text-gray-700 mb-1">
+                        Zona
+                    </label>
+                    <input type="text" id="zone" name="zone"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2"
+                        placeholder="Ej: Norte">
+                </div>
+            </div>
+
+            <!-- Dirección IP y Puerto -->
+            <div class="grid grid-cols-3 gap-4">
+                <div class="col-span-2">
+                    <label for="address" class="block text-sm font-medium text-gray-700 mb-1">
+                        Dirección IP o Dominio *
+                    </label>
+                    <input type="text" id="address" name="address" required
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2"
+                        placeholder="192.168.1.101 o zk.empresa.local">
+                </div>
+                <div>
+                    <label for="port" class="block text-sm font-medium text-gray-700 mb-1">
+                        Puerto *
+                    </label>
+                    <input type="number" id="port" name="port" value="4370"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2">
+                </div>
+            </div>
+
+            <!-- Contraseña y Timeout -->
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="device_password" class="block text-sm font-medium text-gray-700 mb-1">
+                        Contraseña del Dispositivo
+                    </label>
+                    <input type="number" id="device_password" name="password" value="0"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2">
+                    <p class="mt-1 text-xs text-gray-500">Código de dispositivo (0 por defecto)</p>
+                </div>
+                <div>
+                    <label for="timeout" class="block text-sm font-medium text-gray-700 mb-1">
+                        Timeout (segundos)
+                    </label>
+                    <input type="number" id="timeout" name="timeout" value="5"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2">
+                </div>
+            </div>
+
+            <!-- Protocolo -->
+            <div>
+                <label for="protocol" class="block text-sm font-medium text-gray-700 mb-1">
+                    Protocolo
+                </label>
+                <select id="protocol" name="protocol"
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2">
+                    <option value="tcp">TCP (Recomendado)</option>
+                    <option value="udp">UDP</option>
+                </select>
+            </div>
+
+            <!-- Test de conexión -->
+            <div class="bg-gray-50 rounded-md p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-900">Probar Conexión</h4>
+                        <p class="text-xs text-gray-500">Verifica que el dispositivo esté accesible</p>
+                    </div>
+                    <button type="button" @click="testConnection()" :disabled="testing"
+                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50">
+                        <span x-show="!testing">Probar</span>
+                        <span x-show="testing">Probando...</span>
+                    </button>
+                </div>
+                
+                <!-- Resultado del test -->
+                <div x-show="testResult" class="mt-3">
+                    <div :class="testResult?.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'" 
+                        class="rounded-md border p-3">
+                        <div class="flex">
+                            <svg x-show="testResult?.success" class="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                            </svg>
+                            <svg x-show="!testResult?.success" class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                            </svg>
+                            <div class="ml-3">
+                                <p :class="testResult?.success ? 'text-green-800' : 'text-red-800'" class="text-sm" x-text="testResult?.message"></p>
+                                <div x-show="testResult?.device_info" class="mt-2 text-xs text-gray-600">
+                                    <p>Firmware: <span x-text="testResult?.device_info?.firmware"></span></p>
+                                    <p>Serial: <span x-text="testResult?.device_info?.serial"></span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 border-t">
+            <a href="/devices" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                Cancelar
+            </a>
+            <button type="submit" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                Guardar Dispositivo
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

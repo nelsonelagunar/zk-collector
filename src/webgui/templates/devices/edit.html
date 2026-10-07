@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Dispositivo - Attendance Collector{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="mb-6">
+        <a href="/devices" class="text-sm text-blue-600 hover:text-blue-500 flex items-center">
+            <svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+            Volver a dispositivos
+        </a>
+        <h2 class="text-2xl font-bold text-gray-900 mt-2">Editar Dispositivo</h2>
+    </div>
+
+    <!-- Formulario -->
+    <form class="bg-white shadow rounded-lg" method="POST" action="/devices/{{ device.id }}/edit">
+        <div class="px-6 py-5 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Información del Dispositivo</h3>
+        </div>
+
+        <div class="px-6 py-5 space-y-6">
+            <div>
+                <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                <input type="text" id="name" name="name" value="{{ device.name }}" required
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="location" class="block text-sm font-medium text-gray-700 mb-1">Ubicación</label>
+                    <input type="text" id="location" name="location" value="{{ device.location or '' }}"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2">
+                </div>
+                <div>
+                    <label for="zone" class="block text-sm font-medium text-gray-700 mb-1">Zona</label>
+                    <input type="text" id="zone" name="zone" value="{{ device.zone or '' }}"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-4">
+                <div class="col-span-2">
+                    <label for="address" class="block text-sm font-medium text-gray-700 mb-1">Dirección IP *</label>
+                    <input type="text" id="address" name="address" value="{{ device.address }}" required
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2">
+                </div>
+                <div>
+                    <label for="port" class="block text-sm font-medium text-gray-700 mb-1">Puerto *</label>
+                    <input type="number" id="port" name="port" value="{{ device.port }}"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                    <input type="number" id="password" name="password" value="{{ device.password or 0 }}"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2">
+                </div>
+                <div>
+                    <label for="timeout" class="block text-sm font-medium text-gray-700 mb-1">Timeout</label>
+                    <input type="number" id="timeout" name="timeout" value="{{ device.timeout or 5 }}"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2">
+                </div>
+            </div>
+
+            <div>
+                <label for="protocol" class="block text-sm font-medium text-gray-700 mb-1">Protocolo</label>
+                <select id="protocol" name="protocol"
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2">
+                    <option value="tcp" {{ 'selected' if device.protocol == 'tcp' }}>TCP</option>
+                    <option value="udp" {{ 'selected' if device.protocol == 'udp' }}>UDP</option>
+                </select>
+            </div>
+
+            <!-- Estado -->
+            <div class="bg-gray-50 rounded-md p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-600">Estado actual</p>
+                        <p class="text-lg font-medium {% if device.status == 'online' %}text-green-600{% elif device.status == 'offline' %}text-red-600{% else %}text-gray-600{% endif %}">
+                            {{ device.status|title }}
+                        </p>
+                    </div>
+                    <a href="/devices/{{ device.id }}/test" target="_blank" class="text-blue-600 hover:text-blue-500 text-sm font-medium">
+                        Probar conexión →
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-between items-center border-t">
+            <a href="/devices/{{ device.id }}/delete" onclick="return confirm('¿Eliminar dispositivo?')" 
+                class="text-red-600 hover:text-red-700 text-sm font-medium">
+                Eliminar dispositivo
+            </a>
+            <div class="space-x-3">
+                <a href="/devices" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    Cancelar
+                </a>
+                <button type="submit" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+                    Guardar Cambios
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
