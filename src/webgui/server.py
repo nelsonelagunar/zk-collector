@@ -23,8 +23,10 @@ def create_app(config=None):
         return {"now": datetime.now}
     from .routes.auth import auth_bp
     from .routes.devices import devices_bp
+    from .routes.apidocs import apidocs_bp
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(devices_bp, url_prefix="/devices")
+    app.register_blueprint(apidocs_bp, url_prefix="/api")
     @app.route("/")
     def index():
         if "user_id" not in session:

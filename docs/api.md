@@ -8,6 +8,18 @@ ZK-Collector exposes a REST API for device management, attendance data, and syst
 http://<collector-host>:8080
 ```
 
+## Interactive Documentation
+
+An OpenAPI 3.1 spec and interactive Swagger UI are served by the collector itself:
+
+| URL | Content |
+|-----|---------|
+| `/api/docs` | Interactive Swagger UI |
+| `/api/openapi.yaml` | OpenAPI 3.1 spec (YAML) |
+| `/api/openapi.json` | OpenAPI 3.1 spec (JSON) |
+
+The source spec lives in the repository at `docs/openapi.yaml` and is bundled into deployments.
+
 ## Authentication
 
 All API endpoints (except `/health`) require authentication via session cookie. Obtain a session by logging in through `/auth/login`.
@@ -592,7 +604,7 @@ curl -b "$COOKIES" -s "$COLLECTOR/devices/api/attendance?date_from=$(date -d '7 
 The API is documented in OpenAPI 3.1 format. Download the spec:
 
 ```bash
-curl http://localhost:8080/openapi.json -o openapi.json
+curl http://localhost:8080/api/openapi.json -o openapi.json
 ```
 
-View in Swagger UI: `http://localhost:8080/docs` (when enabled in config)
+View in Swagger UI: `http://localhost:8080/api/docs`
