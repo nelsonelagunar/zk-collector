@@ -14,7 +14,7 @@ services:
       - ZK_SYNC_URL=${ZK_SYNC_URL:-}
       - ZK_SYNC_TOKEN=${ZK_SYNC_TOKEN:-}
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz')"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
       interval: 30s
       timeout: 5s
       retries: 3
