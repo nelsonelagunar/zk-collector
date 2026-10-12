@@ -288,48 +288,61 @@ platform:
 
 ## Running with Docker Compose
 
-### Full Example
+### Full Example (uses project's docker-compose.yml)
+
+```bash
+# The project includes a docker-compose.yml - just configure .env and run:
+cp .env.example .env
+# Edit .env with your values
+nano .env
+docker-compose up -d
+```
+
+### Custom docker-compose.yml (if needed)
 
 ```yaml
 version: '3.8'
 
 services:
   zk-collector:
-    image: ghcr.io/nelsonelagunar/zk-collector:latest
-    environment:
-      - ZK_ADMIN_PASSWORD=SecurePassword123
-      - DEBUG=false
-      - LOG_LEVEL=INFO
-      - PLATFORM_URL=https://api.example.com
-      - PLATFORM_API_KEY=${PLATFORM_API_KEY}  # From .env file
-      - TENANT_ID=main-office
-      - SYNC_INTERVAL=60
-    volumes:
-      - zk-data:/app/data
-      - ./configs/devices.yaml:/app/configs/devices.yaml:ro
-      - ./configs/.env:/app/configs/.env:ro
+    build: .
+    container_name: zk-collector
+    restart: unless-stopped
     ports:
       - "8080:8080"
-    restart: unless-stopped
-    # Health check
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    volumes:
+      - zk-data:/app/data
+      - ./configs:/app/configs:ro
+    environment:
+      # Required
+      - ZK_ADMIN_PASSWORD=${ZK_ADMIN_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      # Optional cloud sync
+      - ZK_SYNC_URL=${ZK_SYNC_URL}
+      - ZK_SYNC_TOKEN=${ZK_SYNC_TOKEN}
+      # Optional
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-text}
+      - WEBGUI_SECRET_KEY=${WEBGUI_SECRET_KEY}
+    entrypoint: ["/app/docker-entrypoint.sh"]
+    # Native HEALTHCHECK from Dockerfile (interval=30s, timeout=5s, retries=3)
 
 volumes:
   zk-data:
 ```
 
-### .env file (optional, for secrets)
+### .env file (from .env.example)
 
 ```bash
+# Copy .env.example to .env and fill in your values
 # .env (add to .gitignore!)
-ZK_ADMIN_PASSWORD=SecurePassword123
-PLATFORM_API_KEY=sk_real_actual_key_here
-TENANT_ID=main-office
+ZK_ADMIN_PASSWORD=SecurePassword123!
+ENCRYPTION_KEY=gAAAAABl8...  # Generate with: python -m src.security.encryption generate-key
+ZK_SYNC_URL=https://api.example.com
+ZK_SYNC_TOKEN=eyJhbGciOiJIUzI1NiIs...
 LOG_LEVEL=INFO
+LOG_FORMAT=text
+WEBGUI_SECRET_KEY=your-32-char-hex-string
 ```
 
 ---

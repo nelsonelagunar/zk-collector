@@ -72,6 +72,6 @@ INSERT OR IGNORE INTO system_config (key, value, description) VALUES
     ('smtp_host', '', 'SMTP server hostname'),
     ('smtp_port', '587', 'SMTP server port'),
     ('smtp_username', '', 'SMTP username'),
-    'smtp_password', '', 'SMTP password (encrypted)'),
+    ('smtp_password', '', 'SMTP password (encrypted)'),
     ('smtp_from_email', '', 'From email address'),
     ('smtp_use_tls', 'true', 'Use TLS for SMTP connection');

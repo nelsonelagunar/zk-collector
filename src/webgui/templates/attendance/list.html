@@ -22,20 +22,20 @@
             </p>
         </div>
         <div class="mt-4 flex md:mt-0 md:ml-4">
-            <a href="/attendance/export?format=csv"
+            <button @click="exportData('csv')"
                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
                 <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                 </svg>
                 Exportar CSV
-            </a>
-            <a href="/attendance/export?format=xlsx"
+            </button>
+            <button @click="exportData('xlsx')"
                class="ml-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-700 hover:bg-green-800">
                 <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                 </svg>
                 Exportar Excel
-            </a>
+            </button>
         </div>
     </div>
 
@@ -332,6 +332,16 @@ document.addEventListener('alpine:init', () => {
                 `;
             }
             pageNumbersEl.innerHTML = pagesHtml;
+        },
+
+        exportData(format) {
+            const params = new URLSearchParams({
+                format: format
+            });
+            if (this.startDate) params.append('start', this.startDate);
+            if (this.endDate) params.append('end', this.endDate);
+
+            window.location.href = `/attendance/export?${params.toString()}`;
         }
     }));
 });

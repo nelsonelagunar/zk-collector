@@ -5,7 +5,7 @@ Attendance Routes - Consulta y exportación de registros de asistencia
 import csv
 import io
 from datetime import datetime
-from flask import Blueprint, render_template, request, jsonify, current_app, send_file, Response
+from flask import Blueprint, render_template, request, jsonify, current_app, send_file, Response, session, redirect, url_for
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
@@ -17,6 +17,8 @@ attendance_bp = Blueprint('attendance', __name__)
 @attendance_bp.route('/attendance')
 def attendance_page():
     """Página de consulta de asistencia"""
+    if 'user_id' not in session:
+        return redirect(url_for('auth.login'))
     return render_template('attendance/list.html')
 
 
@@ -24,7 +26,7 @@ def attendance_page():
 def api_attendance():
     """API para obtener registros de asistencia con paginación y filtros"""
     # Verificar autenticación
-    if 'user_id' not in request.environ.get('flask.session', {}):
+    if 'user_id' not in session:
         return jsonify({'error': 'No autenticado'}), 401
 
     # Parámetros de filtro
@@ -81,7 +83,7 @@ def export_attendance():
         format: csv|xlsx
     """
     # Verificar autenticación
-    if 'user_id' not in request.environ.get('flask.session', {}):
+    if 'user_id' not in session:
         return jsonify({'error': 'No autenticado'}), 401
 
     # Parámetros (accept both start/end and start_date/end_date for backward compat)
