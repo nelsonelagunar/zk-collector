@@ -98,7 +98,6 @@ addopts = "-v --tb=short --cov=src --cov-report=term-missing --cov-report=xml"
 [tool.coverage.run]
 source = ["src"]
 omit = [
-    "src/webgui/*",  # WebGUI tested separately
     "src/main.py",   # Entry point
     "src/security/encryption.py",  # CLI tool
     "src/utils/logging.py",  # Logging setup

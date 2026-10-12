@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+
+{% block title %}Descubrir Dispositivos - Attendance Collector{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="md:flex md:items-center md:justify-between mb-8">
+        <div class="flex-1 min-w-0">
+            <h2 class="text-2xl font-bold leading-7 text-gray-900 dark:text-gray-100 sm:text-3xl sm:truncate">
+                Descubrir Dispositivos en LAN
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Escanea la red local para encontrar dispositivos ZKTeco automáticamente
+            </p>
+        </div>
+        <div class="mt-4 flex md:mt-0 md:ml-4">
+            <a href="/devices" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+                <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+                Volver a Dispositivos
+            </a>
+        </div>
+    </div>
+
+    <!-- Discovery Form -->
+    <div class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-lg border border-gray-200 dark:border-gray-700 mb-6">
+        <div class="p-6">
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">Configuración de Escaneo</h3>
+
+            <form id="discovery-form" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label for="network" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Red (CIDR, opcional)
+                        </label>
+                        <input type="text" id="network" name="network" placeholder="ej: 192.168.1.0/24"
+                               class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white sm:text-sm px-3 py-2 border rounded-md">
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Deja vacío para escanear todas las interfaces</p>
+                    </div>
+                    <div>
+                        <label for="timeout" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Timeout (segundos)
+                        </label>
+                        <input type="number" id="timeout" name="timeout" value="3" min="1" max="30" step="0.5"
+                               class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white sm:text-sm px-3 py-2 border rounded-md">
+                    </div>
+                    <div>
+                        <label for="retries" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Reintentos
+                        </label>
+                        <input type="number" id="retries" name="retries" value="2" min="0" max="5"
+                               class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white sm:text-sm px-3 py-2 border rounded-md">
+                    </div>
+                </div>
+
+                <div class="flex items-center">
+                    <input type="checkbox" id="fetch_details" name="fetch_details" checked
+                           class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <label for="fetch_details" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                        Obtener detalles via TCP (modelo, firmware, serial) - más lento
+                    </label>
+                </div>
+
+                <div class="flex gap-4">
+                    <button type="button" id="scan-btn" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="scan-icon">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <span id="scan-text">Escanear Red</span>
+                    </button>
+                    <button type="button" id="quick-scan-btn" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                        Escaneo Rápido (solo UDP)
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Progress/Loading -->
+    <div id="progress-section" class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-lg border border-gray-200 dark:border-gray-700 mb-6 hidden">
+        <div class="p-6">
+            <div class="flex items-center gap-4">
+                <div class="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" aria-hidden="true"></div>
+                <div>
+                    <p class="text-lg font-medium text-gray-900 dark:text-gray-100" id="progress-message">Escaneando red...</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Esto puede tomar unos segundos</p>
+                </div>
+            </div>
+            <div class="mt-4 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div id="progress-bar" class="h-full bg-blue-600 transition-all duration-300" style="width: 0%"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error State -->
+    <div id="error-section" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6 hidden">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                </svg>
+            </div>
+            <div class="ml-3">
+                <h3 class="text-sm font-medium text-red-800 dark:text-red-200">Error en el descubrimiento</h3>
+                <div class="mt-2 text-sm text-red-700 dark:text-red-300" id="error-message"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="empty-section" class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-lg border border-gray-200 dark:border-gray-700 mb-6 hidden">
+        <div class="p-12 text-center">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">No se encontraron dispositivos</h3>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">No se detectaron dispositivos ZKTeco en la red. Verifica que estén encendidos y conectados a la misma red.</p>
+            <div class="mt-6">
+                <button type="button" onclick="runDiscovery()" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+                    <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    Escanear de nuevo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Table -->
+    <div id="results-section" class="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-lg border border-gray-200 dark:border-gray-700 hidden">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Dispositivos Encontrados</h3>
+                <span class="text-sm text-gray-500 dark:text-gray-400" id="results-count"></span>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-900">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                IP
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                MAC
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Modelo
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Firmware
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Serial
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Nombre Dispositivo
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Estado
+                            </th>
+                            <th scope="col" class="relative px-6 py-3">
+                                <span class="sr-only">Acciones</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-body" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        <!-- Results populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// State
+let isScanning = false;
+
+// DOM Elements
+const scanBtn = document.getElementById('scan-btn');
+const quickScanBtn = document.getElementById('quick-scan-btn');
+const scanText = document.getElementById('scan-text');
+const scanIcon = document.getElementById('scan-icon');
+const progressSection = document.getElementById('progress-section');
+const progressMessage = document.getElementById('progress-message');
+const progressBar = document.getElementById('progress-bar');
+const errorSection = document.getElementById('error-section');
+const errorMessage = document.getElementById('error-message');
+const emptySection = document.getElementById('empty-section');
+const resultsSection = document.getElementById('results-section');
+const resultsBody = document.getElementById('results-body');
+const resultsCount = document.getElementById('results-count');
+const discoveryForm = document.getElementById('discovery-form');
+
+// Show/hide sections
+function showSection(section) {
+    [progressSection, errorSection, emptySection, resultsSection].forEach(s => s.classList.add('hidden'));
+    section.classList.remove('hidden');
+}
+
+function hideAllSections() {
+    [progressSection, errorSection, emptySection, resultsSection].forEach(s => s.classList.add('hidden'));
+}
+
+function setScanning(scanning, isQuick = false) {
+    isScanning = scanning;
+    scanBtn.disabled = scanning;
+    quickScanBtn.disabled = scanning;
+
+    if (scanning) {
+        scanText.textContent = isQuick ? 'Escaneo rápido...' : 'Escaneando...';
+        scanIcon.innerHTML = '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" stroke-dasharray="31.416" stroke-dashoffset="0" class="animate-spin" style="animation: spin 1s linear infinite;">';
+    } else {
+        scanText.textContent = 'Escanear Red';
+        scanIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>';
+    }
+}
+
+// Run discovery
+async function runDiscovery(isQuick = false) {
+    if (isScanning) return;
+
+    setScanning(true, isQuick);
+    showSection(progressSection);
+    progressMessage.textContent = isQuick ? 'Escaneo rápido en progreso...' : 'Escaneando red y obteniendo detalles...';
+    progressBar.style.width = '10%';
+
+    const formData = new FormData(discoveryForm);
+    const params = new URLSearchParams();
+
+    if (formData.get('network')) params.append('network', formData.get('network'));
+    if (formData.get('timeout')) params.append('timeout', formData.get('timeout'));
+    if (formData.get('retries')) params.append('retries', formData.get('retries'));
+    params.append('fetch_details', formData.get('fetch_details') ? 'true' : 'false');
+
+    // For quick scan, override params
+    if (isQuick) {
+        params.set('timeout', '2');
+        params.set('retries', '1');
+        params.set('fetch_details', 'false');
+    }
+
+    try {
+        // Simulate progress
+        let progress = 10;
+        const progressInterval = setInterval(() => {
+            progress = Math.min(progress + 10, 90);
+            progressBar.style.width = progress + '%';
+        }, 500);
+
+        const url = isQuick ? '/devices/api/devices/discover/quick' : '/devices/api/devices/discover';
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(Object.fromEntries(params))
+        });
+
+        clearInterval(progressInterval);
+        progressBar.style.width = '100%';
+
+        const data = await response.json();
+
+        setTimeout(() => {
+            setScanning(false);
+            handleResults(data);
+        }, 300);
+
+    } catch (error) {
+        setScanning(false);
+        showError('Error de red: ' + error.message);
+    }
+}
+
+function handleResults(data) {
+    if (!data.success) {
+        showError(data.message || 'Error desconocido');
+        return;
+    }
+
+    const devices = data.devices || [];
+
+    if (devices.length === 0) {
+        showEmptyState();
+        return;
+    }
+
+    showResults(devices);
+}
+
+function showError(message) {
+    errorMessage.textContent = message;
+    showSection(errorSection);
+}
+
+function showEmptyState() {
+    showSection(emptySection);
+}
+
+function showResults(devices) {
+    resultsCount.textContent = `${devices.length} dispositivo(s) encontrado(s)`;
+    resultsBody.innerHTML = '';
+
+    devices.forEach(device => {
+        const row = document.createElement('tr');
+        row.className = device.already_configured ? 'bg-yellow-50 dark:bg-yellow-900/20' : '';
+
+        const statusBadge = device.already_configured
+            ? '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300">Ya configurado</span>'
+            : '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400">Nuevo</span>';
+
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">${device.ip}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${device.mac || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">${device.model || 'Desconocido'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${device.firmware || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${device.serial || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">${device.device_name || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${statusBadge}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                ${!device.already_configured ? `
+                    <button type="button" onclick="addDevice('${device.ip}', '${device.mac}', '${device.model || ''}', '${device.firmware || ''}', '${device.serial || ''}', '${(device.device_name || '').replace(/'/g, "\\'")}')"
+                            class="inline-flex items-center px-3 py-1.5 border border-transparent rounded-md shadow-sm text-xs font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                        <svg class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Agregar
+                    </button>
+                ` : `
+                    <a href="/devices" class="inline-flex items-center px-3 py-1.5 border border-transparent rounded-md shadow-sm text-xs font-medium text-blue-600 hover:text-blue-700">
+                        Ver en lista
+                    </a>
+                `}
+            </td>
+        `;
+        resultsBody.appendChild(row);
+    });
+
+    showSection(resultsSection);
+}
+
+// Add device from discovery
+async function addDevice(ip, mac, model, firmware, serial, deviceName) {
+    if (isScanning) return;
+
+    const name = prompt(`Nombre para el dispositivo (${ip}):`, deviceName || `ZK Device ${ip.split('.').pop()}`);
+    if (!name) return;
+
+    const location = prompt('Ubicación (opcional):', '');
+    const zone = prompt('Zona (opcional):', '');
+
+    setScanning(true);
+    showSection(progressSection);
+    progressMessage.textContent = `Agregando dispositivo ${name}...`;
+    progressBar.style.width = '50%';
+
+    try {
+        const response = await fetch('/devices/api/devices/add-from-discovery', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                ip: ip,
+                mac: mac,
+                model: model,
+                firmware: firmware,
+                serial: serial,
+                device_name: deviceName,
+                name: name,
+                location: location || '',
+                zone: zone || '',
+                port: 4370,
+                password: 0,
+                timeout: 5,
+                protocol: 'tcp'
+            })
+        });
+
+        const data = await response.json();
+
+        progressBar.style.width = '100%';
+
+        setTimeout(() => {
+            setScanning(false);
+            if (data.success) {
+                alert(data.message);
+                // Refresh results to show updated state
+                runDiscovery(document.getElementById('quick-scan-btn').classList.contains('bg-green-600'));
+            } else {
+                showError(data.message);
+            }
+        }, 300);
+
+    } catch (error) {
+        setScanning(false);
+        showError('Error al agregar dispositivo: ' + error.message);
+    }
+}
+
+// Event listeners
+scanBtn.addEventListener('click', () => runDiscovery(false));
+quickScanBtn.addEventListener('click', () => runDiscovery(true));
+
+// Allow Enter in form to trigger scan
+discoveryForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    runDiscovery(false);
+});
+</script>
+
+<style>
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>
+{% endblock %}

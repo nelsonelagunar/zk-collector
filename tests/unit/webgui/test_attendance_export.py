@@ -122,8 +122,10 @@ class TestAttendanceExport:
             assert "X-Total-Records" in response.headers
             assert int(response.headers["X-Total-Records"]) == len(sample_records)
 
-            # Parse CSV content
+            # Parse CSV content (strip BOM if present)
             content = response.data.decode("utf-8")
+            if content.startswith("﻿"):
+                content = content[1:]
             reader = csv.reader(io.StringIO(content))
             rows = list(reader)
 
@@ -323,6 +325,8 @@ class TestAttendanceExport:
 
             assert response.status_code == 200
             content = response.data.decode("utf-8")
+            if content.startswith("﻿"):
+                content = content[1:]
             reader = csv.reader(io.StringIO(content))
             rows = list(reader)
 

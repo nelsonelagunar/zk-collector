@@ -2,7 +2,7 @@ name: Docker Build & Test
 
 on:
   push:
-    branches: [master]
+    branches: [master, feature/myk-92-dashboard-modernization]
     tags: ['v*']
   pull_request:
     branches: [master]
