@@ -163,8 +163,11 @@ class Auth:
     def verify_reset_token(token: str, token_hash: str) -> bool:
         """
         Verificar token de reset contra su hash
+        Uses constant-time comparison to prevent timing attacks
         """
-        return hashlib.sha256(token.encode()).hexdigest() == token_hash
+        import hmac
+        expected_hash = hashlib.sha256(token.encode()).hexdigest()
+        return hmac.compare_digest(expected_hash, token_hash)
 
     def generate_reset_token_and_hash(self) -> tuple[str, str]:
         """

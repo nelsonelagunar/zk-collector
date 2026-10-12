@@ -25,7 +25,7 @@ auth_bp = Blueprint("auth", __name__)
 
 RESET_TOKEN_EXPIRY_HOURS = 1
 
-# Rate limiting: max 3 requests per hour per IP
+# Rate limiting: max 3 requests per hour per email
 RATE_LIMIT_WINDOW_SECONDS = 3600
 RATE_LIMIT_MAX_REQUESTS = 3
 
@@ -34,23 +34,24 @@ _rate_limit_store = defaultdict(list)
 _rate_limit_lock = Lock()
 
 
-def _check_rate_limit(ip: str) -> tuple[bool, int]:
+def _check_rate_limit(email: str) -> tuple[bool, int]:
     """
-    Check if IP has exceeded rate limit.
+    Check if email has exceeded rate limit.
     Returns (allowed, remaining_requests)
     """
     now = time.time()
+    key = email.lower().strip()
     with _rate_limit_lock:
         # Clean old entries
-        _rate_limit_store[ip] = [
-            t for t in _rate_limit_store[ip] if now - t < RATE_LIMIT_WINDOW_SECONDS
+        _rate_limit_store[key] = [
+            t for t in _rate_limit_store[key] if now - t < RATE_LIMIT_WINDOW_SECONDS
         ]
 
-        if len(_rate_limit_store[ip]) >= RATE_LIMIT_MAX_REQUESTS:
+        if len(_rate_limit_store[key]) >= RATE_LIMIT_MAX_REQUESTS:
             return False, 0
 
-        _rate_limit_store[ip].append(now)
-        remaining = RATE_LIMIT_MAX_REQUESTS - len(_rate_limit_store[ip])
+        _rate_limit_store[key].append(now)
+        remaining = RATE_LIMIT_MAX_REQUESTS - len(_rate_limit_store[key])
         return True, remaining
 
 
@@ -179,14 +180,17 @@ def setup():
 def forgot_password():
     """Solicitar reset de contraseña por email"""
     if request.method == "POST":
-        # Rate limiting
-        client_ip = request.remote_addr
-        allowed, remaining = _check_rate_limit(client_ip)
+        email = request.form.get("email", "").strip().lower()
+
+        if not email:
+            flash("Por favor ingresa tu email", "error")
+            return render_template("forgot_password.html")
+
+        # Rate limiting (by email)
+        allowed, remaining = _check_rate_limit(email)
         if not allowed:
             flash("Demasiadas solicitudes. Intenta de nuevo en una hora.", "error")
             return render_template("forgot_password.html"), 429
-
-        email = request.form.get("email", "").strip().lower()
 
         if not email:
             flash("Por favor ingresa tu email", "error")
