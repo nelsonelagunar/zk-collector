@@ -2,6 +2,7 @@
 Devices Routes - CRUD de dispositivos ZKTeco
 """
 
+import logging
 from datetime import datetime
 
 from flask import (
@@ -18,6 +19,8 @@ from zk import ZK
 from zk.exception import ZKError
 
 from src.zk_client.discovery import discover_devices
+
+logger = logging.getLogger(__name__)
 
 devices_bp = Blueprint("devices", __name__)
 
@@ -284,6 +287,108 @@ def api_quick_discover():
     except Exception as e:
         logger = current_app.logger
         logger.error(f"Error en quick discovery: {e}")
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@devices_bp.route("/discover", methods=["GET"])
+def discover_page():
+    """Página de descubrimiento de dispositivos en LAN"""
+    return render_template("devices/discover.html")
+
+
+@devices_bp.route("/api/devices/discover", methods=["GET"])
+def api_discover_devices_get():
+    """API endpoint GET para descubrimiento automático de dispositivos en LAN"""
+    network = request.args.get("network")  # Optional CIDR like "192.168.1.0/24"
+    timeout = float(request.args.get("timeout", 3.0))
+    retries = int(request.args.get("retries", 2))
+    fetch_details = request.args.get("fetch_details", "true").lower() == "true"
+
+    try:
+        logger.info(
+            f"Iniciando descubrimiento de dispositivos (network={network}, timeout={timeout})"
+        )
+
+        devices = discover_devices(
+            network=network, timeout=timeout, retries=retries, fetch_details=fetch_details
+        )
+
+        # Filter out devices already in database
+        db = current_app.db
+        existing_ips = set(d["ip"] for d in db.fetch_all("SELECT ip FROM devices"))
+
+        # Mark which devices are already configured
+        for device in devices:
+            device["already_configured"] = device["ip"] in existing_ips
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Descubiertos {len(devices)} dispositivo(s)",
+                "devices": devices,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error en descubrimiento: {e}")
+        return jsonify({"success": False, "message": f"Error en descubrimiento: {str(e)}"}), 500
+
+
+@devices_bp.route("/api/devices/add-from-discovery", methods=["POST"])
+def api_add_from_discovery():
+    """API endpoint para agregar dispositivo desde descubrimiento"""
+    data = request.get_json()
+
+    if not data:
+        return jsonify({"success": False, "message": "Datos requeridos"}), 400
+
+    required_fields = ["ip", "name"]
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({"success": False, "message": f"Campo requerido: {field}"}), 400
+
+    try:
+        db = current_app.db
+
+        # Check if device already exists
+        existing = db.fetch_one("SELECT id FROM devices WHERE ip = ?", (data["ip"],))
+        if existing:
+            return jsonify({"success": False, "message": "Ya existe un dispositivo con esta IP"}), 409
+
+        # Create device with pre-filled config from discovery
+        device_data = {
+            "name": data["name"],
+            "address": data["ip"],
+            "port": data.get("port", 4370),
+            "password": data.get("password", 0),
+            "timeout": data.get("timeout", 5),
+            "protocol": data.get("protocol", "tcp"),
+            "location": data.get("location", ""),
+            "zone": data.get("zone", ""),
+            "status": "unknown",
+            "is_enabled": 1,
+            "mac": data.get("mac", ""),
+            "model": data.get("model", ""),
+            "firmware_version": data.get("firmware", ""),
+            "serial_number": data.get("serial", ""),
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+        }
+
+        device_id = db.insert("devices", device_data)
+
+        logger.info(f"Dispositivo agregado desde descubrimiento: {data['name']} ({data['ip']})")
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f'Dispositivo "{data["name"]}" agregado exitosamente',
+                "device_id": device_id,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error agregando dispositivo desde descubrimiento: {e}")
         return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
 
 
