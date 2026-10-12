@@ -19,7 +19,7 @@ from src.webgui.routes.auth import reset_rate_limit_store
 def app(tmp_path):
     """Create a Flask app for testing"""
     db_path = tmp_path / "data" / "webgui.db"
-    buffer_db_path = tmp_path / "data" / "buffer.db"
+    _ = tmp_path / "data" / "buffer.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     test_dir = Path(__file__).parent
@@ -219,7 +219,7 @@ class TestAuthPasswordReset:
 
         assert response.status_code == 302  # Redirect to login
         # Should show success message for security (no user enumeration)
-        with client.session_transaction() as sess:
+        with client.session_transaction():
             pass  # Flash messages not easily testable in this setup
 
     def test_forgot_password_post_existing_email_no_smtp(self, client, test_user, app):
@@ -293,7 +293,7 @@ class TestAuthPasswordReset:
         token, token_hash = auth_instance.generate_reset_token_and_hash()
         expires_at = (datetime.now() + timedelta(hours=1)).isoformat()
 
-        token_id = app.db.insert(
+        app.db.insert(
             "password_reset_tokens",
             {
                 "user_id": test_user["id"],
@@ -408,7 +408,7 @@ class TestAuthAPIEndpoints:
     def test_api_forgot_password_rate_limit(self, api_client):
         """Test API forgot password rate limiting"""
         # Make 3 requests (limit is 3 per hour)
-        for i in range(3):
+        for _ in range(3):
             response = api_client.post(
                 "/auth/api/forgot-password", json={"email": "test@example.com"}
             )
@@ -539,13 +539,20 @@ class TestPasswordResetIntegration:
     def test_forgot_password_sends_email_when_smtp_configured(self, client, test_user, app):
         """Test POST /auth/forgot-password sends email via SMTP when configured"""
         # Configure SMTP in system_config (use update since migration creates default entries)
-        app.db.update("system_config", {"value": "smtp.example.com"}, "key = ?", ("smtp_host",))
-        app.db.update("system_config", {"value": "587"}, "key = ?", ("smtp_port",))
-        app.db.update("system_config", {"value": "noreply@example.com"}, "key = ?", ("smtp_username",))
-        app.db.update("system_config", {"value": "smtp-password"}, "key = ?", ("smtp_password",))
-        app.db.update("system_config", {"value": "noreply@example.com"}, "key = ?", ("smtp_from_email",))
-        app.db.update("system_config", {"value": "true"}, "key = ?", ("smtp_use_tls",))
-        app.db.update("system_config", {"value": "true"}, "key = ?", ("smtp_configured",))
+        app.db.update("system_config", {"value": "smtp.example.com"},
+                      "key = ?", ("smtp_host",))
+        app.db.update("system_config", {"value": "587"},
+                      "key = ?", ("smtp_port",))
+        app.db.update("system_config", {"value": "noreply@example.com"},
+                      "key = ?", ("smtp_username",))
+        app.db.update("system_config", {"value": "smtp-password"},
+                      "key = ?", ("smtp_password",))
+        app.db.update("system_config", {"value": "noreply@example.com"},
+                      "key = ?", ("smtp_from_email",))
+        app.db.update("system_config", {"value": "true"},
+                      "key = ?", ("smtp_use_tls",))
+        app.db.update("system_config", {"value": "true"},
+                      "key = ?", ("smtp_configured",))
 
         # Mock the SMTP connection
         with patch("smtplib.SMTP") as mock_smtp_class:
@@ -578,13 +585,20 @@ class TestPasswordResetIntegration:
     def test_forgot_password_smtp_failure_handles_gracefully(self, client, test_user, app):
         """Test SMTP failure falls back gracefully (doesn't crash, logs error)"""
         # Configure SMTP (update existing migration defaults)
-        app.db.update("system_config", {"value": "smtp.example.com"}, "key = ?", ("smtp_host",))
-        app.db.update("system_config", {"value": "587"}, "key = ?", ("smtp_port",))
-        app.db.update("system_config", {"value": "noreply@example.com"}, "key = ?", ("smtp_username",))
-        app.db.update("system_config", {"value": "smtp-password"}, "key = ?", ("smtp_password",))
-        app.db.update("system_config", {"value": "noreply@example.com"}, "key = ?", ("smtp_from_email",))
-        app.db.update("system_config", {"value": "true"}, "key = ?", ("smtp_use_tls",))
-        app.db.update("system_config", {"value": "true"}, "key = ?", ("smtp_configured",))
+        app.db.update("system_config", {"value": "smtp.example.com"},
+                      "key = ?", ("smtp_host",))
+        app.db.update("system_config", {"value": "587"},
+                      "key = ?", ("smtp_port",))
+        app.db.update("system_config", {"value": "noreply@example.com"},
+                      "key = ?", ("smtp_username",))
+        app.db.update("system_config", {"value": "smtp-password"},
+                      "key = ?", ("smtp_password",))
+        app.db.update("system_config", {"value": "noreply@example.com"},
+                      "key = ?", ("smtp_from_email",))
+        app.db.update("system_config", {"value": "true"},
+                      "key = ?", ("smtp_use_tls",))
+        app.db.update("system_config", {"value": "true"},
+                      "key = ?", ("smtp_configured",))
 
         # Mock SMTP to raise an exception
         with patch("smtplib.SMTP") as mock_smtp_class:
@@ -605,13 +619,20 @@ class TestPasswordResetIntegration:
 
     def test_forgot_password_ssl_smtp(self, client, test_user, app):
         """Test POST /auth/forgot-password works with SSL SMTP (port 465)"""
-        app.db.update("system_config", {"value": "smtp.example.com"}, "key = ?", ("smtp_host",))
-        app.db.update("system_config", {"value": "465"}, "key = ?", ("smtp_port",))
-        app.db.update("system_config", {"value": "noreply@example.com"}, "key = ?", ("smtp_username",))
-        app.db.update("system_config", {"value": "smtp-password"}, "key = ?", ("smtp_password",))
-        app.db.update("system_config", {"value": "noreply@example.com"}, "key = ?", ("smtp_from_email",))
-        app.db.update("system_config", {"value": "false"}, "key = ?", ("smtp_use_tls",))
-        app.db.update("system_config", {"value": "true"}, "key = ?", ("smtp_configured",))
+        app.db.update("system_config", {"value": "smtp.example.com"},
+                      "key = ?", ("smtp_host",))
+        app.db.update("system_config", {"value": "465"},
+                      "key = ?", ("smtp_port",))
+        app.db.update("system_config", {"value": "noreply@example.com"},
+                      "key = ?", ("smtp_username",))
+        app.db.update("system_config", {"value": "smtp-password"},
+                      "key = ?", ("smtp_password",))
+        app.db.update("system_config", {"value": "noreply@example.com"},
+                      "key = ?", ("smtp_from_email",))
+        app.db.update("system_config", {"value": "false"},
+                      "key = ?", ("smtp_use_tls",))
+        app.db.update("system_config", {"value": "true"},
+                      "key = ?", ("smtp_configured",))
 
         with patch("smtplib.SMTP_SSL") as mock_smtp_ssl_class:
             mock_server = MagicMock()
@@ -630,13 +651,20 @@ class TestPasswordResetIntegration:
     def test_full_password_reset_flow_api(self, api_client, test_user, app):
         """Test complete password reset flow via API endpoints with mock SMTP"""
         # Configure SMTP (update existing migration defaults)
-        app.db.update("system_config", {"value": "smtp.example.com"}, "key = ?", ("smtp_host",))
-        app.db.update("system_config", {"value": "587"}, "key = ?", ("smtp_port",))
-        app.db.update("system_config", {"value": "noreply@example.com"}, "key = ?", ("smtp_username",))
-        app.db.update("system_config", {"value": "smtp-password"}, "key = ?", ("smtp_password",))
-        app.db.update("system_config", {"value": "noreply@example.com"}, "key = ?", ("smtp_from_email",))
-        app.db.update("system_config", {"value": "true"}, "key = ?", ("smtp_use_tls",))
-        app.db.update("system_config", {"value": "true"}, "key = ?", ("smtp_configured",))
+        app.db.update("system_config", {"value": "smtp.example.com"},
+                      "key = ?", ("smtp_host",))
+        app.db.update("system_config", {"value": "587"},
+                      "key = ?", ("smtp_port",))
+        app.db.update("system_config", {"value": "noreply@example.com"},
+                      "key = ?", ("smtp_username",))
+        app.db.update("system_config", {"value": "smtp-password"},
+                      "key = ?", ("smtp_password",))
+        app.db.update("system_config", {"value": "noreply@example.com"},
+                      "key = ?", ("smtp_from_email",))
+        app.db.update("system_config", {"value": "true"},
+                      "key = ?", ("smtp_use_tls",))
+        app.db.update("system_config", {"value": "true"},
+                      "key = ?", ("smtp_configured",))
 
         with patch("smtplib.SMTP") as mock_smtp_class:
             mock_server = MagicMock()
@@ -652,7 +680,8 @@ class TestPasswordResetIntegration:
 
             # Step 2: Get the token from DB
             token_record = app.db.fetch_one(
-                "SELECT id, token_hash FROM password_reset_tokens WHERE user_id = ? AND used_at IS NULL",
+                "SELECT id, token_hash FROM password_reset_tokens "
+                "WHERE user_id = ? AND used_at IS NULL",
                 (test_user["id"],),
             )
             assert token_record is not None
@@ -682,7 +711,9 @@ class TestPasswordResetIntegration:
             assert "Contraseña restablecida exitosamente" in data["message"]
 
             # Verify password was updated
-            user = app.db.fetch_one("SELECT password_hash FROM users WHERE id = ?", (test_user["id"],))
+            user = app.db.fetch_one(
+                "SELECT password_hash FROM users WHERE id = ?", (test_user["id"],)
+            )
             assert auth.verify_password(new_password, user["password_hash"]) is True
 
             # Verify token was invalidated
@@ -772,7 +803,7 @@ class TestSecurityHardening:
     def test_rate_limit_per_email_not_ip(self, api_client):
         """Test rate limiting is by email, not IP"""
         # 3 requests with same email should hit limit
-        for i in range(3):
+        for _ in range(3):
             response = api_client.post(
                 "/auth/api/forgot-password", json={"email": "test@example.com"}
             )

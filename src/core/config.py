@@ -99,12 +99,12 @@ class Config:
             # Aplicar valores por defecto del schema
             self._apply_defaults()
 
-        except FileNotFoundError:
-            raise ConfigError(f"Archivo no encontrado: {self.config_path}")
+        except FileNotFoundError as e:
+            raise ConfigError(f"Archivo no encontrado: {self.config_path}") from e
         except yaml.YAMLError as e:
-            raise ConfigError(f"Error parseando YAML: {e}")
+            raise ConfigError(f"Error parseando YAML: {e}") from e
         except Exception as e:
-            raise ConfigError(f"Error cargando configuración: {e}")
+            raise ConfigError(f"Error cargando configuración: {e}") from e
 
     def _validate(self):
         """Validar configuración contra schema"""
@@ -162,7 +162,8 @@ class Config:
                             device["password"] = decrypted
                     except Exception as e:
                         logger.warning(
-                            f"No se pudo desencriptar password del dispositivo {device.get('ip', 'unknown')}: {e}"
+                            "No se pudo desencriptar password del dispositivo "
+                            f"{device.get('ip', 'unknown')}: {e}"
                         )
 
     def _looks_encrypted(self, value: str) -> bool:
@@ -194,9 +195,8 @@ class Config:
 
             if "fields" in schema:
                 for field, field_schema in schema["fields"].items():
-                    if field not in self.config[section]:
-                        if "default" in field_schema:
-                            self.config[section][field] = field_schema["default"]
+                    if field not in self.config[section] and "default" in field_schema:
+                        self.config[section][field] = field_schema["default"]
 
             # Apply defaults for list items
             if schema.get("type") == "list" and "item_schema" in schema:
@@ -218,7 +218,7 @@ class Config:
 
         for k in keys:
             if isinstance(value, dict):
-                value = value.get(k)
+                value = value.get(k)  # type: ignore[assignment]
                 if value is None:
                     return default
             elif isinstance(value, list):

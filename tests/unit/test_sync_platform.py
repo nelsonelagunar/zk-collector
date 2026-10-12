@@ -61,7 +61,7 @@ class TestPlatformSyncInit:
             mock_session = Mock()
             mock_session_class.return_value = mock_session
 
-            sync = PlatformSync(
+            PlatformSync(
                 platform_url="https://test.example.com", api_key="test-key", tenant_id="test-tenant"
             )
 
@@ -483,7 +483,7 @@ class TestRetryStrategy:
             mock_session = Mock()
             mock_session_class.return_value = mock_session
 
-            sync = PlatformSync(
+            PlatformSync(
                 platform_url="https://test.example.com",
                 api_key="key",
                 tenant_id="tenant",

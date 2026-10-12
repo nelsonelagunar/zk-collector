@@ -109,10 +109,7 @@ class ZKDiscovery:
 
             # Extract MAC (6 bytes at offset 8 typically)
             # For short responses (< 14 bytes), use last 6 bytes
-            if len(data) >= 14:
-                mac_bytes = data[8:14]
-            else:
-                mac_bytes = data[-6:] if len(data) >= 6 else None
+            mac_bytes = data[8:14] if len(data) >= 14 else data[-6:] if len(data) >= 6 else None
 
             if mac_bytes is None or len(mac_bytes) != 6:
                 return None
@@ -132,7 +129,8 @@ class ZKDiscovery:
             device_name = None
 
             # Some devices include model/firmware in response
-            # Expected format: header(4) + ip(4) + mac(6) = 14 bytes minimum, then text at offset 14+
+            # Expected format: header(4) + ip(4) + mac(6) = 14 bytes minimum,
+            # then text at offset 14+
             if len(data) > 14:
                 # Try to decode ASCII strings from response
                 try:
@@ -144,7 +142,7 @@ class ZKDiscovery:
                         firmware = parts[1] if len(parts) > 1 else None
                         serial = parts[2] if len(parts) > 2 else None
                         device_name = parts[3] if len(parts) > 3 else None
-                except:
+                except Exception:
                     pass
 
             return DiscoveredDevice(
@@ -200,7 +198,8 @@ class ZKDiscovery:
                                 seen_macs.add(device.mac)
                                 devices.append(device)
                                 logger.info(
-                                    f"Discovered device: {device.ip} ({device.mac}) - {device.model or 'Unknown'}"
+                                    f"Discovered device: {device.ip} ({device.mac}) - "
+                                    f"{device.model or 'Unknown'}"
                                 )
 
                         except TimeoutError:
@@ -232,7 +231,7 @@ class ZKDiscovery:
 
                 net = ipaddress.IPv4Network(network, strict=False)
                 addrs.append(str(net.broadcast_address))
-            except:
+            except Exception:
                 pass
         else:
             # Get all interface broadcast addresses

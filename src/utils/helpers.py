@@ -85,7 +85,7 @@ def get_memory_usage() -> dict[str, Any]:
     }
 
 
-def format_bytes(bytes_value: int) -> str:
+def format_bytes(bytes_value: float) -> str:
     """
     Formatear bytes a string legible
 

@@ -1,7 +1,6 @@
 """
 Integration tests for device discovery WebGUI endpoints
 """
-import os
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -15,7 +14,7 @@ from src.webgui.database import Database
 def app(tmp_path):
     """Create a Flask app for testing devices routes"""
     db_path = tmp_path / "data" / "webgui.db"
-    buffer_db_path = tmp_path / "data" / "buffer.db"
+    _ = tmp_path / "data" / "buffer.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Find template directory relative to test file
@@ -140,10 +139,17 @@ class TestDeviceDiscoveryAPI:
     def test_api_quick_discover(self, mock_discover, client):
         """Test quick discovery endpoint (UDP only)"""
         mock_discover.return_value = [
-            {"ip": "192.168.1.101", "port": 4370, "mac": "AA:BB:CC:DD:EE:FF", "already_configured": False}
+            {
+                "ip": "192.168.1.101",
+                "port": 4370,
+                "mac": "AA:BB:CC:DD:EE:FF",
+                "already_configured": False,
+            }
         ]
 
-        response = client.post("/devices/api/devices/discover/quick", json={"network": "192.168.1.0/24"})
+        response = client.post(
+            "/devices/api/devices/discover/quick", json={"network": "192.168.1.0/24"}
+        )
 
         assert response.status_code == 200
         data = response.get_json()
@@ -154,7 +160,8 @@ class TestDeviceDiscoveryAPI:
         assert kwargs.get("fetch_details") is False
 
     def test_api_add_from_discovery_success(self, client):
-        """Test POST /devices/api/devices/add-from-discovery creates device with pre-filled config"""
+        """Test POST /devices/api/devices/add-from-discovery
+        creates device with pre-filled config"""
         device_data = {
             "ip": "192.168.1.101",
             "mac": "AA:BB:CC:DD:EE:FF",
@@ -180,7 +187,9 @@ class TestDeviceDiscoveryAPI:
         assert "device_id" in data
 
         # Verify device was created in DB
-        device = client.application.db.fetch_one("SELECT * FROM devices WHERE ip = ?", ("192.168.1.101",))
+        device = client.application.db.fetch_one(
+            "SELECT * FROM devices WHERE ip = ?", ("192.168.1.101",)
+        )
         assert device is not None
         assert device["name"] == "Mi K40"
         assert device["location"] == "Recepción"
@@ -189,13 +198,17 @@ class TestDeviceDiscoveryAPI:
 
     def test_api_add_from_discovery_missing_required_fields(self, client):
         """Test add-from-discovery requires ip and name"""
-        response = client.post("/devices/api/devices/add-from-discovery", json={"name": "Test"})
+        response = client.post(
+            "/devices/api/devices/add-from-discovery", json={"name": "Test"}
+        )
         assert response.status_code == 400
         data = response.get_json()
         assert data["success"] is False
         assert "Campo requerido: ip" in data["message"]
 
-        response = client.post("/devices/api/devices/add-from-discovery", json={"ip": "192.168.1.101"})
+        response = client.post(
+            "/devices/api/devices/add-from-discovery", json={"ip": "192.168.1.101"}
+        )
         assert response.status_code == 400
         data = response.get_json()
         assert "Campo requerido: name" in data["message"]

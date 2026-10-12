@@ -81,7 +81,7 @@ class Mailer:
         try:
             if self.use_ssl:
                 context = ssl.create_default_context()
-                server = smtplib.SMTP_SSL(
+                server: smtplib.SMTP = smtplib.SMTP_SSL(
                     self.host, self.port, timeout=self.timeout, context=context
                 )
             else:
@@ -110,9 +110,11 @@ class Mailer:
         body = (
             f"Hola {username},\n\n"
             f"Recibimos una solicitud para restablecer tu contraseña.\n\n"
-            f"Visita el siguiente enlace para elegir una nueva contraseña (vence en {expiry_minutes} minutos):\n"
+            f"Visita el siguiente enlace para elegir una nueva contraseña "
+            f"(vence en {expiry_minutes} minutos):\n"
             f"{reset_url}\n\n"
-            f"Si no solicitaste este cambio, ignora este email y tu contraseña permanecerá sin cambios.\n\n"
+            f"Si no solicitaste este cambio, ignora este email y tu "
+            f"contraseña permanecerá sin cambios.\n\n"
             f"-- Attendance Collector"
         )
         html_body = f"""

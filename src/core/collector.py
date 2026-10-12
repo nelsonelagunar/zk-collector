@@ -6,6 +6,7 @@ import logging
 import os
 import time
 from datetime import datetime
+from pathlib import Path
 
 from src.buffer.repository import BufferRepository
 from src.core.config import Config
@@ -40,7 +41,7 @@ class AttendanceCollector:
             or DEFAULT_DATA_DIR + "/buffer.db"
         )
         self.buffer = BufferRepository(
-            db_path=buffer_db_path, max_records=self.config.get("buffer.max_records", 10000)
+            db_path=Path(buffer_db_path), max_records=self.config.get("buffer.max_records", 10000)
         )
 
         self.platform_sync = PlatformSync(
@@ -193,7 +194,7 @@ class AttendanceCollector:
 
         try:
             while self.running:
-                current_time = time.time()
+                time.time()
 
                 # Polling de dispositivos
                 if self._should_run(self.last_poll, self.poll_interval):

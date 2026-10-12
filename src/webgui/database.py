@@ -83,12 +83,12 @@ class Database:
 
             logger.info(f"Migraciones completadas: {len(migration_files)} archivos")
 
-    def execute(self, query: str, params: tuple = ()) -> sqlite3.Cursor:
+    def execute(self, query: str, params: tuple = ()) -> "sqlite3.Cursor":
         """Ejecutar query simple"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(query, params)
-            return cursor
+            return cursor  # type: ignore[no-any-return]
 
     def fetch_one(self, query: str, params: tuple = ()) -> dict | None:
         """Obtener un registro"""
@@ -115,7 +115,7 @@ class Database:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(query, tuple(data.values()))
-            return cursor.lastrowid
+            return cursor.lastrowid or 0  # type: ignore[return-value]
 
     def update(self, table: str, data: dict, where: str, where_params: tuple = ()) -> int:
         """Actualizar registros"""
@@ -127,7 +127,7 @@ class Database:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(query, params)
-            return cursor.rowcount
+            return cursor.rowcount or 0  # type: ignore[return-value]
 
     def delete(self, table: str, where: str, where_params: tuple = ()) -> int:
         """Eliminar registros"""
@@ -136,4 +136,4 @@ class Database:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(query, where_params)
-            return cursor.rowcount
+            return cursor.rowcount or 0  # type: ignore[return-value]

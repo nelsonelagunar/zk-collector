@@ -31,7 +31,7 @@ def generate_key() -> str:
     return Fernet.generate_key().decode()
 
 
-def derive_key(password: str, salt: bytes = None) -> tuple:
+def derive_key(password: str, salt: bytes | None = None) -> tuple:
     """
     Derivar clave desde password usando PBKDF2
 
@@ -73,7 +73,7 @@ def encrypt_value(value: str, key: str) -> str:
         return encrypted.decode()
     except Exception as e:
         logger.error(f"Error encriptando: {e}")
-        raise EncryptionError(f"Error encriptando: {e}")
+        raise EncryptionError(f"Error encriptando: {e}") from e
 
 
 def decrypt_value(encrypted_value: str, key: str) -> str:
@@ -93,7 +93,7 @@ def decrypt_value(encrypted_value: str, key: str) -> str:
         return decrypted.decode()
     except Exception as e:
         logger.error(f"Error desencriptando: {e}")
-        raise EncryptionError(f"Error desencriptando: {e}")
+        raise EncryptionError(f"Error desencriptando: {e}") from e
 
 
 def encrypt_config_value(value: str) -> str:

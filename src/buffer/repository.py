@@ -70,17 +70,17 @@ class BufferRepository:
 
             # Índices para rendimiento
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_synced 
+                CREATE INDEX IF NOT EXISTS idx_synced
                 ON attendance_records(synced, timestamp)
             """)
 
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_timestamp 
+                CREATE INDEX IF NOT EXISTS idx_timestamp
                 ON attendance_records(timestamp)
             """)
 
             cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_user_id 
+                CREATE INDEX IF NOT EXISTS idx_user_id
                 ON attendance_records(user_id)
             """)
 
@@ -118,7 +118,7 @@ class BufferRepository:
             # Insertar en batch
             cursor.executemany(
                 """
-                INSERT INTO attendance_records 
+                INSERT INTO attendance_records
                 (user_id, timestamp, status, device_ip, punch_type)
                 VALUES (?, ?, ?, ?, ?)
             """,
@@ -210,7 +210,7 @@ class BufferRepository:
 
             updated = cursor.rowcount
             logger.debug(f"Marcados {updated} registros como sincronizados")
-            return updated
+            return updated or 0  # type: ignore[return-value]
 
     def mark_sync_failed(self, record_ids: list[int], max_attempts: int = 5):
         """
@@ -232,7 +232,7 @@ class BufferRepository:
                 UPDATE attendance_records
                 SET sync_attempts = sync_attempts + 1,
                     last_sync_attempt = CURRENT_TIMESTAMP,
-                    synced = CASE 
+                    synced = CASE
                         WHEN sync_attempts + 1 >= ? THEN 1
                         ELSE 0
                     END
@@ -344,7 +344,7 @@ class BufferRepository:
 
             cursor.execute(
                 """
-                INSERT INTO sync_log 
+                INSERT INTO sync_log
                 (records_synced, records_failed, status, error_message, duration_seconds)
                 VALUES (?, ?, ?, ?, ?)
             """,
@@ -400,7 +400,7 @@ class BufferRepository:
                 FROM attendance_records
                 WHERE 1=1
             """
-            params = []
+            params: list[str | int] = []
 
             if start_date:
                 query += " AND date(timestamp) >= date(?)"
@@ -412,11 +412,11 @@ class BufferRepository:
 
             if device_ip:
                 query += " AND device_ip = ?"
-                params.append(device_ip)
+                params.append(device_ip)  # type: ignore[arg-type]
 
             if user_id:
                 query += " AND user_id = ?"
-                params.append(user_id)
+                params.append(user_id)  # type: ignore[arg-type]
 
             query += " ORDER BY timestamp DESC, id DESC"
 
@@ -467,7 +467,7 @@ class BufferRepository:
             cursor = conn.cursor()
 
             query = "SELECT COUNT(*) FROM attendance_records WHERE 1=1"
-            params = []
+            params: list[str] = []
 
             if start_date:
                 query += " AND date(timestamp) >= date(?)"
@@ -486,7 +486,7 @@ class BufferRepository:
                 params.append(user_id)
 
             cursor.execute(query, params)
-            return cursor.fetchone()[0]
+            return cursor.fetchone()[0]  # type: ignore[no-any-return]
 
     def stream_attendance_records(
         self,

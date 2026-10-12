@@ -82,7 +82,7 @@ class TestBufferRepositoryInit:
     def test_init_creates_parent_directories(self, tmp_path):
         """Test initialization creates parent directories"""
         db_path = tmp_path / "subdir" / "nested" / "test.db"
-        repo = BufferRepository(db_path, max_records=100)
+        BufferRepository(db_path, max_records=100)
 
         assert db_path.exists()
         assert db_path.parent.exists()
@@ -114,7 +114,8 @@ class TestAddRecords:
         with temp_db.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT user_id, timestamp, status, device_ip, punch_type, synced FROM attendance_records ORDER BY id"
+                "SELECT user_id, timestamp, status, device_ip, "
+                "punch_type, synced FROM attendance_records ORDER BY id"
             )
             rows = cursor.fetchall()
 
@@ -471,8 +472,9 @@ class TestSyncLog:
                 cursor = conn.cursor()
                 cursor.execute(
                     """
-                    INSERT INTO sync_log 
-                    (records_synced, records_failed, status, error_message, duration_seconds, timestamp)
+                    INSERT INTO sync_log
+                    (records_synced, records_failed, status, error_message,
+                     duration_seconds, timestamp)
                     VALUES (?, ?, ?, ?, ?, ?)
                 """,
                     (i, 0, "success", None, 1.0, (base_time + timedelta(seconds=i)).isoformat()),

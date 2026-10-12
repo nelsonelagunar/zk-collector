@@ -62,7 +62,7 @@ def create_device():
 
         # Guardar en DB
         db = current_app.db
-        device_id = db.insert("devices", data)
+        db.insert("devices", data)
 
         flash(f'Dispositivo "{data["name"]}" creado exitosamente', "success")
         return redirect(url_for("devices.list_devices"))
@@ -353,7 +353,10 @@ def api_add_from_discovery():
         # Check if device already exists
         existing = db.fetch_one("SELECT id FROM devices WHERE ip = ?", (data["ip"],))
         if existing:
-            return jsonify({"success": False, "message": "Ya existe un dispositivo con esta IP"}), 409
+            return (
+                jsonify({"success": False, "message": "Ya existe un dispositivo con esta IP"}),
+                409,
+            )
 
         # Create device with pre-filled config from discovery
         device_data = {

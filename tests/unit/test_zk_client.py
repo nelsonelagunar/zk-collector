@@ -287,7 +287,7 @@ class TestZKClientGetAttendance:
         mock_att.status = 0
         client.zk.get_attendance.return_value = [mock_att]
 
-        records = client.get_attendance(clear_after_read=True)
+        client.get_attendance(clear_after_read=True)
 
         client.zk.clear_attendance.assert_called_once()
 
@@ -298,7 +298,7 @@ class TestZKClientGetAttendance:
         client.zk = Mock()
         client.zk.get_attendance.return_value = []
 
-        records = client.get_attendance(disable_device=False)
+        client.get_attendance(disable_device=False)
 
         client.zk.disable_device.assert_not_called()
         client.zk.enable_device.assert_not_called()

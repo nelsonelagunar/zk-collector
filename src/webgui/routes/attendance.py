@@ -203,7 +203,7 @@ def _export_xlsx_streaming(repo, start_date, end_date, device_ip, user_id, filen
     # Headers
     headers = ["ID", "Usuario", "Fecha/Hora", "Estado", "Dispositivo", "Tipo Marca", "Sincronizado"]
     header_row = []
-    for col_idx, header in enumerate(headers, 1):
+    for _col_idx, header in enumerate(headers, 1):
         cell = WriteOnlyCell(ws, value=header)
         cell.font = header_font
         cell.fill = header_fill
@@ -237,7 +237,7 @@ def _export_xlsx_streaming(repo, start_date, end_date, device_ip, user_id, filen
             ]
 
             row_cells = []
-            for col_idx, value in enumerate(row_data, 1):
+            for _col_idx, value in enumerate(row_data, 1):
                 cell = WriteOnlyCell(ws, value=value)
                 cell.border = thin_border
                 row_cells.append(cell)

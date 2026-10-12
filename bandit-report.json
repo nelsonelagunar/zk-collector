@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-10-12T18:54:46Z",
+  "generated_at": "2026-10-12T20:14:39Z",
   "metrics": {
     "_totals": {
       "CONFIDENCE.HIGH": 4,
@@ -11,7 +11,7 @@
       "SEVERITY.LOW": 4,
       "SEVERITY.MEDIUM": 7,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 3722,
+      "loc": 3736,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -89,7 +89,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 172,
+      "loc": 173,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -128,7 +128,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 1,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 172,
+      "loc": 176,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -297,7 +297,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 122,
+      "loc": 124,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -375,7 +375,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 344,
+      "loc": 350,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -388,7 +388,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 303,
+      "loc": 306,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -453,7 +453,7 @@
       "SEVERITY.LOW": 2,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 243,
+      "loc": 241,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -498,7 +498,7 @@
       "test_name": "hardcoded_sql_expressions"
     },
     {
-      "code": "230             cursor.execute(\n231                 f\"\"\"\n232                 UPDATE attendance_records\n233                 SET sync_attempts = sync_attempts + 1,\n234                     last_sync_attempt = CURRENT_TIMESTAMP,\n235                     synced = CASE \n236                         WHEN sync_attempts + 1 >= ? THEN 1\n237                         ELSE 0\n238                     END\n239                 WHERE id IN ({placeholders})\n240             \"\"\",\n241                 [max_attempts] + record_ids,\n",
+      "code": "230             cursor.execute(\n231                 f\"\"\"\n232                 UPDATE attendance_records\n233                 SET sync_attempts = sync_attempts + 1,\n234                     last_sync_attempt = CURRENT_TIMESTAMP,\n235                     synced = CASE\n236                         WHEN sync_attempts + 1 >= ? THEN 1\n237                         ELSE 0\n238                     END\n239                 WHERE id IN ({placeholders})\n240             \"\"\",\n241                 [max_attempts] + record_ids,\n",
       "col_offset": 20,
       "end_col_offset": 29,
       "filename": "src/buffer/repository.py",
@@ -691,7 +691,7 @@
       "test_name": "hardcoded_password_default"
     },
     {
-      "code": "146                         device_name = parts[3] if len(parts) > 3 else None\n147                 except:\n148                     pass\n149 \n",
+      "code": "144                         device_name = parts[3] if len(parts) > 3 else None\n145                 except Exception:\n146                     pass\n147 \n",
       "col_offset": 16,
       "end_col_offset": 24,
       "filename": "src/zk_client/discovery.py",
@@ -702,17 +702,17 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Try, Except, Pass detected.",
-      "line_number": 147,
+      "line_number": 145,
       "line_range": [
-        147,
-        148
+        145,
+        146
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html",
       "test_id": "B110",
       "test_name": "try_except_pass"
     },
     {
-      "code": "234                 addrs.append(str(net.broadcast_address))\n235             except:\n236                 pass\n237         else:\n",
+      "code": "233                 addrs.append(str(net.broadcast_address))\n234             except Exception:\n235                 pass\n236         else:\n",
       "col_offset": 12,
       "end_col_offset": 20,
       "filename": "src/zk_client/discovery.py",
@@ -723,10 +723,10 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Try, Except, Pass detected.",
-      "line_number": 235,
+      "line_number": 234,
       "line_range": [
-        235,
-        236
+        234,
+        235
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html",
       "test_id": "B110",

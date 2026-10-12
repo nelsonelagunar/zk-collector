@@ -17,7 +17,7 @@ from src.buffer.repository import BufferRepository
 @pytest.fixture
 def app(tmp_path):
     """Create a Flask app for testing"""
-    db_path = tmp_path / "webgui.db"
+    tmp_path / "webgui.db"
     buffer_db_path = tmp_path / "buffer.db"
 
     app = Flask(__name__)

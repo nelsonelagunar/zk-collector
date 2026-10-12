@@ -76,7 +76,7 @@ class Auth:
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
-            "expires_in": self.token_expiry_minutes * 60,
+            "expires_in": str(self.token_expiry_minutes * 60),
         }
 
     def verify_access_token(self, token: str) -> dict | None:

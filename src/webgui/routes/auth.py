@@ -30,7 +30,7 @@ RATE_LIMIT_WINDOW_SECONDS = 3600
 RATE_LIMIT_MAX_REQUESTS = 3
 
 # In-memory rate limiter (use Redis in production for multi-worker deployments)
-_rate_limit_store = defaultdict(list)
+_rate_limit_store: dict[str, list[float]] = defaultdict(list)
 _rate_limit_lock = Lock()
 
 
@@ -72,7 +72,8 @@ def login():
         # Validar contra DB
         db = current_app.db
         user = db.fetch_one(
-            "SELECT id, username, password_hash, role, email FROM users WHERE username = ? AND is_active = 1",
+            "SELECT id, username, password_hash, role, email "
+            "FROM users WHERE username = ? AND is_active = 1",
             (username,),
         )
 
@@ -254,14 +255,16 @@ def forgot_password():
                 # Sin SMTP configurado - mostrar token en pantalla (solo para desarrollo/admin)
                 reset_url = url_for("auth.reset_password", token=token, _external=True)
                 flash(
-                    f"SMTP no configurado. Tu enlace de reset: {reset_url} (vence en {RESET_TOKEN_EXPIRY_HOURS}h)",
+                    f"SMTP no configurado. Tu enlace de reset: {reset_url} "
+                    f"(vence en {RESET_TOKEN_EXPIRY_HOURS}h)",
                     "info",
                 )
 
         else:
             # Por seguridad, siempre mostrar éxito aunque el email no exista
             flash(
-                "Si el email existe en el sistema, recibirás instrucciones para restablecer tu contraseña",
+                "Si el email existe en el sistema, recibirás instrucciones "
+                "para restablecer tu contraseña",
                 "success",
             )
 
@@ -273,8 +276,8 @@ def forgot_password():
 @auth_bp.route("/reset-password/<token>", methods=["GET", "POST"])
 def reset_password(token: str):
     """Formulario para nueva contraseña usando token"""
-    db = current_app.db
-    auth = current_app.auth
+    db = current_app.db  # type: ignore[attr-defined]
+    auth = current_app.auth  # type: ignore[attr-defined]
 
     # Validar token: buscar hash y verificar expiración
     token_hash = auth.hash_reset_token(token)
@@ -411,7 +414,10 @@ def api_forgot_password():
     return jsonify(
         {
             "success": True,
-            "message": "Si el email existe, recibirás instrucciones para restablecer tu contraseña.",
+            "message": (
+                "Si el email existe, recibirás instrucciones "
+                "para restablecer tu contraseña."
+            ),
         }
     )
 

@@ -143,23 +143,26 @@ class Application:
 
     def _validate_config(self) -> bool:
         """Validar configuración crítica"""
+        if self.config is None or self.logger is None:
+            return False
+
         required = ["platform.url", "platform.api_key", "platform.tenant_id", "devices"]
 
         for key in required:
             value = self.config.get(key)
             if value is None or (isinstance(value, str) and not value.strip()):
-                self.logger.error(f"Configuración requerida faltante: {key}")
+                self.logger.error(f"Configuración requerida faltante: {key}")  # type: ignore[union-attr]
                 return False
 
         # Validar dispositivos
         devices = self.config.get("devices", [])
         if not devices:
-            self.logger.error("No hay dispositivos configurados")
+            self.logger.error("No hay dispositivos configurados")  # type: ignore[union-attr]
             return False
 
         for i, device in enumerate(devices):
             if "ip" not in device:
-                self.logger.error(f"Dispositivo {i + 1} no tiene IP configurada")
+                self.logger.error(f"Dispositivo {i + 1} no tiene IP configurada")  # type: ignore[union-attr]
                 return False
 
         return True
@@ -188,9 +191,11 @@ class Application:
         try:
             self.collector.run()
         except KeyboardInterrupt:
-            self.logger.info("Interrupción por teclado")
+            if self.logger:
+                self.logger.info("Interrupción por teclado")
         except Exception as e:
-            self.logger.error(f"Error en ejecución: {e}", exc_info=True)
+            if self.logger:
+                self.logger.error(f"Error en ejecución: {e}", exc_info=True)
             sys.exit(1)
         finally:
             self.shutdown()

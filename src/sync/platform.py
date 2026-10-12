@@ -99,7 +99,7 @@ class PlatformSync:
             }
 
             # Enviar request
-            response = self.session.post(endpoint, json=payload, timeout=self.timeout)
+            response = self.session.post(endpoint, json=payload, timeout=self.timeout)  # type: ignore[arg-type]
 
             # Verificar respuesta
             response.raise_for_status()
@@ -145,7 +145,7 @@ class PlatformSync:
         }
 
         try:
-            response = self.session.post(endpoint, json=payload, timeout=10)
+            response = self.session.post(endpoint, json=payload, timeout=10)  # type: ignore[arg-type]
             response.raise_for_status()
             logger.debug("Heartbeat enviado exitosamente")
             return True
@@ -167,7 +167,7 @@ class PlatformSync:
             response.raise_for_status()
             config = response.json()
             logger.info("Configuración obtenida de plataforma")
-            return config
+            return config  # type: ignore[no-any-return]
         except Exception as e:
             logger.error(f"Error obteniendo configuración: {e}")
             return None
@@ -187,7 +187,7 @@ class PlatformSync:
             data = response.json()
             version = data.get("latest_version")
             logger.debug(f"Versión disponible: {version}")
-            return version
+            return version  # type: ignore[no-any-return]
         except Exception as e:
             logger.error(f"Error verificando versión: {e}")
             return None
@@ -236,7 +236,7 @@ class PlatformSync:
         }
 
         try:
-            response = self.session.post(endpoint, json=payload, timeout=10)
+            response = self.session.post(endpoint, json=payload, timeout=10)  # type: ignore[arg-type]
             response.raise_for_status()
             return True
         except Exception as e:

@@ -21,7 +21,7 @@ class TestZKClient:
         assert client.ip == "192.168.1.101"
         assert client.port == 4370
         assert client.timeout == 5
-        assert client.connected == False
+        assert not client.connected
 
     def test_connect_success(self):
         """Test de conexión exitosa"""
@@ -33,8 +33,8 @@ class TestZKClient:
 
             result = client.connect()
 
-            assert result == True
-            assert client.connected == True
+            assert result
+            assert client.connected
             mock_zk.assert_called_once()
             mock_instance.connect.assert_called_once()
 
@@ -49,8 +49,8 @@ class TestZKClient:
 
             result = client.connect(max_retries=1)
 
-            assert result == False
-            assert client.connected == False
+            assert not result
+            assert not client.connected
 
     def test_disconnect(self):
         """Test de desconexión"""
@@ -60,7 +60,7 @@ class TestZKClient:
 
         client.disconnect()
 
-        assert client.connected == False
+        assert not client.connected
         assert client.zk is None
 
     def test_get_attendance(self):
