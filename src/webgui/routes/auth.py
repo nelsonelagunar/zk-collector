@@ -337,9 +337,14 @@ def reset_password(token: str):
 @auth_bp.route("/api/forgot-password", methods=["POST"])
 def api_forgot_password():
     """API: Solicitar reset de contraseña por email"""
-    # Rate limiting: max 3 requests per hour per IP
-    client_ip = request.remote_addr
-    allowed, remaining = _check_rate_limit(client_ip)
+    data = request.get_json() or {}
+    email = data.get("email", "").strip().lower()
+
+    if not email:
+        return jsonify({"success": False, "message": "Email es requerido"}), 400
+
+    # Rate limiting (by email)
+    allowed, remaining = _check_rate_limit(email)
     if not allowed:
         return jsonify(
             {
@@ -348,12 +353,6 @@ def api_forgot_password():
                 "retry_after": RATE_LIMIT_WINDOW_SECONDS,
             }
         ), 429
-
-    data = request.get_json() or {}
-    email = data.get("email", "").strip().lower()
-
-    if not email:
-        return jsonify({"success": False, "message": "Email es requerido"}), 400
 
     db = current_app.db
     auth = current_app.auth
@@ -371,15 +370,43 @@ def api_forgot_password():
         # Expira en 1 hora
         expires_at = datetime.now() + timedelta(hours=1)
 
+        # Invalidar tokens anteriores no usados
+        db.execute(
+            "UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP "
+            "WHERE user_id = ? AND used_at IS NULL",
+            (user["id"],),
+        )
+
         # Guardar token en BD
         db.insert(
             "password_reset_tokens",
             {"user_id": user["id"], "token_hash": token_hash, "expires_at": expires_at.isoformat()},
         )
 
-        # TODO: Enviar email
-        logger = current_app.logger
-        logger.info(f"API Password reset token for {user['username']} ({email}): {token}")
+        # Enviar email si SMTP está configurado
+        smtp_config = db.fetch_all(
+            "SELECT key, value FROM system_config WHERE key LIKE 'smtp_%'"
+        )
+        smtp_dict = {row["key"]: row["value"] for row in smtp_config}
+
+        mailer = Mailer.from_config(smtp_dict)
+        if mailer:
+            reset_url = url_for("auth.reset_password", token=token, _external=True)
+            try:
+                mailer.send_password_reset(
+                    user["email"], user["username"], reset_url, RESET_TOKEN_EXPIRY_HOURS * 60
+                )
+                logger = current_app.logger
+                logger.info(f"Password reset email sent to {user['username']} ({email})")
+            except Exception as e:
+                logger = current_app.logger
+                logger.error(f"Error enviando email de reset: {e}")
+                # Still return success to prevent enumeration
+        else:
+            # Sin SMTP configurado - log token for admin fallback
+            reset_url = url_for("auth.reset_password", token=token, _external=True)
+            logger = current_app.logger
+            logger.info(f"SMTP not configured. Reset URL for {user['username']}: {reset_url}")
 
     return jsonify(
         {
@@ -392,18 +419,6 @@ def api_forgot_password():
 @auth_bp.route("/api/reset-password", methods=["POST"])
 def api_reset_password():
     """API: Restablecer contraseña con token"""
-    # Rate limiting: max 3 requests per hour per IP
-    client_ip = request.remote_addr
-    allowed, remaining = _check_rate_limit(client_ip)
-    if not allowed:
-        return jsonify(
-            {
-                "success": False,
-                "message": "Demasiadas solicitudes. Intenta de nuevo en una hora.",
-                "retry_after": RATE_LIMIT_WINDOW_SECONDS,
-            }
-        ), 429
-
     data = request.get_json() or {}
     token = data.get("token", "")
     password = data.get("password", "")
@@ -423,7 +438,7 @@ def api_reset_password():
     if not is_strong:
         return jsonify({"success": False, "message": "Contraseña débil", "errors": pwd_errors}), 400
 
-    # Verificar token
+    # Verificar token - use constant-time comparison via auth.verify_reset_token
     token_hash = auth.hash_reset_token(token)
 
     reset_token = db.fetch_one(
@@ -436,6 +451,10 @@ def api_reset_password():
 
     if not reset_token:
         return jsonify({"success": False, "message": "Token inválido o ya utilizado"}), 400
+
+    # Verify token with constant-time comparison
+    if not auth.verify_reset_token(token, token_hash):
+        return jsonify({"success": False, "message": "Token inválido"}), 400
 
     # Verificar expiración
     expires_at = datetime.fromisoformat(reset_token["expires_at"])

@@ -141,9 +141,14 @@ def export_attendance():
 
 
 def _export_csv_streaming(repo, start_date, end_date, device_ip, user_id, filename, total_records):
-    """Exportar CSV con streaming para datasets grandes"""
+    """Exportar CSV con streaming para datasets grandes
+
+    UTF-8 BOM included for Excel compatibility with special characters.
+    """
 
     def generate():
+        # UTF-8 BOM for Excel compatibility
+        yield "﻿"
         # Headers
         yield "ID,Usuario,Fecha/Hora,Estado,Dispositivo,Tipo Marca,Sincronizado\n"
 
