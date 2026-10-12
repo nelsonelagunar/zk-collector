@@ -21,6 +21,8 @@ cp .env.example .env
 docker-compose up -d
 ```
 
+**Note:** The container runs both the collector (polls ZKTeco devices) and the web dashboard via supervisord. Persistent volumes: `zk-data` (SQLite databases) and `zk-logs` (application logs).
+
 ### Option 1b: Docker (Standalone)
 
 ```bash
@@ -29,6 +31,7 @@ docker run -d \
   --name zk-collector \
   -p 8080:8080 \
   -v zk-data:/app/data \
+  -v zk-logs:/app/logs \
   -e ZK_ADMIN_PASSWORD=your-secure-password \
   -e ENCRYPTION_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())") \
   ghcr.io/nelsonelagunar/zk-collector:latest

@@ -61,10 +61,13 @@ docker run -d \
   --name zk-collector \
   -p 8080:8080 \
   -v zk-data:/app/data \
+  -v zk-logs:/app/logs \
   -e ZK_ADMIN_PASSWORD=changeme \
   -e ENCRYPTION_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())") \
   ghcr.io/nelsonelagunar/zk-collector:latest
 ```
+
+**Note:** The container now runs both the collector (polls ZKTeco devices) and the web dashboard via supervisord. Both processes are managed with auto-restart policies and health checks.
 
 ### Raspberry Pi (Bare Metal)
 

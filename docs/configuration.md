@@ -9,25 +9,25 @@ ZK-Collector is configured via environment variables and YAML files. This docume
 | Variable | Description | Example | Default |
 |----------|-------------|---------|---------|
 | `ZK_ADMIN_PASSWORD` | Initial admin password for web dashboard | `SecurePass123!` | *(none — must be set)* |
+| `ENCRYPTION_KEY` | Fernet encryption key for sensitive config values | `gAAAAAB...` | *(none — must be set)* |
 
 ### Optional
 
 | Variable | Description | Example | Default |
 |----------|-------------|---------|---------|
-| `CONFIG_PATH` | Path to devices YAML config file | `/app/configs/devices.yaml` | `/etc/attendance/collector.yaml` |
+| `CONFIG_PATH` | Path to devices YAML config file | `/app/configs/collector.yaml` | `/etc/attendance/collector.yaml` |
 | `DATA_DIR` | SQLite database directory | `/app/data` | `/opt/attendance/data` |
-| `LOG_DIR` | Log file directory | `/var/log/attendance` | `/var/log/attendance` |
+| `LOG_DIR` | Log file directory | `/app/logs` | `/var/log/attendance` |
 | `WEBGUI_SECRET_KEY` | Flask session secret key | `your-32-char-hex-string` | Random hex (auto-generated) |
-| `FERNET_KEY` | Encryption key for sensitive config values | `gAAAAAB...` | *(none — plain text in YAML)* |
-| `DEBUG` | Enable debug mode | `true` / `false` | `false` |
 | `LOG_LEVEL` | Logging verbosity | `DEBUG` / `INFO` / `WARNING` / `ERROR` | `INFO` |
+| `LOG_FORMAT` | Log format | `text` / `json` | `text` |
 
 ### Platform Integration (Optional)
 
 | Variable | Description | Example | Default |
 |----------|-------------|---------|---------|
-| `PLATFORM_URL` | Cloud sync API endpoint | `https://api.example.com` | *(none)* |
-| `PLATFORM_API_KEY` | API key for cloud platform | `your-api-key` | *(none — plain text in YAML)* |
+| `ZK_SYNC_URL` | Cloud sync API endpoint | `https://api.example.com` | *(none)* |
+| `ZK_SYNC_TOKEN` | API token for cloud platform | `eyJhbGciOiJIUzI1NiIs...` | *(none)* |
 | `TENANT_ID` | Tenant identifier for multi-tenant sync | `tenant-001` | *(none)* |
 | `SYNC_INTERVAL` | Seconds between sync attempts | `60` | `60` |
 
@@ -312,6 +312,7 @@ services:
       - "8080:8080"
     volumes:
       - zk-data:/app/data
+      - zk-logs:/app/logs
       - ./configs:/app/configs:ro
     environment:
       # Required
@@ -329,6 +330,7 @@ services:
 
 volumes:
   zk-data:
+  zk-logs:
 ```
 
 ### .env file (from .env.example)
