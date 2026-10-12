@@ -3,15 +3,14 @@ Repositorio para Buffer Local SQLite
 Manejo de registros de asistencia en disco
 """
 
-import sqlite3
 import logging
-from typing import List, Optional, Dict, Any, Generator
-from datetime import datetime, timedelta
+import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from .models import AttendanceRecordDB
-
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +18,7 @@ logger = logging.getLogger(__name__)
 class BufferRepository:
     """
     Repositorio para almacenamiento local de registros de asistencia
-    
+
     Características:
     - Almacenamiento offline (hasta 10,000 registros)
     - Cola de sincronización pendiente
@@ -27,12 +26,12 @@ class BufferRepository:
     - Transacciones atómicas
     - Conexión thread-safe
     """
-    
+
     def __init__(self, db_path: Path, max_records: int = 10000):
         self.db_path = Path(db_path)
         self.max_records = max_records
         self._init_database()
-    
+
     @contextmanager
     def get_connection(self):
         """Context manager para conexiones SQLite"""
@@ -43,17 +42,17 @@ class BufferRepository:
             conn.commit()
         finally:
             conn.close()
-    
+
     def _init_database(self):
         """Inicializar base de datos y tablas"""
         # Crear directorio si no existe
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
+
             # Tabla de registros de asistencia
-            cursor.execute('''
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS attendance_records (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id TEXT NOT NULL,
@@ -67,26 +66,26 @@ class BufferRepository:
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
-            ''')
-            
+            """)
+
             # Índices para rendimiento
-            cursor.execute('''
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_synced 
                 ON attendance_records(synced, timestamp)
-            ''')
-            
-            cursor.execute('''
+            """)
+
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_timestamp 
                 ON attendance_records(timestamp)
-            ''')
-            
-            cursor.execute('''
+            """)
+
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_user_id 
                 ON attendance_records(user_id)
-            ''')
-            
+            """)
+
             # Tabla de log de sincronización
-            cursor.execute('''
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS sync_log (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -96,128 +95,140 @@ class BufferRepository:
                     error_message TEXT,
                     duration_seconds REAL
                 )
-            ''')
-            
+            """)
+
             logger.info(f"Base de datos inicializada: {self.db_path}")
-    
-    def add_records(self, records: List[AttendanceRecordDB]) -> int:
+
+    def add_records(self, records: list[AttendanceRecordDB]) -> int:
         """
         Agregar registros al buffer
-        
+
         Args:
             records: Lista de AttendanceRecordDB
-        
+
         Returns:
             Número de registros agregados
         """
         if not records:
             return 0
-        
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
+
             # Insertar en batch
-            cursor.executemany('''
+            cursor.executemany(
+                """
                 INSERT INTO attendance_records 
                 (user_id, timestamp, status, device_ip, punch_type)
                 VALUES (?, ?, ?, ?, ?)
-            ''', [
-                (
-                    r.user_id,
-                    r.timestamp.isoformat() if hasattr(r.timestamp, 'isoformat') else str(r.timestamp),
-                    r.status,
-                    r.device_ip,
-                    r.punch_type
-                )
-                for r in records
-            ])
-            
+            """,
+                [
+                    (
+                        r.user_id,
+                        r.timestamp.isoformat()
+                        if hasattr(r.timestamp, "isoformat")
+                        else str(r.timestamp),
+                        r.status,
+                        r.device_ip,
+                        r.punch_type,
+                    )
+                    for r in records
+                ],
+            )
+
             # Limpiar registros antiguos si excedemos el máximo
             self._cleanup_old_records(conn)
-            
+
             logger.info(f"Agregados {len(records)} registros al buffer")
             return len(records)
-    
-    def get_unsynced_records(self, limit: int = 1000) -> List[Dict]:
+
+    def get_unsynced_records(self, limit: int = 1000) -> list[dict]:
         """
         Obtener registros pendientes de sincronizar
-        
+
         Args:
             limit: Máximo de registros a retornar
-        
+
         Returns:
             Lista de registros sin sincronizar
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
-            cursor.execute('''
+
+            cursor.execute(
+                """
                 SELECT id, user_id, timestamp, status, device_ip, punch_type, synced
                 FROM attendance_records
                 WHERE synced = 0
                 ORDER BY timestamp ASC, id ASC
                 LIMIT ?
-            ''', (limit,))
-            
+            """,
+                (limit,),
+            )
+
             rows = cursor.fetchall()
-            
+
             return [
                 {
-                    'id': row['id'],
-                    'user_id': row['user_id'],
-                    'timestamp': row['timestamp'],
-                    'status': row['status'],
-                    'device_ip': row['device_ip'],
-                    'punch_type': row['punch_type'],
-                    'synced': bool(row['synced']),
+                    "id": row["id"],
+                    "user_id": row["user_id"],
+                    "timestamp": row["timestamp"],
+                    "status": row["status"],
+                    "device_ip": row["device_ip"],
+                    "punch_type": row["punch_type"],
+                    "synced": bool(row["synced"]),
                 }
                 for row in rows
             ]
-    
-    def mark_as_synced(self, record_ids: List[int]) -> int:
+
+    def mark_as_synced(self, record_ids: list[int]) -> int:
         """
         Marcar registros como sincronizados
-        
+
         Args:
             record_ids: IDs de registros a marcar
-        
+
         Returns:
             Número de registros actualizados
         """
         if not record_ids:
             return 0
-        
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
-            placeholders = ','.join('?' * len(record_ids))
-            cursor.execute(f'''
+
+            placeholders = ",".join("?" * len(record_ids))
+            cursor.execute(
+                f"""
                 UPDATE attendance_records
                 SET synced = 1,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id IN ({placeholders})
-            ''', record_ids)
-            
+            """,
+                record_ids,
+            )
+
             updated = cursor.rowcount
             logger.debug(f"Marcados {updated} registros como sincronizados")
             return updated
-    
-    def mark_sync_failed(self, record_ids: List[int], max_attempts: int = 5):
+
+    def mark_sync_failed(self, record_ids: list[int], max_attempts: int = 5):
         """
         Marcar registros como fallidos en sincronización
-        
+
         Args:
             record_ids: IDs de registros
             max_attempts: Máximo de intentos antes de descartar
         """
         if not record_ids:
             return
-        
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
-            placeholders = ','.join('?' * len(record_ids))
-            cursor.execute(f'''
+
+            placeholders = ",".join("?" * len(record_ids))
+            cursor.execute(
+                f"""
                 UPDATE attendance_records
                 SET sync_attempts = sync_attempts + 1,
                     last_sync_attempt = CURRENT_TIMESTAMP,
@@ -226,12 +237,14 @@ class BufferRepository:
                         ELSE 0
                     END
                 WHERE id IN ({placeholders})
-            ''', [max_attempts] + record_ids)
-    
+            """,
+                [max_attempts] + record_ids,
+            )
+
     def _cleanup_old_records(self, conn=None, days: int = 30):
         """
         Limpiar registros antiguos
-        
+
         Args:
             conn: Conexión SQLite (opcional, se crea una si no se proporciona)
             days: Días a mantener
@@ -239,108 +252,132 @@ class BufferRepository:
         if conn is None:
             with self.get_connection() as conn:
                 return self._cleanup_old_records(conn, days)
-        
+
         cursor = conn.cursor()
-        
+
         # Eliminar registros sincronizados mayores a N días
         cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
-        
-        cursor.execute('''
+
+        cursor.execute(
+            """
             DELETE FROM attendance_records
             WHERE synced = 1 AND timestamp < ?
-        ''', (cutoff_date,))
-        
+        """,
+            (cutoff_date,),
+        )
+
         deleted = cursor.rowcount
-        
+
         # Si aún excedemos el máximo, eliminar los más antiguos
-        cursor.execute('SELECT COUNT(*) FROM attendance_records')
+        cursor.execute("SELECT COUNT(*) FROM attendance_records")
         count = cursor.fetchone()[0]
-        
+
         if count > self.max_records:
             excess = count - self.max_records
-            cursor.execute('''
+            cursor.execute(
+                """
                 DELETE FROM attendance_records
                 WHERE id IN (
                     SELECT id FROM attendance_records
                     ORDER BY timestamp ASC
                     LIMIT ?
                 )
-            ''', (excess,))
+            """,
+                (excess,),
+            )
             deleted += cursor.rowcount
-        
+
         if deleted > 0:
             logger.info(f"Limpieza completada: {deleted} registros eliminados")
-    
-    def get_stats(self) -> Dict[str, Any]:
+
+    def get_stats(self) -> dict[str, Any]:
         """
         Obtener estadísticas del buffer
-        
+
         Returns:
             Dict con estadísticas
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
+
             # Total registros
-            cursor.execute('SELECT COUNT(*) FROM attendance_records')
+            cursor.execute("SELECT COUNT(*) FROM attendance_records")
             total = cursor.fetchone()[0]
-            
+
             # Pendientes de sync
-            cursor.execute('SELECT COUNT(*) FROM attendance_records WHERE synced = 0')
+            cursor.execute("SELECT COUNT(*) FROM attendance_records WHERE synced = 0")
             pending = cursor.fetchone()[0]
-            
+
             # Más antiguo pendiente
-            cursor.execute('''
+            cursor.execute("""
                 SELECT MIN(timestamp) FROM attendance_records WHERE synced = 0
-            ''')
+            """)
             oldest_pending = cursor.fetchone()[0]
-            
+
             # Más reciente
-            cursor.execute('SELECT MAX(timestamp) FROM attendance_records')
+            cursor.execute("SELECT MAX(timestamp) FROM attendance_records")
             newest = cursor.fetchone()[0]
-            
+
             return {
-                'total_records': total,
-                'pending_sync': pending,
-                'synced': total - pending,
-                'oldest_pending': oldest_pending,
-                'newest_record': newest,
-                'max_records': self.max_records,
-                'usage_percent': (total / self.max_records * 100) if self.max_records > 0 else 0
+                "total_records": total,
+                "pending_sync": pending,
+                "synced": total - pending,
+                "oldest_pending": oldest_pending,
+                "newest_record": newest,
+                "max_records": self.max_records,
+                "usage_percent": (total / self.max_records * 100) if self.max_records > 0 else 0,
             }
-    
-    def log_sync(self, records_synced: int, records_failed: int, status: str, 
-                 error_message: Optional[str] = None, duration_seconds: float = 0):
+
+    def log_sync(
+        self,
+        records_synced: int,
+        records_failed: int,
+        status: str,
+        error_message: str | None = None,
+        duration_seconds: float = 0,
+    ):
         """
         Log de operación de sincronización
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
-            cursor.execute('''
+
+            cursor.execute(
+                """
                 INSERT INTO sync_log 
                 (records_synced, records_failed, status, error_message, duration_seconds)
                 VALUES (?, ?, ?, ?, ?)
-            ''', (records_synced, records_failed, status, error_message, duration_seconds))
-    
-    def get_sync_history(self, limit: int = 50) -> List[Dict]:
+            """,
+                (records_synced, records_failed, status, error_message, duration_seconds),
+            )
+
+    def get_sync_history(self, limit: int = 50) -> list[dict]:
         """
         Obtener historial de sincronización
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            
-            cursor.execute('''
+
+            cursor.execute(
+                """
                 SELECT * FROM sync_log
-                ORDER BY timestamp DESC
+                ORDER BY timestamp DESC, id DESC
                 LIMIT ?
-            ''', (limit,))
-            
+            """,
+                (limit,),
+            )
+
             return [dict(row) for row in cursor.fetchall()]
-    
-    def get_attendance_records(self, start_date: Optional[str] = None, end_date: Optional[str] = None,
-                                device_ip: Optional[str] = None, user_id: Optional[str] = None,
-                                limit: Optional[int] = None, offset: int = 0) -> List[Dict]:
+
+    def get_attendance_records(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        device_ip: str | None = None,
+        user_id: str | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[dict]:
         """
         Obtener registros de asistencia con filtros de fecha, dispositivo y empleado
 
@@ -358,37 +395,37 @@ class BufferRepository:
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            query = '''
+            query = """
                 SELECT id, user_id, timestamp, status, device_ip, punch_type, synced
                 FROM attendance_records
                 WHERE 1=1
-            '''
+            """
             params = []
 
             if start_date:
-                query += ' AND timestamp >= ?'
+                query += " AND date(timestamp) >= date(?)"
                 params.append(start_date)
 
             if end_date:
-                query += ' AND timestamp <= ?'
-                params.append(end_date + ' 23:59:59')
+                query += " AND date(timestamp) <= date(?)"
+                params.append(end_date)
 
             if device_ip:
-                query += ' AND device_ip = ?'
+                query += " AND device_ip = ?"
                 params.append(device_ip)
 
             if user_id:
-                query += ' AND user_id = ?'
+                query += " AND user_id = ?"
                 params.append(user_id)
 
-            query += ' ORDER BY timestamp DESC, id DESC'
+            query += " ORDER BY timestamp DESC, id DESC"
 
             if limit:
-                query += ' LIMIT ?'
+                query += " LIMIT ?"
                 params.append(limit)
 
             if offset:
-                query += ' OFFSET ?'
+                query += " OFFSET ?"
                 params.append(offset)
 
             cursor.execute(query, params)
@@ -396,19 +433,24 @@ class BufferRepository:
 
             return [
                 {
-                    'id': row['id'],
-                    'user_id': row['user_id'],
-                    'timestamp': row['timestamp'],
-                    'status': row['status'],
-                    'device_ip': row['device_ip'],
-                    'punch_type': row['punch_type'],
-                    'synced': bool(row['synced']),
+                    "id": row["id"],
+                    "user_id": row["user_id"],
+                    "timestamp": row["timestamp"],
+                    "status": row["status"],
+                    "device_ip": row["device_ip"],
+                    "punch_type": row["punch_type"],
+                    "synced": bool(row["synced"]),
                 }
                 for row in rows
             ]
 
-    def get_attendance_count(self, start_date: Optional[str] = None, end_date: Optional[str] = None,
-                              device_ip: Optional[str] = None, user_id: Optional[str] = None) -> int:
+    def get_attendance_count(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        device_ip: str | None = None,
+        user_id: str | None = None,
+    ) -> int:
         """
         Obtener total de registros con filtros de fecha, dispositivo y empleado (para paginación)
 
@@ -424,31 +466,36 @@ class BufferRepository:
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            query = 'SELECT COUNT(*) FROM attendance_records WHERE 1=1'
+            query = "SELECT COUNT(*) FROM attendance_records WHERE 1=1"
             params = []
 
             if start_date:
-                query += ' AND timestamp >= ?'
+                query += " AND date(timestamp) >= date(?)"
                 params.append(start_date)
 
             if end_date:
-                query += ' AND timestamp <= ?'
-                params.append(end_date + ' 23:59:59')
+                query += " AND date(timestamp) <= date(?)"
+                params.append(end_date)
 
             if device_ip:
-                query += ' AND device_ip = ?'
+                query += " AND device_ip = ?"
                 params.append(device_ip)
 
             if user_id:
-                query += ' AND user_id = ?'
+                query += " AND user_id = ?"
                 params.append(user_id)
 
             cursor.execute(query, params)
             return cursor.fetchone()[0]
 
-    def stream_attendance_records(self, start_date: Optional[str] = None, end_date: Optional[str] = None,
-                                   device_ip: Optional[str] = None, user_id: Optional[str] = None,
-                                   chunk_size: int = 1000):
+    def stream_attendance_records(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        device_ip: str | None = None,
+        user_id: str | None = None,
+        chunk_size: int = 1000,
+    ):
         """
         Generador para streaming de registros grandes (evita cargar todo en memoria)
 
@@ -470,7 +517,7 @@ class BufferRepository:
                 device_ip=device_ip,
                 user_id=user_id,
                 limit=chunk_size,
-                offset=offset
+                offset=offset,
             )
 
             if not records:
@@ -486,6 +533,6 @@ class BufferRepository:
         """Limpiar todos los registros (usar con precaución)"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('DELETE FROM attendance_records')
-            cursor.execute('DELETE FROM sync_log')
+            cursor.execute("DELETE FROM attendance_records")
+            cursor.execute("DELETE FROM sync_log")
             logger.warning("Todos los registros del buffer han sido eliminados")

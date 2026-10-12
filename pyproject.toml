@@ -72,6 +72,22 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
 python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
+ignore_missing_imports = true
+disallow_untyped_defs = false
+check_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+    "zk",
+    "zk.*",
+    "openpyxl",
+    "openpyxl.*",
+    "yaml",
+    "psutil",
+    "flask",
+    "flask.*"
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

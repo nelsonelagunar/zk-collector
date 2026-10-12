@@ -2,10 +2,10 @@
 Unit tests for HealthMonitor module
 """
 
-import pytest
 import time
-from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
+
+import pytest
 
 from src.monitoring.health import HealthMonitor
 
@@ -21,26 +21,20 @@ def mock_platform_sync():
 @pytest.fixture
 def health_monitor(mock_platform_sync):
     """HealthMonitor instance with mocked dependencies"""
-    with patch('src.monitoring.health.psutil') as mock_psutil:
+    with patch("src.monitoring.health.psutil") as mock_psutil:
         # Setup psutil mocks
         mock_psutil.cpu_percent.return_value = 50.0
         mock_psutil.cpu_count.return_value = 4
         mock_psutil.virtual_memory.return_value = Mock(
-            total=8000000000,
-            available=4000000000,
-            percent=50.0
+            total=8000000000, available=4000000000, percent=50.0
         )
         mock_psutil.disk_usage.return_value = Mock(
-            total=100000000000,
-            used=50000000000,
-            free=50000000000,
-            percent=50.0
+            total=100000000000, used=50000000000, free=50000000000, percent=50.0
         )
         mock_psutil.sensors_temperatures.return_value = {}
         mock_psutil.boot_time.return_value = time.time() - 3600
 
         monitor = HealthMonitor(mock_platform_sync, interval=60)
-        monitor._psutil = mock_psutil
         yield monitor, mock_psutil
 
 
@@ -49,7 +43,7 @@ class TestHealthMonitorInit:
 
     def test_init_defaults(self, mock_platform_sync):
         """Test initialization with defaults"""
-        with patch('src.monitoring.health.psutil'):
+        with patch("src.monitoring.health.psutil"):
             monitor = HealthMonitor(mock_platform_sync)
 
             assert monitor.platform_sync == mock_platform_sync
@@ -61,7 +55,7 @@ class TestHealthMonitorInit:
 
     def test_init_custom_interval(self, mock_platform_sync):
         """Test initialization with custom interval"""
-        with patch('src.monitoring.health.psutil'):
+        with patch("src.monitoring.health.psutil"):
             monitor = HealthMonitor(mock_platform_sync, interval=60)
 
             assert monitor.interval == 60
@@ -126,41 +120,37 @@ class TestHealthMonitorCollectMetrics:
 
         metrics = monitor._collect_metrics()
 
-        assert 'timestamp' in metrics
-        assert 'cpu' in metrics
-        assert 'memory' in metrics
-        assert 'disk' in metrics
-        assert 'temperature' in metrics
-        assert 'uptime_seconds' in metrics
+        assert "timestamp" in metrics
+        assert "cpu" in metrics
+        assert "memory" in metrics
+        assert "disk" in metrics
+        assert "temperature" in metrics
+        assert "uptime_seconds" in metrics
 
-        assert metrics['cpu']['percent'] == 50.0
-        assert metrics['cpu']['count'] == 4
-        assert metrics['memory']['percent'] == 50.0
-        assert metrics['disk']['percent'] == 50.0
+        assert metrics["cpu"]["percent"] == 50.0
+        assert metrics["cpu"]["count"] == 4
+        assert metrics["memory"]["percent"] == 50.0
+        assert metrics["disk"]["percent"] == 50.0
 
     def test_collect_metrics_with_temperature(self, health_monitor):
         """Test metrics collection with temperature"""
         monitor, mock_psutil = health_monitor
 
-        mock_psutil.sensors_temperatures.return_value = {
-            'cpu_thermal': [Mock(current=45.0)]
-        }
+        mock_psutil.sensors_temperatures.return_value = {"cpu_thermal": [Mock(current=45.0)]}
 
         metrics = monitor._collect_metrics()
 
-        assert metrics['temperature'] == 45.0
+        assert metrics["temperature"] == 45.0
 
     def test_collect_metrics_raspberry_pi_temperature(self, health_monitor):
         """Test metrics collection with Raspberry Pi temperature"""
         monitor, mock_psutil = health_monitor
 
-        mock_psutil.sensors_temperatures.return_value = {
-            'bcm2835_thermal': [Mock(current=50.0)]
-        }
+        mock_psutil.sensors_temperatures.return_value = {"bcm2835_thermal": [Mock(current=50.0)]}
 
         metrics = monitor._collect_metrics()
 
-        assert metrics['temperature'] == 50.0
+        assert metrics["temperature"] == 50.0
 
     def test_collect_metrics_handles_error(self, health_monitor):
         """Test metrics collection handles errors gracefully"""
@@ -170,9 +160,9 @@ class TestHealthMonitorCollectMetrics:
 
         metrics = monitor._collect_metrics()
 
-        assert 'error' in metrics
-        assert 'timestamp' in metrics
-        assert 'PSUtil error' in metrics['error']
+        assert "error" in metrics
+        assert "timestamp" in metrics
+        assert "PSUtil error" in metrics["error"]
 
 
 class TestHealthMonitorUpdateDeviceStatus:
@@ -183,8 +173,8 @@ class TestHealthMonitorUpdateDeviceStatus:
         monitor, _ = health_monitor
 
         devices = [
-            {'ip': '192.168.1.101', 'connected': True},
-            {'ip': '192.168.1.102', 'connected': False},
+            {"ip": "192.168.1.101", "connected": True},
+            {"ip": "192.168.1.102", "connected": False},
         ]
 
         monitor.update_device_status(devices)
@@ -236,16 +226,16 @@ class TestHealthMonitorGetSystemHealth:
         mock_psutil.sensors_temperatures.return_value = {}
 
         monitor.devices_status = [
-            {'ip': '192.168.1.101', 'connected': True},
-            {'ip': '192.168.1.102', 'connected': True},
+            {"ip": "192.168.1.101", "connected": True},
+            {"ip": "192.168.1.102", "connected": True},
         ]
 
         health = monitor.get_system_health()
 
-        assert health['status'] == 'healthy'
-        assert health['issues'] == []
-        assert health['devices_count'] == 2
-        assert health['devices_online'] == 2
+        assert health["status"] == "healthy"
+        assert health["issues"] == []
+        assert health["devices_count"] == 2
+        assert health["devices_online"] == 2
 
     def test_get_system_health_cpu_warning(self, health_monitor):
         """Test system health with high CPU"""
@@ -254,11 +244,14 @@ class TestHealthMonitorGetSystemHealth:
         mock_psutil.cpu_percent.return_value = 95.0
         mock_psutil.virtual_memory.return_value = Mock(percent=50.0)
         mock_psutil.disk_usage.return_value = Mock(percent=50.0)
+        mock_psutil.sensors_temperatures.return_value = {}
+
+        monitor.last_metrics = monitor._collect_metrics()
 
         health = monitor.get_system_health()
 
-        assert health['status'] == 'warning'
-        assert 'CPU usage high' in health['issues']
+        assert health["status"] == "warning"
+        assert "CPU usage high" in health["issues"]
 
     def test_get_system_health_memory_warning(self, health_monitor):
         """Test system health with high memory"""
@@ -267,11 +260,14 @@ class TestHealthMonitorGetSystemHealth:
         mock_psutil.cpu_percent.return_value = 50.0
         mock_psutil.virtual_memory.return_value = Mock(percent=95.0)
         mock_psutil.disk_usage.return_value = Mock(percent=50.0)
+        mock_psutil.sensors_temperatures.return_value = {}
+
+        monitor.last_metrics = monitor._collect_metrics()
 
         health = monitor.get_system_health()
 
-        assert health['status'] == 'warning'
-        assert 'Memory usage high' in health['issues']
+        assert health["status"] == "warning"
+        assert "Memory usage high" in health["issues"]
 
     def test_get_system_health_disk_critical(self, health_monitor):
         """Test system health with critical disk"""
@@ -280,11 +276,14 @@ class TestHealthMonitorGetSystemHealth:
         mock_psutil.cpu_percent.return_value = 50.0
         mock_psutil.virtual_memory.return_value = Mock(percent=50.0)
         mock_psutil.disk_usage.return_value = Mock(percent=95.0)
+        mock_psutil.sensors_temperatures.return_value = {}
+
+        monitor.last_metrics = monitor._collect_metrics()
 
         health = monitor.get_system_health()
 
-        assert health['status'] == 'critical'
-        assert 'Disk usage critical' in health['issues']
+        assert health["status"] == "critical"
+        assert "Disk usage critical" in health["issues"]
 
     def test_get_system_health_temperature_critical(self, health_monitor):
         """Test system health with critical temperature"""
@@ -293,14 +292,14 @@ class TestHealthMonitorGetSystemHealth:
         mock_psutil.cpu_percent.return_value = 50.0
         mock_psutil.virtual_memory.return_value = Mock(percent=50.0)
         mock_psutil.disk_usage.return_value = Mock(percent=50.0)
-        mock_psutil.sensors_temperatures.return_value = {
-            'cpu_thermal': [Mock(current=85.0)]
-        }
+        mock_psutil.sensors_temperatures.return_value = {"cpu_thermal": [Mock(current=85.0)]}
+
+        monitor.last_metrics = monitor._collect_metrics()
 
         health = monitor.get_system_health()
 
-        assert health['status'] == 'critical'
-        assert 'Temperature critical' in health['issues']
+        assert health["status"] == "critical"
+        assert "Temperature critical" in health["issues"]
 
     def test_get_system_health_temperature_warning(self, health_monitor):
         """Test system health with high temperature"""
@@ -309,14 +308,14 @@ class TestHealthMonitorGetSystemHealth:
         mock_psutil.cpu_percent.return_value = 50.0
         mock_psutil.virtual_memory.return_value = Mock(percent=50.0)
         mock_psutil.disk_usage.return_value = Mock(percent=50.0)
-        mock_psutil.sensors_temperatures.return_value = {
-            'cpu_thermal': [Mock(current=75.0)]
-        }
+        mock_psutil.sensors_temperatures.return_value = {"cpu_thermal": [Mock(current=75.0)]}
+
+        monitor.last_metrics = monitor._collect_metrics()
 
         health = monitor.get_system_health()
 
-        assert health['status'] == 'warning'
-        assert 'Temperature high' in health['issues']
+        assert health["status"] == "warning"
+        assert "Temperature high" in health["issues"]
 
     def test_get_system_health_mixed_issues(self, health_monitor):
         """Test system health with multiple issues"""
@@ -325,11 +324,14 @@ class TestHealthMonitorGetSystemHealth:
         mock_psutil.cpu_percent.return_value = 95.0
         mock_psutil.virtual_memory.return_value = Mock(percent=95.0)
         mock_psutil.disk_usage.return_value = Mock(percent=95.0)
+        mock_psutil.sensors_temperatures.return_value = {}
+
+        monitor.last_metrics = monitor._collect_metrics()
 
         health = monitor.get_system_health()
 
-        assert health['status'] == 'critical'  # Most severe
-        assert len(health['issues']) == 3
+        assert health["status"] == "critical"  # Most severe
+        assert len(health["issues"]) == 3
 
 
 class TestHealthMonitorRunLoop:
@@ -365,24 +367,26 @@ class TestHealthMonitorRunLoop:
 class TestHealthMonitorIntegration:
     """Integration tests for HealthMonitor with Collector"""
 
-    @patch('src.core.collector.HealthMonitor')
-    @patch('src.core.collector.BufferRepository')
-    @patch('src.core.collector.PlatformSync')
-    def test_collector_integrates_health_monitor(self, mock_platform, mock_buffer, mock_health_class):
+    @patch("src.core.collector.HealthMonitor")
+    @patch("src.core.collector.BufferRepository")
+    @patch("src.core.collector.PlatformSync")
+    def test_collector_integrates_health_monitor(
+        self, mock_platform, mock_buffer, mock_health_class
+    ):
         """Test collector integrates health monitor"""
         from src.core.collector import AttendanceCollector
         from src.core.config import Config
 
         mock_config = Mock(spec=Config)
         mock_config.get.side_effect = lambda key, default=None: {
-            'platform.url': 'https://test.example.com',
-            'platform.api_key': 'key',
-            'platform.tenant_id': 'tenant',
-            'poll_interval_seconds': 60,
-            'sync_interval_seconds': 10,
-            'buffer.max_records': 1000,
-            'health.heartbeat_interval': 60,
-            'devices': [],
+            "platform.url": "https://test.example.com",
+            "platform.api_key": "key",
+            "platform.tenant_id": "tenant",
+            "poll_interval_seconds": 60,
+            "sync_interval_seconds": 10,
+            "buffer.max_records": 1000,
+            "health.heartbeat_interval": 60,
+            "devices": [],
         }.get(key, default)
 
         mock_health_instance = Mock()
@@ -394,8 +398,8 @@ class TestHealthMonitorIntegration:
         mock_health_class.assert_called_once()
         # Verify it was called with platform_sync and interval
         call_args = mock_health_class.call_args
-        assert call_args[1]['interval'] == 60
+        assert call_args[1]["interval"] == 60
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

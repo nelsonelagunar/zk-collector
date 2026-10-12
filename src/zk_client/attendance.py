@@ -11,7 +11,7 @@ from typing import Any
 class AttendanceRecord:
     """
     Representa un registro de asistencia de dispositivo ZKTeco
-    
+
     Attributes:
         user_id: ID del usuario
         timestamp: Marca de tiempo del registro
@@ -19,20 +19,21 @@ class AttendanceRecord:
         device_ip: IP del dispositivo que registró
         punch_type: Tipo de marcado (derivado de status)
     """
+
     user_id: str
     timestamp: datetime
     status: int
     device_ip: str
     punch_type: str = field(init=False)
-    
+
     def __post_init__(self):
         """Derivar punch_type del status"""
         self.punch_type = self._derive_punch_type()
-    
+
     def _derive_punch_type(self) -> str:
         """
         Derivar tipo de marcado del status
-        
+
         ZKTeco status codes:
         0 = Check In (Entrada)
         1 = Check Out (Salida)
@@ -42,24 +43,24 @@ class AttendanceRecord:
         5 = OT Out (Fin horas extra)
         """
         punch_types = {
-            0: 'entrada',
-            1: 'salida',
-            2: 'salida_comida',
-            3: 'entrada_comida',
-            4: 'entrada_extra',
-            5: 'salida_extra',
+            0: "entrada",
+            1: "salida",
+            2: "salida_comida",
+            3: "entrada_comida",
+            4: "entrada_extra",
+            5: "salida_extra",
         }
-        return punch_types.get(self.status, 'desconocido')
-    
+        return punch_types.get(self.status, "desconocido")
+
     @classmethod
-    def from_zk_attendance(cls, attendance: Any, device_ip: str) -> 'AttendanceRecord':
+    def from_zk_attendance(cls, attendance: Any, device_ip: str) -> "AttendanceRecord":
         """
         Crear AttendanceRecord desde objeto pyzk
-        
+
         Args:
             attendance: Objeto de asistencia de pyzk
             device_ip: IP del dispositivo
-        
+
         Returns:
             AttendanceRecord instance
         """
@@ -69,17 +70,17 @@ class AttendanceRecord:
             status=attendance.status,
             device_ip=device_ip,
         )
-    
+
     def to_dict(self) -> dict:
         """Convertir a diccionario"""
         return {
-            'user_id': self.user_id,
-            'timestamp': self.timestamp.isoformat(),
-            'status': self.status,
-            'device_ip': self.device_ip,
-            'punch_type': self.punch_type,
+            "user_id": self.user_id,
+            "timestamp": self.timestamp.isoformat(),
+            "status": self.status,
+            "device_ip": self.device_ip,
+            "punch_type": self.punch_type,
         }
-    
+
     def __str__(self) -> str:
         return (
             f"AttendanceRecord(user_id={self.user_id}, "

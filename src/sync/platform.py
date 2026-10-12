@@ -3,14 +3,12 @@ Cliente HTTP para sincronización con plataforma SaaS
 """
 
 import logging
-import time
-from typing import List, Dict, Optional, Any
 from datetime import datetime
+from typing import Any
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-
 
 logger = logging.getLogger(__name__)
 
@@ -18,99 +16,97 @@ logger = logging.getLogger(__name__)
 class PlatformSync:
     """
     Cliente para sincronización con plataforma SaaS
-    
+
     Características:
     - HTTPS con autenticación JWT/API Key
     - Reintentos automáticos con backoff exponencial
     - Timeout configurable
     - Compresión gzip para payloads grandes
     """
-    
+
     def __init__(
         self,
         platform_url: str,
         api_key: str,
         tenant_id: str,
         timeout: int = 30,
-        retry_attempts: int = 3
+        retry_attempts: int = 3,
     ):
-        self.platform_url = platform_url.rstrip('/')
+        self.platform_url = platform_url.rstrip("/")
         self.api_key = api_key
         self.tenant_id = tenant_id
         self.timeout = timeout
-        
+
         # Configurar sesión con reintentos
         self.session = requests.Session()
-        
+
         # Retry strategy
         retry_strategy = Retry(
             total=retry_attempts,
             backoff_factor=1.0,
             status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE"]
+            allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE"],
         )
-        
+
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self.session.mount("https://", adapter)
         self.session.mount("http://", adapter)
-        
+
         # Headers por defecto
-        self.session.headers.update({
-            'Authorization': f'Bearer {api_key}',
-            'X-Tenant-ID': tenant_id,
-            'Content-Type': 'application/json',
-            'Accept-Encoding': 'gzip, deflate',
-        })
-        
+        self.session.headers.update(
+            {
+                "Authorization": f"Bearer {api_key}",
+                "X-Tenant-ID": tenant_id,
+                "Content-Type": "application/json",
+                "Accept-Encoding": "gzip, deflate",
+            }
+        )
+
         logger.info(f"PlatformSync inicializado: {self.platform_url}")
-    
-    def sync_attendance(self, records: List[Dict]) -> bool:
+
+    def sync_attendance(self, records: list[dict]) -> bool:
         """
         Sincronizar registros de asistencia con plataforma
-        
+
         Args:
             records: Lista de registros a sincronizar
-        
+
         Returns:
             bool: True si exitoso
         """
         if not records:
             return True
-        
+
         endpoint = f"{self.platform_url}/api/v1/attendance/sync"
-        
+
         logger.info(f"Sincronizando {len(records)} registros a {endpoint}")
-        
+
         try:
             # Preparar payload
             payload = {
-                'records': [
+                "records": [
                     {
-                        'user_id': r['user_id'],
-                        'timestamp': r['timestamp'],
-                        'status': r['status'],
-                        'device_ip': r['device_ip'],
-                        'punch_type': r.get('punch_type', 'unknown')
+                        "user_id": r["user_id"],
+                        "timestamp": r["timestamp"],
+                        "status": r["status"],
+                        "device_ip": r["device_ip"],
+                        "punch_type": r.get("punch_type", "unknown"),
                     }
                     for r in records
                 ],
-                'synced_at': datetime.now().isoformat(),
-                'collector_version': '1.0.0'
+                "synced_at": datetime.now().isoformat(),
+                "collector_version": "1.0.0",
             }
-            
+
             # Enviar request
-            response = self.session.post(
-                endpoint,
-                json=payload,
-                timeout=self.timeout
-            )
-            
+            response = self.session.post(endpoint, json=payload, timeout=self.timeout)
+
             # Verificar respuesta
             response.raise_for_status()
-            
+
             logger.info(f"Sincronización exitosa: {len(records)} registros")
             return True
-            
+
         except requests.exceptions.Timeout as e:
             logger.error(f"Timeout sincronizando: {e}")
             return False
@@ -127,53 +123,45 @@ class PlatformSync:
         except Exception as e:
             logger.error(f"Error inesperado sincronizando: {e}", exc_info=True)
             return False
-    
-    def send_heartbeat(
-        self,
-        metrics: Dict[str, Any],
-        devices_status: List[Dict[str, Any]]
-    ) -> bool:
+
+    def send_heartbeat(self, metrics: dict[str, Any], devices_status: list[dict[str, Any]]) -> bool:
         """
         Enviar heartbeat a plataforma
-        
+
         Args:
             metrics: Métricas del sistema (RAM, CPU, disco, buffer)
             devices_status: Estado de dispositivos conectados
-        
+
         Returns:
             bool: True si exitoso
         """
         endpoint = f"{self.platform_url}/api/v1/collector/heartbeat"
-        
+
         payload = {
-            'timestamp': datetime.now().isoformat(),
-            'version': '1.0.0',
-            'metrics': metrics,
-            'devices': devices_status
+            "timestamp": datetime.now().isoformat(),
+            "version": "1.0.0",
+            "metrics": metrics,
+            "devices": devices_status,
         }
-        
+
         try:
-            response = self.session.post(
-                endpoint,
-                json=payload,
-                timeout=10
-            )
+            response = self.session.post(endpoint, json=payload, timeout=10)
             response.raise_for_status()
             logger.debug("Heartbeat enviado exitosamente")
             return True
         except Exception as e:
             logger.error(f"Error enviando heartbeat: {e}")
             return False
-    
-    def get_config(self) -> Optional[Dict]:
+
+    def get_config(self) -> dict | None:
         """
         Obtener configuración desde plataforma
-        
+
         Returns:
             Dict con configuración o None si hay error
         """
         endpoint = f"{self.platform_url}/api/v1/collector/config"
-        
+
         try:
             response = self.session.get(endpoint, timeout=10)
             response.raise_for_status()
@@ -183,39 +171,39 @@ class PlatformSync:
         except Exception as e:
             logger.error(f"Error obteniendo configuración: {e}")
             return None
-    
-    def check_version(self) -> Optional[str]:
+
+    def check_version(self) -> str | None:
         """
         Verificar versión disponible en plataforma
-        
+
         Returns:
             Versión disponible o None
         """
         endpoint = f"{self.platform_url}/api/v1/collector/version"
-        
+
         try:
             response = self.session.get(endpoint, timeout=10)
             response.raise_for_status()
             data = response.json()
-            version = data.get('latest_version')
+            version = data.get("latest_version")
             logger.debug(f"Versión disponible: {version}")
             return version
         except Exception as e:
             logger.error(f"Error verificando versión: {e}")
             return None
-    
-    def download_update(self, version: str) -> Optional[bytes]:
+
+    def download_update(self, version: str) -> bytes | None:
         """
         Descargar actualización
-        
+
         Args:
             version: Versión a descargar
-        
+
         Returns:
             Binario de actualización o None
         """
         endpoint = f"{self.platform_url}/api/v1/collector/download/{version}"
-        
+
         try:
             response = self.session.get(endpoint, timeout=300)
             response.raise_for_status()
@@ -224,29 +212,29 @@ class PlatformSync:
         except Exception as e:
             logger.error(f"Error descargando actualización: {e}")
             return None
-    
-    def report_error(self, error_type: str, error_message: str, context: Dict) -> bool:
+
+    def report_error(self, error_type: str, error_message: str, context: dict) -> bool:
         """
         Reportar error a plataforma
-        
+
         Args:
             error_type: Tipo de error
             error_message: Mensaje de error
             context: Contexto adicional
-        
+
         Returns:
             bool: True si exitoso
         """
         endpoint = f"{self.platform_url}/api/v1/collector/error"
-        
+
         payload = {
-            'timestamp': datetime.now().isoformat(),
-            'type': error_type,
-            'message': error_message,
-            'context': context,
-            'version': '1.0.0'
+            "timestamp": datetime.now().isoformat(),
+            "type": error_type,
+            "message": error_message,
+            "context": context,
+            "version": "1.0.0",
         }
-        
+
         try:
             response = self.session.post(endpoint, json=payload, timeout=10)
             response.raise_for_status()

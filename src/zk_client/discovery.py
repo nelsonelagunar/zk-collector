@@ -3,13 +3,11 @@ ZKTeco Device Discovery - UDP Broadcast on port 4370
 Implements LAN auto-discovery for ZKTeco devices
 """
 
-import socket
-import struct
-import time
 import logging
-from typing import List, Dict, Optional, Tuple
-from dataclasses import dataclass
+import socket
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +15,7 @@ logger = logging.getLogger(__name__)
 netifaces = None
 try:
     import netifaces as _netifaces
+
     netifaces = _netifaces
 except ImportError:
     pass
@@ -25,25 +24,26 @@ except ImportError:
 @dataclass
 class DiscoveredDevice:
     """Represents a discovered ZKTeco device"""
+
     ip: str
     port: int
     mac: str
-    model: Optional[str] = None
-    firmware: Optional[str] = None
-    serial: Optional[str] = None
-    device_name: Optional[str] = None
+    model: str | None = None
+    firmware: str | None = None
+    serial: str | None = None
+    device_name: str | None = None
     protocol: str = "udp"
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
-            'ip': self.ip,
-            'port': self.port,
-            'mac': self.mac,
-            'model': self.model,
-            'firmware': self.firmware,
-            'serial': self.serial,
-            'device_name': self.device_name,
-            'protocol': self.protocol,
+            "ip": self.ip,
+            "port": self.port,
+            "mac": self.mac,
+            "model": self.model,
+            "firmware": self.firmware,
+            "serial": self.serial,
+            "device_name": self.device_name,
+            "protocol": self.protocol,
         }
 
 
@@ -57,22 +57,22 @@ class ZKDiscovery:
 
     # ZKTeco discovery command (based on protocol reverse engineering)
     # This is a common discovery packet for ZKTeco devices
-    DISCOVERY_CMD = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+    DISCOVERY_CMD = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
 
     def __init__(
         self,
-        broadcast_address: str = '255.255.255.255',
+        broadcast_address: str = "255.255.255.255",
         port: int = 4370,
         timeout: float = 3.0,
         retries: int = 2,
-        rate_limit_delay: float = 0.1  # Delay between scans to respect rate limits
+        rate_limit_delay: float = 0.1,  # Delay between scans to respect rate limits
     ):
         self.broadcast_address = broadcast_address
         self.port = port
         self.timeout = timeout
         self.retries = retries
         self.rate_limit_delay = rate_limit_delay
-        self._socket: Optional[socket.socket] = None
+        self._socket: socket.socket | None = None
 
     def _create_socket(self) -> socket.socket:
         """Create UDP socket for broadcasting"""
@@ -82,7 +82,9 @@ class ZKDiscovery:
         sock.settimeout(self.timeout)
         return sock
 
-    def _parse_discovery_response(self, data: bytes, addr: Tuple[str, int]) -> Optional[DiscoveredDevice]:
+    def _parse_discovery_response(
+        self, data: bytes, addr: tuple[str, int]
+    ) -> DiscoveredDevice | None:
         """
         Parse ZKTeco discovery response
 
@@ -92,7 +94,9 @@ class ZKDiscovery:
         - IP address: 4 bytes
         - Device info: variable
         """
-        if len(data) < 10:  # Minimum expected response size (header + ip + mac = 14, but allow shorter)
+        if (
+            len(data) < 10
+        ):  # Minimum expected response size (header + ip + mac = 14, but allow shorter)
             return None
 
         try:
@@ -112,12 +116,12 @@ class ZKDiscovery:
 
             if mac_bytes is None or len(mac_bytes) != 6:
                 return None
-            mac = ':'.join(f'{b:02x}' for b in mac_bytes).upper()
+            mac = ":".join(f"{b:02x}" for b in mac_bytes).upper()
 
             # Extract IP (4 bytes at offset 4 typically)
             ip_bytes = data[4:8] if len(data) >= 8 else None
-            if ip_bytes and len(ip_bytes) == 4 and ip_bytes != b'\x00\x00\x00\x00':
-                ip = '.'.join(str(b) for b in ip_bytes)
+            if ip_bytes and len(ip_bytes) == 4 and ip_bytes != b"\x00\x00\x00\x00":
+                ip = ".".join(str(b) for b in ip_bytes)
             else:
                 ip = addr[0]
 
@@ -133,8 +137,8 @@ class ZKDiscovery:
                 # Try to decode ASCII strings from response
                 try:
                     # Look for null-terminated strings in the response (starting at offset 14)
-                    text_part = data[14:].decode('ascii', errors='ignore')
-                    parts = [p for p in text_part.split('\x00') if p.strip()]
+                    text_part = data[14:].decode("ascii", errors="ignore")
+                    parts = [p for p in text_part.split("\x00") if p.strip()]
                     if parts:
                         model = parts[0] if len(parts) > 0 else None
                         firmware = parts[1] if len(parts) > 1 else None
@@ -157,7 +161,7 @@ class ZKDiscovery:
             logger.debug(f"Failed to parse discovery response from {addr}: {e}")
             return None
 
-    def discover(self, network: Optional[str] = None) -> List[DiscoveredDevice]:
+    def discover(self, network: str | None = None) -> list[DiscoveredDevice]:
         """
         Discover ZKTeco devices on the network using UDP broadcast
 
@@ -168,7 +172,7 @@ class ZKDiscovery:
         Returns:
             List of discovered devices
         """
-        devices: List[DiscoveredDevice] = []
+        devices: list[DiscoveredDevice] = []
         seen_macs = set()
 
         # Determine broadcast addresses to use
@@ -195,9 +199,11 @@ class ZKDiscovery:
                             if device and device.mac not in seen_macs:
                                 seen_macs.add(device.mac)
                                 devices.append(device)
-                                logger.info(f"Discovered device: {device.ip} ({device.mac}) - {device.model or 'Unknown'}")
+                                logger.info(
+                                    f"Discovered device: {device.ip} ({device.mac}) - {device.model or 'Unknown'}"
+                                )
 
-                        except socket.timeout:
+                        except TimeoutError:
                             break
                         except Exception as e:
                             logger.debug(f"Error receiving discovery response: {e}")
@@ -215,7 +221,7 @@ class ZKDiscovery:
         logger.info(f"Discovery complete: found {len(devices)} device(s)")
         return devices
 
-    def _get_broadcast_addresses(self, network: Optional[str] = None) -> List[str]:
+    def _get_broadcast_addresses(self, network: str | None = None) -> list[str]:
         """Get list of broadcast addresses to use for discovery"""
         addrs = []
 
@@ -223,6 +229,7 @@ class ZKDiscovery:
             # Parse CIDR and calculate broadcast
             try:
                 import ipaddress
+
                 net = ipaddress.IPv4Network(network, strict=False)
                 addrs.append(str(net.broadcast_address))
             except:
@@ -231,23 +238,24 @@ class ZKDiscovery:
             # Get all interface broadcast addresses
             try:
                 import netifaces
+
                 for iface in netifaces.interfaces():
                     addrs_info = netifaces.ifaddresses(iface)
                     if netifaces.AF_INET in addrs_info:
                         for addr_info in addrs_info[netifaces.AF_INET]:
-                            if 'broadcast' in addr_info:
-                                addrs.append(addr_info['broadcast'])
+                            if "broadcast" in addr_info:
+                                addrs.append(addr_info["broadcast"])
             except ImportError:
                 # Fallback to common broadcast addresses
-                addrs = ['255.255.255.255', '192.168.1.255', '192.168.0.255', '10.255.255.255']
+                addrs = ["255.255.255.255", "192.168.1.255", "192.168.0.255", "10.255.255.255"]
 
         # Ensure we have at least the global broadcast
         if not addrs:
-            addrs = ['255.255.255.255']
+            addrs = ["255.255.255.255"]
 
         return list(set(addrs))  # Deduplicate
 
-    def discover_with_details(self, network: Optional[str] = None) -> List[DiscoveredDevice]:
+    def discover_with_details(self, network: str | None = None) -> list[DiscoveredDevice]:
         """
         Discover devices and fetch detailed info via TCP connection
 
@@ -271,6 +279,7 @@ class ZKDiscovery:
             try:
                 # Try to connect via TCP to get detailed info
                 from zk import ZK
+
                 zk = ZK(device.ip, port=device.port, timeout=5, password=0, force_udp=False)
                 conn = zk.connect()
                 if conn:
@@ -294,11 +303,11 @@ class ZKDiscovery:
 
 
 def discover_devices(
-    network: Optional[str] = None,
+    network: str | None = None,
     timeout: float = 3.0,
     retries: int = 2,
-    fetch_details: bool = True
-) -> List[Dict]:
+    fetch_details: bool = True,
+) -> list[dict]:
     """
     Convenience function for device discovery
 

@@ -12,7 +12,7 @@ ZK_DEFAULT_PORT = 4370
 
 # Intervalos (segundos)
 DEFAULT_POLL_INTERVAL = 300  # 5 minutos
-DEFAULT_SYNC_INTERVAL = 60   # 1 minuto
+DEFAULT_SYNC_INTERVAL = 60  # 1 minuto
 DEFAULT_HEARTBEAT_INTERVAL = 300  # 5 minutos
 DEFAULT_UPDATE_CHECK_INTERVAL = 86400  # 24 horas
 
@@ -33,10 +33,11 @@ DEFAULT_LOG_FORMAT = "text"  # text or json
 
 # Rutas por defecto (configurables via env vars)
 import os
-DEFAULT_CONFIG_PATH = os.environ.get('CONFIG_PATH', '/etc/attendance/collector.yaml')
-DEFAULT_DATA_DIR = os.environ.get('DATA_DIR', '/var/lib/attendance/data')
-DEFAULT_LOG_DIR = os.environ.get('LOG_DIR', '/var/log/attendance')
-DEFAULT_APP_DIR = os.environ.get('APP_DIR', '/var/lib/attendance')
+
+DEFAULT_CONFIG_PATH = os.environ.get("CONFIG_PATH", "/etc/attendance/collector.yaml")
+DEFAULT_DATA_DIR = os.environ.get("DATA_DIR", "/var/lib/attendance/data")
+DEFAULT_LOG_DIR = os.environ.get("LOG_DIR", "/var/log/attendance")
+DEFAULT_APP_DIR = os.environ.get("APP_DIR", "/var/lib/attendance")
 
 # Seguridad
 ENCRYPTION_ALGORITHM = "AES-256"

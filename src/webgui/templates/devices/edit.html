@@ -16,9 +16,153 @@
     </div>
 
     <!-- Formulario -->
-    <form class="bg-white shadow rounded-lg" method="POST" action="/devices/{{ device.id }}/edit">
+    <form class="bg-white shadow rounded-lg" method="POST" action="/devices/{{ device.id }}/edit" x-data="{
+        testing: false,
+        testResult: null,
+        discovering: false,
+        discoveredDevices: [],
+        selectedDevice: null,
+        async testConnection() {
+            this.testing = true
+            this.testResult = null
+            try {
+                const response = await fetch('/api/devices/test', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        address: document.getElementById('address').value,
+                        port: parseInt(document.getElementById('port').value),
+                        password: parseInt(document.getElementById('device_password').value),
+                        protocol: document.getElementById('protocol').value
+                    })
+                })
+                const data = await response.json()
+                this.testResult = data
+            } catch (e) {
+                this.testResult = {success: false, message: 'Error de conexión: ' + e.message}
+            }
+            this.testing = false
+        },
+        scannedOnce: false,
+        async discoverDevices() {
+            this.discovering = true
+            this.discoveredDevices = []
+            try {
+                const response = await fetch('/api/devices/discover', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        timeout: 3.0,
+                        retries: 2,
+                        fetch_details: true
+                    })
+                })
+                const data = await response.json()
+                if (data.success) {
+                    this.discoveredDevices = data.devices || []
+                } else {
+                    alert('Error: ' + data.message)
+                }
+            } catch (e) {
+                alert('Error de descubrimiento: ' + e.message)
+            }
+            this.discovering = false
+            this.scannedOnce = true
+        },
+        selectDevice(device) {
+            this.selectedDevice = device
+            document.getElementById('address').value = device.ip
+            document.getElementById('port').value = device.port
+            if (device.mac) {
+                // MAC could be used as identifier
+            }
+            // Scroll to form
+            document.getElementById('address').focus()
+        },
+        async quickDiscover() {
+            this.discovering = true
+            this.discoveredDevices = []
+            try {
+                const response = await fetch('/api/devices/discover/quick', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ timeout: 2.0, retries: 1 })
+                })
+                const data = await response.json()
+                if (data.success) {
+                    this.discoveredDevices = data.devices || []
+                }
+            } catch (e) {
+                console.error('Quick discover error:', e)
+            }
+            this.discovering = false
+            this.scannedOnce = true
+        }
+    }">
         <div class="px-6 py-5 border-b border-gray-200">
             <h3 class="text-lg font-medium text-gray-900">Información del Dispositivo</h3>
+        </div>
+
+        <!-- Auto-Discovery Section -->
+        <div class="px-6 pt-5">
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-medium text-blue-900">Descubrimiento Automático</h4>
+                        <p class="text-xs text-blue-700">Busca dispositivos ZKTeco en tu red local (UDP broadcast puerto 4370)</p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button type="button" @click="discoverDevices()" :disabled="discovering"
+                            class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none disabled:opacity-50">
+                            <span x-show="!discovering">Escanear Red</span>
+                            <span x-show="discovering">Escaneando...</span>
+                        </button>
+                        <button type="button" @click="quickDiscover()" :disabled="discovering"
+                            class="inline-flex items-center px-3 py-1.5 border border-blue-300 text-xs font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 focus:outline-none disabled:opacity-50">
+                            Escaneo Rápido
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Discovered devices list -->
+                <div x-show="discoveredDevices.length > 0" class="mt-4 space-y-2" x-cloak>
+                    <p class="text-xs font-medium text-blue-900">Dispositivos encontrados:</p>
+                    <template x-for="(device, index) in discoveredDevices" :key="index">
+                        <div class="bg-white border border-gray-200 rounded-md p-3 flex items-center justify-between">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center">
+                                    <svg class="h-4 w-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M3 5a2 2 0 012-2h1a1 1 0 010 2H5v7h2l1 2h4l1-2h2V5h-1a1 1 0 110-2h1a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm4 4a3 3 0 116 0 3 3 0 01-6 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900" x-text="device.ip + ':' + device.port"></p>
+                                        <p class="text-xs text-gray-500">
+                                            <span x-text="device.model || 'Modelo desconocido'"></span>
+                                            <span x-show="device.mac"> — MAC: <span x-text="device.mac"></span></span>
+                                            <span x-show="device.firmware"> — FW: <span x-text="device.firmware"></span></span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="ml-4 flex items-center space-x-2">
+                                <span x-show="device.already_configured"
+                                    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                    Ya configurado
+                                </span>
+                                <button type="button" @click="selectDevice(device)"
+                                    class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none">
+                                    Usar
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- No devices found message -->
+                <div x-show="!discovering && discoveredDevices.length === 0 && scannedOnce" class="mt-3 text-xs text-gray-500" x-cloak>
+                    <p>No se encontraron dispositivos. Verifica que estén encendidos y en la misma red, o ingresa la IP manualmente.</p>
+                </div>
+            </div>
         </div>
 
         <div class="px-6 py-5 space-y-6">
@@ -57,7 +201,7 @@
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                    <input type="number" id="password" name="password" value="{{ device.password or 0 }}"
+                    <input type="number" id="device_password" name="password" value="{{ device.password or 0 }}"
                         class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2">
                 </div>
                 <div>
@@ -88,6 +232,43 @@
                     <a href="/devices/{{ device.id }}/test" target="_blank" class="text-blue-600 hover:text-blue-500 text-sm font-medium">
                         Probar conexión →
                     </a>
+                </div>
+            </div>
+
+            <!-- Test de conexión -->
+            <div class="bg-gray-50 rounded-md p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-900">Probar Conexión</h4>
+                        <p class="text-xs text-gray-500">Verifica que el dispositivo esté accesible</p>
+                    </div>
+                    <button type="button" @click="testConnection()" :disabled="testing"
+                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50">
+                        <span x-show="!testing">Probar</span>
+                        <span x-show="testing">Probando...</span>
+                    </button>
+                </div>
+                
+                <!-- Resultado del test -->
+                <div x-show="testResult" class="mt-3">
+                    <div :class="testResult?.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'" 
+                        class="rounded-md border p-3">
+                        <div class="flex">
+                            <svg x-show="testResult?.success" class="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                            </svg>
+                            <svg x-show="!testResult?.success" class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                            </svg>
+                            <div class="ml-3">
+                                <p :class="testResult?.success ? 'text-green-800' : 'text-red-800'" class="text-sm" x-text="testResult?.message"></p>
+                                <div x-show="testResult?.device_info" class="mt-2 text-xs text-gray-600">
+                                    <p>Firmware: <span x-text="testResult?.device_info?.firmware"></span></p>
+                                    <p>Serial: <span x-text="testResult?.device_info?.serial"></span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

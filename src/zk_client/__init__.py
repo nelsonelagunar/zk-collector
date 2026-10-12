@@ -2,6 +2,6 @@
 ZK Module - Cliente para dispositivos ZKTeco
 """
 
-from .discovery import ZKDiscovery, discover_devices, DiscoveredDevice
+from .discovery import DiscoveredDevice, ZKDiscovery, discover_devices
 
-__all__ = ['ZKDiscovery', 'discover_devices', 'DiscoveredDevice']
+__all__ = ["ZKDiscovery", "discover_devices", "DiscoveredDevice"]
