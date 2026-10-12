@@ -35,14 +35,20 @@ build/
 .DS_Store
 Thumbs.db
 
-# Docker
-Dockerfile*
-docker-compose*.yml
-.dockerignore
-
 # Tests
 tests/
-*.md
 
 # Docs
 docs/
+
+# Virtual environments
+.venv/
+.venv-*/
+venv/
+
+# Data and logs (runtime)
+data/
+logs/
+
+# Supervisord
+supervisord.conf

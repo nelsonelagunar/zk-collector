@@ -8,10 +8,9 @@ services:
     volumes:
       # Persistent data: SQLite DBs (buffer, webgui), logs, attendance buffer
       - zk-data:/app/data
+      - zk-logs:/app/logs
       # Config directory (read-only - edit configs/collector.yaml on host, then restart)
       - ./configs:/app/configs:ro
-      # Optional: override log directory if you want logs on host
-      # - ./logs:/app/logs
     environment:
       # Admin password for web dashboard (required)
       - ZK_ADMIN_PASSWORD=${ZK_ADMIN_PASSWORD}
@@ -40,3 +39,4 @@ services:
 
 volumes:
   zk-data:
+  zk-logs:

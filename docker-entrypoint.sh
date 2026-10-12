@@ -57,8 +57,18 @@ fi
 
 echo ""
 echo "Environment validation passed!"
-echo "Starting ZK-Collector..."
+
+# Export all env vars for supervisord
+export ENV_ZK_ADMIN_PASSWORD="${ZK_ADMIN_PASSWORD}"
+export ENV_ENCRYPTION_KEY="${ENCRYPTION_KEY}"
+export ENV_ZK_SYNC_URL="${ZK_SYNC_URL}"
+export ENV_ZK_SYNC_TOKEN="${ZK_SYNC_TOKEN}"
+export ENV_WEBGUI_SECRET_KEY="${WEBGUI_SECRET_KEY}"
+export ENV_LOG_LEVEL="${LOG_LEVEL:-INFO}"
+export ENV_LOG_FORMAT="${LOG_FORMAT:-text}"
+
+echo "Starting ZK-Collector with supervisord..."
 echo ""
 
-# Execute the main command
+# Execute the main command (supervisord)
 exec "$@"
