@@ -5,14 +5,32 @@
 - Network access to your ZKTeco device(s)
 - (For Docker) Docker Engine 24+
 
-### Option 1: Docker (Recommended)
+### Option 1: Docker Compose (Recommended — Single Command)
 
 ```bash
+# Clone and setup
+git clone https://github.com/nelsonelagunar/zk-collector.git
+cd zk-collector
+
+# Copy environment template and configure
+cp .env.example .env
+# Edit .env to set ZK_ADMIN_PASSWORD and ENCRYPTION_KEY
+# nano .env
+
+# Deploy
+docker-compose up -d
+```
+
+### Option 1b: Docker (Standalone)
+
+```bash
+# Requires both ZK_ADMIN_PASSWORD and ENCRYPTION_KEY
 docker run -d \
   --name zk-collector \
   -p 8080:8080 \
   -v zk-data:/app/data \
   -e ZK_ADMIN_PASSWORD=your-secure-password \
+  -e ENCRYPTION_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())") \
   ghcr.io/nelsonelagunar/zk-collector:latest
 ```
 

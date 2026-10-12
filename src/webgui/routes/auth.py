@@ -4,9 +4,14 @@ Auth Routes - Login, Logout, Setup, Password Reset
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, jsonify
 from datetime import datetime, timedelta
-import hashlib
+import logging
+
+from ..auth import Auth
+from ..mail import Mailer
 
 auth_bp = Blueprint('auth', __name__)
+
+RESET_TOKEN_EXPIRY_HOURS = 1
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -19,7 +24,7 @@ def login():
         # Validar contra DB
         db = current_app.db
         user = db.fetch_one(
-            "SELECT id, username, password_hash, role FROM users WHERE username = ? AND is_active = 1",
+            "SELECT id, username, password_hash, role, email FROM users WHERE username = ? AND is_active = 1",
             (username,)
         )
 
@@ -29,12 +34,13 @@ def login():
             if auth.verify_password(password, user['password_hash']):
                 # Actualizar last_login
                 db.update('users', {'last_login': datetime.now().isoformat()},
-                         'id = ?', (user['id'],))
+                          'id = ?', (user['id'],))
 
                 # Guardar en sesión
                 session['user_id'] = user['id']
                 session['username'] = user['username']
                 session['role'] = user['role']
+                session['email'] = user['email']
 
                 flash(f'Bienvenido, {user["username"]}!', 'success')
 
@@ -120,12 +126,12 @@ def setup():
 
 @auth_bp.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
-    """Recuperar contraseña - formulario para solicitar reset"""
+    """Solicitar reset de contraseña por email"""
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
 
         if not email:
-            flash('El email es requerido', 'error')
+            flash('Por favor ingresa tu email', 'error')
             return render_template('forgot_password.html')
 
         db = current_app.db
@@ -137,80 +143,90 @@ def forgot_password():
             (email,)
         )
 
-        # Por seguridad, siempre mostramos éxito aunque el email no exista
-        # (para evitar enumeración de usuarios)
         if user:
             # Generar token de reset
             token, token_hash = auth.generate_reset_token_and_hash()
+            expires_at = (datetime.now() + timedelta(hours=RESET_TOKEN_EXPIRY_HOURS)).isoformat()
 
-            # Expira en 1 hora
-            expires_at = datetime.now() + timedelta(hours=1)
+            # Invalidar tokens anteriores no usados
+            db.execute(
+                "UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP "
+                "WHERE user_id = ? AND used_at IS NULL",
+                (user['id'],)
+            )
 
-            # Guardar token en BD
+            # Guardar nuevo token (hashed)
             db.insert('password_reset_tokens', {
                 'user_id': user['id'],
                 'token_hash': token_hash,
-                'expires_at': expires_at.isoformat()
+                'expires_at': expires_at,
             })
 
-            # TODO: Enviar email con el token
-            # Por ahora, log para desarrollo
-            logger = current_app.logger
-            logger.info(f"Password reset token for {user['username']} ({email}): {token}")
+            # Intentar enviar email si SMTP está configurado
+            smtp_config = db.fetch_all("SELECT key, value FROM system_config WHERE key LIKE 'smtp_%'")
+            smtp_dict = {row['key']: row['value'] for row in smtp_config}
 
-            # En producción, aquí se enviaría el email
-            # _send_reset_email(user['email'], token, user['username'])
+            mailer = Mailer.from_config(smtp_dict)
+            if mailer:
+                reset_url = url_for('auth.reset_password', token=token, _external=True)
+                try:
+                    mailer.send_password_reset(user['email'], user['username'], reset_url, RESET_TOKEN_EXPIRY_HOURS * 60)
+                    flash('Se ha enviado un email con instrucciones para restablecer tu contraseña', 'success')
+                except Exception as e:
+                    logger = current_app.logger
+                    logger.error(f"Error enviando email de reset: {e}")
+                    flash('No se pudo enviar el email. Contacta al administrador para reset manual.', 'warning')
+            else:
+                # Sin SMTP configurado - mostrar token en pantalla (solo para desarrollo/admin)
+                reset_url = url_for('auth.reset_password', token=token, _external=True)
+                flash(f'SMTP no configurado. Tu enlace de reset: {reset_url} (vence en {RESET_TOKEN_EXPIRY_HOURS}h)', 'info')
 
-        flash('Si el email existe en nuestro sistema, recibirás instrucciones para restablecer tu contraseña.', 'success')
+        else:
+            # Por seguridad, siempre mostrar éxito aunque el email no exista
+            flash('Si el email existe en el sistema, recibirás instrucciones para restablecer tu contraseña', 'success')
+
         return redirect(url_for('auth.login'))
 
     return render_template('forgot_password.html')
 
 
 @auth_bp.route('/reset-password/<token>', methods=['GET', 'POST'])
-def reset_password(token):
-    """Restablecer contraseña con token"""
+def reset_password(token: str):
+    """Formulario para nueva contraseña usando token"""
     db = current_app.db
     auth = current_app.auth
 
-    # Verificar token: hash del token y buscar en BD
+    # Validar token: buscar hash y verificar expiración
     token_hash = auth.hash_reset_token(token)
-
     reset_token = db.fetch_one(
-        """SELECT prt.*, u.username, u.email
-           FROM password_reset_tokens prt
-           JOIN users u ON u.id = prt.user_id
-           WHERE prt.token_hash = ? AND prt.used_at IS NULL""",
+        "SELECT id, user_id, expires_at, used_at FROM password_reset_tokens WHERE token_hash = ?",
         (token_hash,)
     )
 
     if not reset_token:
-        flash('Token inválido o ya utilizado', 'error')
+        flash('Token inválido o expirado', 'error')
         return redirect(url_for('auth.forgot_password'))
 
-    # Verificar expiración
-    expires_at = datetime.fromisoformat(reset_token['expires_at'])
-    if datetime.now() > expires_at:
-        flash('El token ha expirado. Solicita uno nuevo.', 'error')
+    if reset_token['used_at']:
+        flash('Este token ya fue utilizado', 'error')
+        return redirect(url_for('auth.forgot_password'))
+
+    if datetime.fromisoformat(reset_token['expires_at']) < datetime.now():
+        flash('Token expirado. Solicita uno nuevo.', 'error')
         return redirect(url_for('auth.forgot_password'))
 
     if request.method == 'POST':
         password = request.form.get('password', '')
         password_confirm = request.form.get('password_confirm', '')
 
-        # Validaciones
-        errors = []
-
         if password != password_confirm:
-            errors.append('Las contraseñas no coinciden')
+            flash('Las contraseñas no coinciden', 'error')
+            return render_template('reset_password.html', token=token)
 
-        # Validar fortaleza de contraseña
+        # Validar fortaleza
         is_strong, pwd_errors = auth.validate_password_strength(password)
         if not is_strong:
-            errors.extend(pwd_errors)
-
-        if errors:
-            for error in errors:
+            for error in pwd_errors:
                 flash(error, 'error')
             return render_template('reset_password.html', token=token)
 
@@ -223,7 +239,7 @@ def reset_password(token):
         db.update('password_reset_tokens', {'used_at': datetime.now().isoformat()},
                   'id = ?', (reset_token['id'],))
 
-        flash('Contraseña restablecida exitosamente. Ahora puedes iniciar sesión.', 'success')
+        flash('Contraseña actualizada exitosamente. Ya puedes iniciar sesión.', 'success')
         return redirect(url_for('auth.login'))
 
     return render_template('reset_password.html', token=token)
@@ -236,15 +252,6 @@ def api_forgot_password():
     # Rate limiting simple: max 3 requests per hour per IP
     client_ip = request.remote_addr
     db = current_app.db
-
-    # Verificar rate limit
-    recent_requests = db.fetch_one(
-        """SELECT COUNT(*) as count FROM password_reset_tokens
-           WHERE created_at > datetime('now', '-1 hour')""",
-    )
-
-    # Note: We'd ideally track by IP, but for simplicity using global limit
-    # In production, add a rate_limit table tracking IP + timestamp
 
     data = request.get_json() or {}
     email = data.get('email', '').strip().lower()

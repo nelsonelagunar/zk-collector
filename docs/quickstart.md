@@ -4,22 +4,27 @@ Get ZK-Collector running in under 2 minutes. Choose your platform:
 
 ---
 
-## Option 1: Docker (Fastest, Recommended)
+## Option 1: Docker Compose (Fastest, Recommended)
 
 ### Prerequisites
-- Docker Engine 24+
+- Docker Engine 24+ with compose plugin
 - ZKTeco device IP address on same LAN
 
 ### One-Command Deploy
 
 ```bash
-docker run -d \
-  --name zk-collector \
-  --restart unless-stopped \
-  -p 8080:8080 \
-  -v zk-data:/app/data \
-  -e ZK_ADMIN_PASSWORD="your-secure-password" \
-  ghcr.io/nelsonelagunar/zk-collector:latest
+# Clone repo
+git clone https://github.com/nelsonelagunar/zk-collector.git
+cd zk-collector
+
+# Configure (required: admin password + encryption key)
+cp .env.example .env
+# Edit .env to set ZK_ADMIN_PASSWORD and ENCRYPTION_KEY
+# Generate ENCRYPTION_KEY with: python -m src.security.encryption generate-key
+nano .env
+
+# Deploy
+docker-compose up -d
 ```
 
 ### Verify It's Running
@@ -34,6 +39,20 @@ docker logs zk-collector -f
 # Test health endpoint
 curl http://localhost:8080/health
 # → {"status":"healthy","version":"1.0.0"}
+```
+
+## Option 1b: Docker (Standalone)
+
+```bash
+# Requires both ZK_ADMIN_PASSWORD and ENCRYPTION_KEY
+docker run -d \
+  --name zk-collector \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -v zk-data:/app/data \
+  -e ZK_ADMIN_PASSWORD="your-secure-password" \
+  -e ENCRYPTION_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())") \
+  ghcr.io/nelsonelagunar/zk-collector:latest
 ```
 
 ---

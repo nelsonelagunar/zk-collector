@@ -30,7 +30,7 @@ These were completed in the initial release (commit 706016d through a872c85):
 |---|------|----------|--------|-------|
 | **11** | **Docker image (ARM64 + x86_64 multi-arch)** | Critical | In Progress | `Dockerfile` exists; needs multi-arch build via GitHub Actions / buildx |
 | **12** | **docker-compose for single-command deploy** | Critical | In Progress | `docker-compose.yml` exists; needs env var validation, healthcheck tuning |
-| **13** | **Auto-discovery of ZKTeco devices on LAN** | High | TODO | UDP broadcast on port 4370; integrate into WebGUI "Add Device" flow |
+| **13** | **Auto-discovery of ZKTeco devices on LAN** | High | Done | UDP broadcast on port 4370; integrated into WebGUI "Add Device" flow |
 | **14** | **CSV/Excel attendance export** | High | TODO | Endpoint in WebGUI; stream large datasets; add date range filters |
 | **15** | **Password reset flow** | Medium | TODO | Email token or admin reset via WebGUI; secure token generation |
 | **16** | **Comprehensive test suite** | Critical | Partial | Unit tests exist (`tests/test_buffer.py`, `tests/test_zk_client.py`); need integration + e2e |

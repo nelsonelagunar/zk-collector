@@ -49,11 +49,20 @@ ZK-Collector is an **open-source bridge** that connects legacy ZKTeco devices to
 ### Docker (Recommended)
 
 ```bash
+# Quick start with docker-compose (recommended)
+cp .env.example .env
+# Edit .env to set ZK_ADMIN_PASSWORD and ENCRYPTION_KEY
+docker-compose up -d
+```
+
+```bash
+# Or run directly (requires both ZK_ADMIN_PASSWORD and ENCRYPTION_KEY)
 docker run -d \
   --name zk-collector \
   -p 8080:8080 \
   -v zk-data:/app/data \
   -e ZK_ADMIN_PASSWORD=changeme \
+  -e ENCRYPTION_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())") \
   ghcr.io/nelsonelagunar/zk-collector:latest
 ```
 
