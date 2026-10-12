@@ -1,0 +1,109 @@
+#===============================================================================
+# Attendance Collector - Configuración
+#===============================================================================
+# Copiar este archivo a /etc/attendance/collector.yaml
+# Editar con los valores de su entorno
+#
+# NOTA: Valores sensibles (api_key, password) deben encriptarse en producción.
+# Use: python -m src.security.encryption encrypt "valor" --key $ENCRYPTION_KEY
+#===============================================================================
+
+#-------------------------------------------------------------------------------
+# Plataforma SaaS
+#-------------------------------------------------------------------------------
+platform:
+  # URL de la plataforma (requerido)
+  url: "https://plataforma.dominio.com"
+  
+  # API Key para autenticación (requerido, encriptar en producción con Fernet)
+  api_key: "gAAAAAB..."  # Valor encriptado
+  
+  # Tenant ID del cliente (requerido)
+  tenant_id: "550e8400-e29b-41d4-a716-446655440000"
+  
+  # Timeout para requests HTTP (segundos)
+  timeout: 30
+  
+  # Número de reintentos para requests fallidos
+  retry_attempts: 3
+
+#-------------------------------------------------------------------------------
+# Dispositivos ZKTeco
+#-------------------------------------------------------------------------------
+devices:
+  # Dispositivo 1 - Entrada Principal
+  - ip: "192.168.1.101"
+    port: 4370
+    timeout: 5
+    # Password encriptado con Fernet (use ENCRYPTION_KEY env var)
+    password: "gAAAAAB..."  # Valor encriptado, o "0" si sin password
+    name: "Entrada Principal"
+    enabled: true
+  
+  # Dispositivo 2 - Salida Emergencia
+  - ip: "192.168.1.102"
+    port: 4370
+    timeout: 5
+    password: "gAAAAAB..."  # Valor encriptado
+    name: "Salida Emergencia"
+    enabled: true
+  
+  # Agregar más dispositivos según sea necesario...
+
+#-------------------------------------------------------------------------------
+# Intervalos de Operación (segundos)
+#-------------------------------------------------------------------------------
+# Polling: cada cuánto se consulta a los dispositivos
+poll_interval_seconds: 300  # 5 minutos (mín: 60, máx: 3600)
+
+# Sync: cada cuánto se sincroniza con la plataforma
+sync_interval_seconds: 60   # 1 minuto (mín: 10, máx: 600)
+
+#-------------------------------------------------------------------------------
+# Buffer Local
+#-------------------------------------------------------------------------------
+buffer:
+  # Máximo de registros a mantener en buffer
+  max_records: 10000
+  
+  # Días a mantener registros antes de limpiar
+  cleanup_days: 30
+  
+  # Ruta de la base de datos del buffer (opcional, usa DATA_DIR env var por defecto)
+  db_path: ""
+
+#-------------------------------------------------------------------------------
+# Logging
+#-------------------------------------------------------------------------------
+logging:
+  # Nivel de log: DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
+  
+  # Formato de log: "text" (legible) o "json" (estructurado)
+  format: "text"
+  
+  # Tamaño máximo por archivo de log (MB)
+  max_size_mb: 10
+  
+  # Número de archivos de backup a mantener
+  backup_count: 5
+
+#-------------------------------------------------------------------------------
+# Health & Monitoring
+#-------------------------------------------------------------------------------
+health:
+  # Habilitar health checks
+  enabled: true
+  
+  # Intervalo de heartbeat a plataforma (segundos)
+  heartbeat_interval: 300  # 5 minutos
+
+#-------------------------------------------------------------------------------
+# Auto-Actualización
+#-------------------------------------------------------------------------------
+updater:
+  # Habilitar auto-actualización
+  enabled: true
+  
+  # Intervalo de chequeo de versiones (segundos)
+  check_interval: 86400  # 24 horas
