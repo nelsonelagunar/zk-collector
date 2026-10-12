@@ -28,12 +28,12 @@ These were completed in the initial release (commit 706016d through a872c85):
 
 | # | Task | Priority | Status | Notes |
 |---|------|----------|--------|-------|
-| **11** | **Docker image (ARM64 + x86_64 multi-arch)** | Critical | In Progress | `Dockerfile` exists; needs multi-arch build via GitHub Actions / buildx |
-| **12** | **docker-compose for single-command deploy** | Critical | In Progress | `docker-compose.yml` exists; needs env var validation, healthcheck tuning |
-| **13** | **Auto-discovery of ZKTeco devices on LAN** | High | Done | UDP broadcast on port 4370; integrated into WebGUI "Add Device" flow |
-| **14** | **CSV/Excel attendance export** | High | TODO | Endpoint in WebGUI; stream large datasets; add date range filters |
-| **15** | **Password reset flow** | Medium | TODO | Email token or admin reset via WebGUI; secure token generation |
-| **16** | **Comprehensive test suite** | Critical | Partial | Unit tests exist (`tests/test_buffer.py`, `tests/test_zk_client.py`); need integration + e2e |
+| **11** | **Docker image (ARM64 + x86_64 multi-arch)** | Critical | In Progress | GitHub Actions workflows exist (ci.yml, docker.yml); needs CI validation |
+| **12** | **docker-compose for single-command deploy** | Critical | In Progress | `docker-compose.yml` updated with env validation, healthchecks, volumes; docker-entrypoint.sh validates required vars |
+| **13** | **Auto-discovery of ZKTeco devices on LAN** | High | Done | `src/zk/discovery.py` implemented; UDP broadcast on port 4370; integrates with WebGUI "Add Device" |
+| **14** | **CSV/Excel attendance export** | High | Done | `src/webgui/routes/attendance.py` + `templates/attendance/list.html`; streaming CSV/Excel with filters |
+| **15** | **Password reset flow** | Medium | In Progress | Templates (`forgot_password.html`, `reset_password.html`) + routes in `auth.py`; needs email integration |
+| **16** | **Comprehensive test suite** | Critical | In Progress | Unit tests (buffer, zk_client, config, collector); integration tests with mocked ZK device; CI pipeline exists |
 
 ---
 
@@ -93,12 +93,10 @@ These were completed in the initial release (commit 706016d through a872c85):
 
 | Order | Task ID | Action | Owner |
 |-------|---------|--------|-------|
-| 1 | **11** | Configure GitHub Actions multi-arch Docker build (ARM64 + x86_64) | DevOps |
-| 2 | **12** | Validate docker-compose.yml: env vars, healthcheck, volumes | DevOps |
-| 3 | **16** | Add integration tests (mock ZK device) + GitHub Actions CI | Backend Dev |
-| 4 | **13** | Implement LAN auto-discovery (UDP broadcast) + WebGUI integration | Backend Dev |
-| 5 | **14** | Add CSV/Excel export endpoint to WebGUI | Frontend Dev |
-| 6 | **15** | Implement password reset flow (email or admin) | Backend Dev |
+| 1 | **11** | **Verify CI passes** (ci.yml + docker.yml multi-arch build & smoke test) | DevOps |
+| 2 | **12** | Validate docker-compose.yml works end-to-end on fresh machine | DevOps |
+| 3 | **15** | Complete password reset flow: email integration or admin fallback | Backend Dev |
+| 4 | **16** | Ensure CI runs on every PR + coverage reporting | Backend Dev |
 
 ---
 
@@ -106,9 +104,10 @@ These were completed in the initial release (commit 706016d through a872c85):
 
 | Task | Blocker | Mitigation |
 |------|---------|------------|
-| 11 | No ARM64 runner in GitHub Actions free tier | Use `docker/buildx` with QEMU emulation or self-hosted runner |
-| 13 | ZKTeco discovery protocol undocumented | Reverse-engineer from pyzk / wireshark captures |
-| 16 | No real device in CI | Mock pyzk in unit tests; document manual integration test process |
+| 11 | No ARM64 runner in GitHub Actions free tier | **Mitigated**: ci.yml uses docker/setup-qemu-action + buildx for ARM64 emulation |
+| 13 | ZKTeco discovery protocol undocumented | **Mitigated**: Implemented in `src/zk/discovery.py` based on pyzk reverse-engineering |
+| 15 | No email SMTP configured in CI | Use admin fallback (reset_password.html) or test with mock SMTP |
+| 16 | No real device in CI | **Mitigated**: Mock pyzk in integration tests (test_collector_integration.py) |
 
 ---
 
