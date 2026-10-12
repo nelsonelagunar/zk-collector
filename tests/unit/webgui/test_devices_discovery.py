@@ -1,6 +1,8 @@
 """
 Integration tests for device discovery WebGUI endpoints
 """
+import os
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -16,11 +18,10 @@ def app(tmp_path):
     buffer_db_path = tmp_path / "data" / "buffer.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    template_dir = tmp_path.parent / "src" / "webgui" / "templates"
-    if not template_dir.exists():
-        template_dir = tmp_path.parent.parent / "src" / "webgui" / "templates"
-    if not template_dir.exists():
-        template_dir = "/home/paperclip/.paperclip/instances/default/projects/c1c6aa82-3f9f-4f39-b1f9-4d9aa94f5d08/dff21b9a-f1da-4684-b613-c0d87b735c49/zk-collector/src/webgui/templates"
+    # Find template directory relative to test file
+    test_dir = Path(__file__).parent
+    project_root = test_dir.parent.parent.parent
+    template_dir = project_root / "src" / "webgui" / "templates"
 
     app = Flask(__name__, template_folder=str(template_dir))
     app.config["SECRET_KEY"] = "test-secret-key"
@@ -30,9 +31,9 @@ def app(tmp_path):
     app.db = Database(db_path)
     import shutil
 
-    migrations_src = "/home/paperclip/.paperclip/instances/default/projects/c1c6aa82-3f9f-4f39-b1f9-4d9aa94f5d08/dff21b9a-f1da-4684-b613-c0d87b735c49/zk-collector/migrations"
+    migrations_src = project_root / "migrations"
     migrations_dst = db_path.parent.parent / "migrations"
-    if migrations_src and shutil.os.path.exists(migrations_src):
+    if migrations_src.exists():
         shutil.copytree(migrations_src, migrations_dst, dirs_exist_ok=True)
     app.db.initialize()
 

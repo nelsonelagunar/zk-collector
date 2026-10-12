@@ -22,8 +22,9 @@ def app(tmp_path):
     buffer_db_path = tmp_path / "data" / "buffer.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
-
-    template_dir = Path(__file__).parent.parent.parent.parent / "src" / "webgui" / "templates"
+    test_dir = Path(__file__).parent
+    project_root = test_dir.parent.parent.parent
+    template_dir = project_root / "src" / "webgui" / "templates"
 
     app = Flask(__name__, template_folder=str(template_dir))
     app.config["SECRET_KEY"] = "test-secret-key"
@@ -34,7 +35,7 @@ def app(tmp_path):
     # Copy migrations to temp dir for testing - db_path.parent.parent is where database.py looks
     import shutil
 
-    migrations_src = Path(__file__).parent.parent.parent.parent / "migrations"
+    migrations_src = project_root / "migrations"
     migrations_dst = db_path.parent.parent / "migrations"
     if migrations_src.exists():
         shutil.copytree(migrations_src, migrations_dst, dirs_exist_ok=True)
