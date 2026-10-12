@@ -358,7 +358,7 @@ def api_add_from_discovery():
         # Create device with pre-filled config from discovery
         device_data = {
             "name": data["name"],
-            "address": data["ip"],
+            "ip": data["ip"],
             "port": data.get("port", 4370),
             "password": data.get("password", 0),
             "timeout": data.get("timeout", 5),
@@ -366,7 +366,7 @@ def api_add_from_discovery():
             "location": data.get("location", ""),
             "zone": data.get("zone", ""),
             "status": "unknown",
-            "is_enabled": 1,
+            "enabled": 1,
             "mac": data.get("mac", ""),
             "model": data.get("model", ""),
             "firmware_version": data.get("firmware", ""),

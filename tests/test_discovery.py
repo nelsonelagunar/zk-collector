@@ -6,8 +6,9 @@ import socket
 from unittest.mock import Mock, patch
 
 import pytest
-from src.zk_client.discovery import DiscoveredDevice, ZKDiscovery, discover_devices
+
 import src.zk_client.discovery as discovery_module
+from src.zk_client.discovery import DiscoveredDevice, ZKDiscovery, discover_devices
 
 
 class TestDiscoveredDevice:
