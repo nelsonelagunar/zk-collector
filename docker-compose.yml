@@ -36,15 +36,7 @@ services:
       - ZK_COLLECTOR_PORT=8080
       - ZK_COLLECTOR_DATA=/app/data
     entrypoint: ["/app/docker-entrypoint.sh"]
-    # Use native HEALTHCHECK from Dockerfile (no override needed)
-    # The Dockerfile defines: HEALTHCHECK --interval=30s --timeout=5s --retries=3
-    # This provides faster startup detection than compose healthcheck
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+    # Native HEALTHCHECK from Dockerfile is used (interval=30s, timeout=5s, retries=3)
 
 volumes:
   zk-data:
