@@ -3,13 +3,13 @@ Auth Module - Authentication & Authorization
 Manejo de autenticación con JWT y Argon2id
 """
 
-import os
-import jwt
-import secrets
 import hashlib
 import logging
+import os
+import secrets
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Tuple, List
+
+import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class AuthError(Exception):
     """Excepción para errores de autenticación"""
+
     pass
 
 
@@ -28,22 +29,17 @@ class Auth:
     - JWT tokens con expiración
     - Refresh tokens rotativos
     """
-    
-    def __init__(self, secret_key: Optional[str] = None):
-        self.secret_key = secret_key or os.environ.get('WEBGUI_SECRET_KEY', secrets.token_hex(32))
-        self.ph = PasswordHasher(
-            time_cost=3,
-            memory_cost=65536,
-            parallelism=4,
-            hash_len=32
-        )
+
+    def __init__(self, secret_key: str | None = None):
+        self.secret_key = secret_key or os.environ.get("WEBGUI_SECRET_KEY", secrets.token_hex(32))
+        self.ph = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4, hash_len=32)
         self.token_expiry_minutes = 30
         self.refresh_token_days = 7
-    
+
     def hash_password(self, password: str) -> str:
         """Hashear contraseña con Argon2id"""
         return self.ph.hash(password)
-    
+
     def verify_password(self, password: str, password_hash: str) -> bool:
         """Verificar contraseña contra hash"""
         try:
@@ -51,43 +47,43 @@ class Auth:
             return True
         except VerifyMismatchError:
             return False
-    
-    def generate_tokens(self, user_id: int, username: str, role: str) -> Dict[str, str]:
+
+    def generate_tokens(self, user_id: int, username: str, role: str) -> dict[str, str]:
         """Generar access token y refresh token"""
         now = datetime.utcnow()
-        
+
         # Access token (corta duración)
         access_payload = {
-            'user_id': user_id,
-            'username': username,
-            'role': role,
-            'exp': now + timedelta(minutes=self.token_expiry_minutes),
-            'iat': now,
-            'type': 'access'
+            "user_id": user_id,
+            "username": username,
+            "role": role,
+            "exp": now + timedelta(minutes=self.token_expiry_minutes),
+            "iat": now,
+            "type": "access",
         }
-        access_token = jwt.encode(access_payload, self.secret_key, algorithm='HS256')
-        
+        access_token = jwt.encode(access_payload, self.secret_key, algorithm="HS256")
+
         # Refresh token (larga duración)
         refresh_payload = {
-            'user_id': user_id,
-            'exp': now + timedelta(days=self.refresh_token_days),
-            'iat': now,
-            'type': 'refresh',
-            'jti': secrets.token_hex(16)  # Unique ID para el token
+            "user_id": user_id,
+            "exp": now + timedelta(days=self.refresh_token_days),
+            "iat": now,
+            "type": "refresh",
+            "jti": secrets.token_hex(16),  # Unique ID para el token
         }
-        refresh_token = jwt.encode(refresh_payload, self.secret_key, algorithm='HS256')
-        
+        refresh_token = jwt.encode(refresh_payload, self.secret_key, algorithm="HS256")
+
         return {
-            'access_token': access_token,
-            'refresh_token': refresh_token,
-            'expires_in': self.token_expiry_minutes * 60
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_in": self.token_expiry_minutes * 60,
         }
-    
-    def verify_access_token(self, token: str) -> Optional[Dict]:
+
+    def verify_access_token(self, token: str) -> dict | None:
         """Verificar access token"""
         try:
-            payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
-            if payload.get('type') != 'access':
+            payload = jwt.decode(token, self.secret_key, algorithms=["HS256"])
+            if payload.get("type") != "access":
                 return None
             return payload
         except jwt.ExpiredSignatureError:
@@ -96,12 +92,12 @@ class Auth:
         except jwt.InvalidTokenError as e:
             logger.error(f"Token inválido: {e}")
             return None
-    
-    def verify_refresh_token(self, token: str) -> Optional[Dict]:
+
+    def verify_refresh_token(self, token: str) -> dict | None:
         """Verificar refresh token"""
         try:
-            payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
-            if payload.get('type') != 'refresh':
+            payload = jwt.decode(token, self.secret_key, algorithms=["HS256"])
+            if payload.get("type") != "refresh":
                 return None
             return payload
         except jwt.ExpiredSignatureError:
@@ -110,24 +106,26 @@ class Auth:
         except jwt.InvalidTokenError as e:
             logger.error(f"Refresh token inválido: {e}")
             return None
-    
-    def rotate_tokens(self, refresh_token: str, user_id: int, username: str, role: str) -> Optional[Dict[str, str]]:
+
+    def rotate_tokens(
+        self, refresh_token: str, user_id: int, username: str, role: str
+    ) -> dict[str, str] | None:
         """Rotar tokens - invalida el refresh token anterior"""
         # Verificar refresh token actual
         payload = self.verify_refresh_token(refresh_token)
         if not payload:
             return None
-        
+
         # Generar nuevos tokens
         return self.generate_tokens(user_id, username, role)
-    
+
     @staticmethod
     def generate_password_reset_token() -> str:
         """Generar token para reset de contraseña"""
         return secrets.token_urlsafe(32)
-    
+
     @staticmethod
-    def validate_password_strength(password: str) -> Tuple[bool, List[str]]:
+    def validate_password_strength(password: str) -> tuple[bool, list[str]]:
         """
         Validar fortaleza de contraseña
 
@@ -168,7 +166,7 @@ class Auth:
         """
         return hashlib.sha256(token.encode()).hexdigest() == token_hash
 
-    def generate_reset_token_and_hash(self) -> Tuple[str, str]:
+    def generate_reset_token_and_hash(self) -> tuple[str, str]:
         """
         Generar token de reset y su hash para almacenamiento
 

@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class MailError(Exception):
     """Excepción para errores de envío de email"""
+
     pass
 
 
@@ -25,10 +26,17 @@ class Mailer:
     - Timeout configurable
     """
 
-    def __init__(self, host: str, port: int, username: str,
-                 password: str, from_email: str,
-                 use_tls: bool = True, use_ssl: bool = False,
-                 timeout: int = 30):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        username: str,
+        password: str,
+        from_email: str,
+        use_tls: bool = True,
+        use_ssl: bool = False,
+        timeout: int = 30,
+    ):
         self.host = host
         self.port = int(port)
         self.username = username
@@ -39,41 +47,43 @@ class Mailer:
         self.timeout = timeout
 
     @classmethod
-    def from_config(cls, config: dict) -> Optional['Mailer']:
+    def from_config(cls, config: dict) -> Optional["Mailer"]:
         """
         Construir Mailer desde configuración de system_config (dict)
 
         Returns None si SMTP no está configurado
         """
-        if not config.get('smtp_host'):
+        if not config.get("smtp_host"):
             return None
-        if config.get('smtp_configured', 'false') != 'true':
+        if config.get("smtp_configured", "false") != "true":
             return None
 
         return cls(
-            host=config['smtp_host'],
-            port=config.get('smtp_port', '587'),
-            username=config.get('smtp_username', ''),
-            password=config.get('smtp_password', ''),
-            from_email=config.get('smtp_from_email') or config.get('smtp_username', ''),
-            use_tls=config.get('smtp_use_tls', 'true') == 'true',
-            use_ssl=int(config.get('smtp_port', '587')) == 465,
+            host=config["smtp_host"],
+            port=config.get("smtp_port", "587"),
+            username=config.get("smtp_username", ""),
+            password=config.get("smtp_password", ""),
+            from_email=config.get("smtp_from_email") or config.get("smtp_username", ""),
+            use_tls=config.get("smtp_use_tls", "true") == "true",
+            use_ssl=int(config.get("smtp_port", "587")) == 465,
         )
 
-    def send(self, to_email: str, subject: str, body: str, html_body: Optional[str] = None):
+    def send(self, to_email: str, subject: str, body: str, html_body: str | None = None):
         """Enviar email (texto plano + HTML opcional)"""
-        msg = MIMEMultipart('alternative')
-        msg['From'] = self.from_email
-        msg['To'] = to_email
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        msg = MIMEMultipart("alternative")
+        msg["From"] = self.from_email
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain", "utf-8"))
         if html_body:
-            msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+            msg.attach(MIMEText(html_body, "html", "utf-8"))
 
         try:
             if self.use_ssl:
                 context = ssl.create_default_context()
-                server = smtplib.SMTP_SSL(self.host, self.port, timeout=self.timeout, context=context)
+                server = smtplib.SMTP_SSL(
+                    self.host, self.port, timeout=self.timeout, context=context
+                )
             else:
                 server = smtplib.SMTP(self.host, self.port, timeout=self.timeout)
                 if self.use_tls:
@@ -92,7 +102,9 @@ class Mailer:
             logger.error(f"Error enviando email: {e}")
             raise MailError(f"SMTP send failed: {e}") from e
 
-    def send_password_reset(self, to_email: str, username: str, reset_url: str, expiry_minutes: int):
+    def send_password_reset(
+        self, to_email: str, username: str, reset_url: str, expiry_minutes: int
+    ):
         """Enviar email de reset de contraseña"""
         subject = "Attendance Collector - Recuperación de contraseña"
         body = (
