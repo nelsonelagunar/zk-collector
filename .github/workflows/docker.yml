@@ -78,6 +78,10 @@ jobs:
           ENCRYPTION_KEY=test-key-for-ci-only-not-production-use
           LOG_LEVEL=DEBUG
           LOG_FORMAT=json
+          ZK_ADMIN_PASSWORD=testadmin123
+          WEBGUI_SECRET_KEY=test-secret-key-for-ci
+          ZK_SYNC_URL=
+          ZK_SYNC_TOKEN=
           EOF
 
       - name: Start services with docker-compose
