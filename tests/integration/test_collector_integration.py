@@ -11,8 +11,8 @@ from typing import List, Dict
 
 from src.core.collector import AttendanceCollector
 from src.core.config import Config
-from src.zk.client import ZKClient
-from src.zk.attendance import AttendanceRecord
+from src.zk_client.client import ZKClient
+from src.zk_client.attendance import AttendanceRecord
 from src.buffer.repository import BufferRepository
 from src.buffer.models import AttendanceRecordDB
 from src.sync.platform import PlatformSync

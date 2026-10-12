@@ -7,9 +7,9 @@ from datetime import datetime
 from unittest.mock import Mock, patch, MagicMock
 from zk.exception import ZKError as PyZKError
 
-from src.zk.client import ZKClient
-from src.zk.attendance import AttendanceRecord
-from src.zk.exceptions import (
+from src.zk_client.client import ZKClient
+from src.zk_client.attendance import AttendanceRecord
+from src.zk_client.exceptions import (
     ZKConnectionError,
     ZKTimeoutError,
     ZKDeviceError,
