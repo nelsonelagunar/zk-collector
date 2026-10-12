@@ -2,31 +2,42 @@
 WebGUI Server - Attendance Collector
 """
 
-import os, logging
+import os
+import logging
 from pathlib import Path
 from flask import Flask, render_template, redirect, url_for, session, jsonify
 from datetime import datetime
 from .database import Database
 from .auth import Auth
+from src.buffer.repository import BufferRepository
+from src.core.constants import DEFAULT_DATA_DIR
+
 
 def create_app(config=None):
     app = Flask(__name__, template_folder="templates", static_folder="static")
     app.config["SECRET_KEY"] = os.environ.get("WEBGUI_SECRET_KEY", os.urandom(32).hex())
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-    db_path = Path(app.config.get("DB_PATH", "/opt/attendance/data/webgui.db"))
+    db_path = Path(os.environ.get("DB_PATH", os.environ.get("WEBGUI_DB_PATH", DEFAULT_DATA_DIR + "/webgui.db")))
     app.db = Database(db_path)
     app.db.initialize()
     app.auth = Auth(app.config["SECRET_KEY"])
+
+    # Buffer repository para consulta de asistencia
+    buffer_db_path = Path(os.environ.get("BUFFER_DB_PATH", DEFAULT_DATA_DIR + "/buffer.db"))
+    app.buffer_repo = BufferRepository(buffer_db_path)
+
     @app.context_processor
     def utility_processor():
         return {"now": datetime.now}
     from .routes.auth import auth_bp
     from .routes.devices import devices_bp
     from .routes.apidocs import apidocs_bp
+    from .routes.attendance import attendance_bp
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(devices_bp, url_prefix="/devices")
     app.register_blueprint(apidocs_bp, url_prefix="/api")
+    app.register_blueprint(attendance_bp)
     @app.route("/")
     def index():
         if "user_id" not in session:

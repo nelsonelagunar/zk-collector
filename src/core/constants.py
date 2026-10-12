@@ -29,12 +29,14 @@ SYNC_MAX_RETRIES = 5
 DEFAULT_LOG_LEVEL = "INFO"
 DEFAULT_LOG_MAX_SIZE_MB = 10
 DEFAULT_LOG_BACKUP_COUNT = 5
+DEFAULT_LOG_FORMAT = "text"  # text or json
 
-# Rutas por defecto
-DEFAULT_CONFIG_PATH = "/etc/attendance/collector.yaml"
-DEFAULT_DATA_DIR = "/opt/attendance/data"
-DEFAULT_LOG_DIR = "/var/log/attendance"
-DEFAULT_APP_DIR = "/opt/attendance"
+# Rutas por defecto (configurables via env vars)
+import os
+DEFAULT_CONFIG_PATH = os.environ.get('CONFIG_PATH', '/etc/attendance/collector.yaml')
+DEFAULT_DATA_DIR = os.environ.get('DATA_DIR', '/var/lib/attendance/data')
+DEFAULT_LOG_DIR = os.environ.get('LOG_DIR', '/var/log/attendance')
+DEFAULT_APP_DIR = os.environ.get('APP_DIR', '/var/lib/attendance')
 
 # Seguridad
 ENCRYPTION_ALGORITHM = "AES-256"

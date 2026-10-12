@@ -3,6 +3,9 @@
 #===============================================================================
 # Copiar este archivo a /etc/attendance/collector.yaml
 # Editar con los valores de su entorno
+#
+# NOTA: Valores sensibles (api_key, password) deben encriptarse en producción.
+# Use: python -m src.security.encryption encrypt "valor" --key $ENCRYPTION_KEY
 #===============================================================================
 
 #-------------------------------------------------------------------------------
@@ -12,8 +15,8 @@ platform:
   # URL de la plataforma (requerido)
   url: "https://plataforma.dominio.com"
   
-  # API Key para autenticación (requerido, encriptar en producción)
-  api_key: "tu-api-key-aqui"
+  # API Key para autenticación (requerido, encriptar en producción con Fernet)
+  api_key: "gAAAAAB..."  # Valor encriptado
   
   # Tenant ID del cliente (requerido)
   tenant_id: "550e8400-e29b-41d4-a716-446655440000"
@@ -32,7 +35,8 @@ devices:
   - ip: "192.168.1.101"
     port: 4370
     timeout: 5
-    password: 0
+    # Password encriptado con Fernet (use ENCRYPTION_KEY env var)
+    password: "gAAAAAB..."  # Valor encriptado, o "0" si sin password
     name: "Entrada Principal"
     enabled: true
   
@@ -40,7 +44,7 @@ devices:
   - ip: "192.168.1.102"
     port: 4370
     timeout: 5
-    password: 0
+    password: "gAAAAAB..."  # Valor encriptado
     name: "Salida Emergencia"
     enabled: true
   
@@ -64,6 +68,9 @@ buffer:
   
   # Días a mantener registros antes de limpiar
   cleanup_days: 30
+  
+  # Ruta de la base de datos del buffer (opcional, usa DATA_DIR env var por defecto)
+  db_path: ""
 
 #-------------------------------------------------------------------------------
 # Logging
@@ -71,6 +78,9 @@ buffer:
 logging:
   # Nivel de log: DEBUG, INFO, WARNING, ERROR
   level: "INFO"
+  
+  # Formato de log: "text" (legible) o "json" (estructurado)
+  format: "text"
   
   # Tamaño máximo por archivo de log (MB)
   max_size_mb: 10

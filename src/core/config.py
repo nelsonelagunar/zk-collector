@@ -46,7 +46,7 @@ class Config:
                 'ip': {'type': 'string', 'required': True},
                 'port': {'type': 'integer', 'default': 4370},
                 'timeout': {'type': 'integer', 'default': 5},
-                'password': {'type': 'integer', 'default': 0},
+                'password': {'type': 'string', 'default': '0', 'sensitive': True},
                 'name': {'type': 'string', 'default': ''},
                 'enabled': {'type': 'boolean', 'default': True},
             }
@@ -68,6 +68,7 @@ class Config:
             'fields': {
                 'max_records': {'type': 'integer', 'default': 10000},
                 'cleanup_days': {'type': 'integer', 'default': 30},
+                'db_path': {'type': 'string', 'default': ''},
             }
         },
         'logging': {
@@ -80,6 +81,7 @@ class Config:
                 },
                 'max_size_mb': {'type': 'integer', 'default': 10},
                 'backup_count': {'type': 'integer', 'default': 5},
+                'format': {'type': 'string', 'default': 'text', 'allowed': ['text', 'json']},
             }
         }
     }
@@ -125,6 +127,31 @@ class Config:
                 self.config['platform']['api_key'] = decrypted
             except Exception as e:
                 logger.warning(f"No se pudo desencriptar api_key: {e}")
+        
+        # Device passwords
+        if 'devices' in self.config:
+            for device in self.config['devices']:
+                if 'password' in device and device['password']:
+                    try:
+                        encrypted = device['password']
+                        # Only decrypt if it looks encrypted (base64 format)
+                        if self._looks_encrypted(encrypted):
+                            decrypted = fernet.decrypt(encrypted.encode()).decode()
+                            device['password'] = decrypted
+                    except Exception as e:
+                        logger.warning(f"No se pudo desencriptar password del dispositivo {device.get('ip', 'unknown')}: {e}")
+    
+    def _looks_encrypted(self, value: str) -> bool:
+        """Check if a value looks like it's Fernet encrypted (base64, ~44 chars)"""
+        if not isinstance(value, str):
+            return False
+        # Fernet tokens are base64 encoded, typically 44 chars or multiples
+        try:
+            import base64
+            decoded = base64.urlsafe_b64decode(value + '=' * (-len(value) % 4))
+            return len(decoded) >= 32  # Fernet tokens are at least 32 bytes
+        except Exception:
+            return False
     
     def _apply_defaults(self):
         """Aplicar valores por defecto del schema"""
@@ -139,6 +166,13 @@ class Config:
                     if field not in self.config[section]:
                         if 'default' in field_schema:
                             self.config[section][field] = field_schema['default']
+            
+            # Apply defaults for list items
+            if schema.get('type') == 'list' and 'item_schema' in schema:
+                for item in self.config[section]:
+                    for field, field_schema in schema['item_schema'].items():
+                        if field not in item and 'default' in field_schema:
+                            item[field] = field_schema['default']
     
     def _validate(self):
         """Validar configuración contra schema"""
@@ -203,3 +237,33 @@ class Config:
             yaml.dump(self.config, f, default_flow_style=False, allow_unicode=True)
         
         logger.info(f"Configuración guardada: {path}")
+    
+    def encrypt_sensitive_values(self) -> Dict:
+        """
+        Encriptar valores sensibles para guardar en archivo
+        
+        Returns:
+            Dict con valores encriptados
+        """
+        if not self.encryption_key:
+            logger.warning("ENCRYPTION_KEY no configurada, no se encriptarán valores")
+            return self.config.copy()
+        
+        fernet = Fernet(self.encryption_key.encode())
+        encrypted_config = self.config.copy()
+        
+        # Encriptar platform.api_key
+        if 'platform' in encrypted_config and 'api_key' in encrypted_config['platform']:
+            api_key = encrypted_config['platform']['api_key']
+            if api_key and not self._looks_encrypted(api_key):
+                encrypted_config['platform']['api_key'] = fernet.encrypt(api_key.encode()).decode()
+        
+        # Encriptar device passwords
+        if 'devices' in encrypted_config:
+            for device in encrypted_config['devices']:
+                if 'password' in device and device['password']:
+                    password = str(device['password'])
+                    if password and not self._looks_encrypted(password):
+                        device['password'] = fernet.encrypt(password.encode()).decode()
+        
+        return encrypted_config

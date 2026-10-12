@@ -6,18 +6,45 @@ services:
     ports:
       - "8080:8080"
     volumes:
+      # Persistent data: SQLite DBs (buffer, webgui), logs, attendance buffer
       - zk-data:/app/data
+      # Config directory (read-only - edit configs/collector.yaml on host, then restart)
       - ./configs:/app/configs:ro
+      # Optional: override log directory if you want logs on host
+      # - ./logs:/app/logs
     environment:
-      - ZK_ADMIN_PASSWORD=${ZK_ADMIN_PASSWORD:-changeme}
+      # Admin password for web dashboard (required)
+      - ZK_ADMIN_PASSWORD=${ZK_ADMIN_PASSWORD}
+
+      # Cloud sync (optional - leave empty to disable)
+      - ZK_SYNC_URL=${ZK_SYNC_URL}
+      - ZK_SYNC_TOKEN=${ZK_SYNC_TOKEN}
+
+      # Encryption key for sensitive config values (required for production)
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+
+      # Application config
+      - CONFIG_PATH=/app/configs/collector.yaml
+      - DATA_DIR=/app/data
+      - LOG_DIR=/app/logs
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-text}
+      - WEBGUI_SECRET_KEY=${WEBGUI_SECRET_KEY}
+
+      # Collector settings (can be overridden from collector.yaml)
+      - ZK_COLLECTOR_HOST=0.0.0.0
+      - ZK_COLLECTOR_PORT=8080
       - ZK_COLLECTOR_DATA=/app/data
-      - ZK_SYNC_URL=${ZK_SYNC_URL:-}
-      - ZK_SYNC_TOKEN=${ZK_SYNC_TOKEN:-}
+    entrypoint: ["/app/docker-entrypoint.sh"]
+    # Use native HEALTHCHECK from Dockerfile (no override needed)
+    # The Dockerfile defines: HEALTHCHECK --interval=30s --timeout=5s --retries=3
+    # This provides faster startup detection than compose healthcheck
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
+      start_period: 10s
 
 volumes:
   zk-data:

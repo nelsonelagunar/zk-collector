@@ -5,7 +5,7 @@ Manejo de registros de asistencia en disco
 
 import sqlite3
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Generator
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 from pathlib import Path
@@ -333,6 +333,150 @@ class BufferRepository:
             
             return [dict(row) for row in cursor.fetchall()]
     
+    def get_attendance_records(self, start_date: Optional[str] = None, end_date: Optional[str] = None,
+                                device_ip: Optional[str] = None, user_id: Optional[str] = None,
+                                limit: Optional[int] = None, offset: int = 0) -> List[Dict]:
+        """
+        Obtener registros de asistencia con filtros de fecha, dispositivo y empleado
+
+        Args:
+            start_date: Fecha inicio en formato ISO (YYYY-MM-DD)
+            end_date: Fecha fin en formato ISO (YYYY-MM-DD)
+            device_ip: IP del dispositivo para filtrar
+            user_id: ID del empleado para filtrar
+            limit: Máximo de registros a retornar
+            offset: Offset para paginación
+
+        Returns:
+            Lista de registros de asistencia
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            query = '''
+                SELECT id, user_id, timestamp, status, device_ip, punch_type, synced
+                FROM attendance_records
+                WHERE 1=1
+            '''
+            params = []
+
+            if start_date:
+                query += ' AND timestamp >= ?'
+                params.append(start_date)
+
+            if end_date:
+                query += ' AND timestamp <= ?'
+                params.append(end_date + ' 23:59:59')
+
+            if device_ip:
+                query += ' AND device_ip = ?'
+                params.append(device_ip)
+
+            if user_id:
+                query += ' AND user_id = ?'
+                params.append(user_id)
+
+            query += ' ORDER BY timestamp DESC, id DESC'
+
+            if limit:
+                query += ' LIMIT ?'
+                params.append(limit)
+
+            if offset:
+                query += ' OFFSET ?'
+                params.append(offset)
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+
+            return [
+                {
+                    'id': row['id'],
+                    'user_id': row['user_id'],
+                    'timestamp': row['timestamp'],
+                    'status': row['status'],
+                    'device_ip': row['device_ip'],
+                    'punch_type': row['punch_type'],
+                    'synced': bool(row['synced']),
+                }
+                for row in rows
+            ]
+
+    def get_attendance_count(self, start_date: Optional[str] = None, end_date: Optional[str] = None,
+                              device_ip: Optional[str] = None, user_id: Optional[str] = None) -> int:
+        """
+        Obtener total de registros con filtros de fecha, dispositivo y empleado (para paginación)
+
+        Args:
+            start_date: Fecha inicio en formato ISO (YYYY-MM-DD)
+            end_date: Fecha fin en formato ISO (YYYY-MM-DD)
+            device_ip: IP del dispositivo para filtrar
+            user_id: ID del empleado para filtrar
+
+        Returns:
+            Total de registros
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            query = 'SELECT COUNT(*) FROM attendance_records WHERE 1=1'
+            params = []
+
+            if start_date:
+                query += ' AND timestamp >= ?'
+                params.append(start_date)
+
+            if end_date:
+                query += ' AND timestamp <= ?'
+                params.append(end_date + ' 23:59:59')
+
+            if device_ip:
+                query += ' AND device_ip = ?'
+                params.append(device_ip)
+
+            if user_id:
+                query += ' AND user_id = ?'
+                params.append(user_id)
+
+            cursor.execute(query, params)
+            return cursor.fetchone()[0]
+
+    def stream_attendance_records(self, start_date: Optional[str] = None, end_date: Optional[str] = None,
+                                   device_ip: Optional[str] = None, user_id: Optional[str] = None,
+                                   chunk_size: int = 1000):
+        """
+        Generador para streaming de registros grandes (evita cargar todo en memoria)
+
+        Args:
+            start_date: Fecha inicio en formato ISO (YYYY-MM-DD)
+            end_date: Fecha fin en formato ISO (YYYY-MM-DD)
+            device_ip: IP del dispositivo para filtrar
+            user_id: ID del empleado para filtrar
+            chunk_size: Tamaño de cada chunk
+
+        Yields:
+            Chunks de registros
+        """
+        offset = 0
+        while True:
+            records = self.get_attendance_records(
+                start_date=start_date,
+                end_date=end_date,
+                device_ip=device_ip,
+                user_id=user_id,
+                limit=chunk_size,
+                offset=offset
+            )
+
+            if not records:
+                break
+
+            yield records
+            offset += chunk_size
+
+            if len(records) < chunk_size:
+                break
+
     def clear_all(self):
         """Limpiar todos los registros (usar con precaución)"""
         with self.get_connection() as conn:

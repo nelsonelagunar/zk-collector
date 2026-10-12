@@ -34,6 +34,8 @@ dependencies = [
     "flask>=3.1.0",
     "flask-login>=0.6.3",
     "gunicorn>=23.0.0",
+    "openpyxl>=3.1.0",
+    "netifaces>=0.11.0",
 ]
 
 [project.optional-dependencies]
@@ -50,6 +52,7 @@ docker = [
 
 [project.scripts]
 zk-collector = "src.main:main"
+zk-encrypt = "src.security.encryption:main"
 
 [project.urls]
 Homepage = "https://github.com/nelsonelagunar/zk-collector"
