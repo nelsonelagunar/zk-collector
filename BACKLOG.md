@@ -29,7 +29,7 @@ These were completed in the initial release (commit 706016d through a872c85):
 | # | Task | Priority | Status | Notes |
 |---|------|----------|--------|-------|
 | **11** | **Docker image (ARM64 + x86_64 multi-arch)** | Critical | In Progress | GitHub Actions workflows exist (ci.yml, docker.yml); needs CI validation |
-| **12** | **docker-compose for single-command deploy** | Critical | In Progress | `docker-compose.yml` updated with env validation, healthchecks, volumes; docker-entrypoint.sh validates required vars |
+| **12** | **docker-compose for single-command deploy** | Critical | **Done** | `docker-compose.yml` + supervisord for dual-process (collector + webgui); validates ZK_ADMIN_PASSWORD, ENCRYPTION_KEY; healthchecks on /health; volumes zk-data, zk-logs; restart: unless-stopped; entrypoint validates required vars |
 | **13** | **Auto-discovery of ZKTeco devices on LAN** | High | Done | `src/zk/discovery.py` implemented; UDP broadcast on port 4370; integrates with WebGUI "Add Device" |
 | **14** | **CSV/Excel attendance export** | High | Done | `src/webgui/routes/attendance.py` + `templates/attendance/list.html`; streaming CSV/Excel with filters |
 | **15** | **Password reset flow** | Medium | In Progress | Templates (`forgot_password.html`, `reset_password.html`) + routes in `auth.py`; needs email integration |
@@ -94,9 +94,8 @@ These were completed in the initial release (commit 706016d through a872c85):
 | Order | Task ID | Action | Owner |
 |-------|---------|--------|-------|
 | 1 | **11** | **Verify CI passes** (ci.yml + docker.yml multi-arch build & smoke test) | DevOps |
-| 2 | **12** | Validate docker-compose.yml works end-to-end on fresh machine | DevOps |
-| 3 | **15** | Complete password reset flow: email integration or admin fallback | Backend Dev |
-| 4 | **16** | Ensure CI runs on every PR + coverage reporting | Backend Dev |
+| 2 | **15** | Complete password reset flow: email integration or admin fallback | Backend Dev |
+| 3 | **16** | Ensure CI runs on every PR + coverage reporting | Backend Dev |
 
 ---
 
