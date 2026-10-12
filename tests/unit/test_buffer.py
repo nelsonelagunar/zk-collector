@@ -22,24 +22,25 @@ def temp_db(tmp_path):
 @pytest.fixture
 def sample_records():
     """Create sample attendance records"""
+    now = datetime.now()
     return [
         AttendanceRecordDB(
             user_id="1",
-            timestamp=datetime(2026, 3, 3, 8, 0, 0),
+            timestamp=now - timedelta(days=2, hours=8),
             status=0,
             device_ip="192.168.1.101",
             punch_type="entrada"
         ),
         AttendanceRecordDB(
             user_id="2",
-            timestamp=datetime(2026, 3, 3, 17, 0, 0),
+            timestamp=now - timedelta(days=2, hours=1),
             status=1,
             device_ip="192.168.1.101",
             punch_type="salida"
         ),
         AttendanceRecordDB(
             user_id="3",
-            timestamp=datetime(2026, 3, 4, 8, 0, 0),
+            timestamp=now - timedelta(days=1, hours=8),
             status=0,
             device_ip="192.168.1.102",
             punch_type="entrada"

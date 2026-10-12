@@ -152,7 +152,7 @@ class BufferRepository:
             cursor = conn.cursor()
             
             cursor.execute('''
-                SELECT id, user_id, timestamp, status, device_ip, punch_type
+                SELECT id, user_id, timestamp, status, device_ip, punch_type, synced
                 FROM attendance_records
                 WHERE synced = 0
                 ORDER BY timestamp ASC, id ASC
@@ -169,6 +169,7 @@ class BufferRepository:
                     'status': row['status'],
                     'device_ip': row['device_ip'],
                     'punch_type': row['punch_type'],
+                    'synced': bool(row['synced']),
                 }
                 for row in rows
             ]
@@ -227,14 +228,18 @@ class BufferRepository:
                 WHERE id IN ({placeholders})
             ''', [max_attempts] + record_ids)
     
-    def _cleanup_old_records(self, conn, days: int = 30):
+    def _cleanup_old_records(self, conn=None, days: int = 30):
         """
         Limpiar registros antiguos
         
         Args:
-            conn: Conexión SQLite
+            conn: Conexión SQLite (opcional, se crea una si no se proporciona)
             days: Días a mantener
         """
+        if conn is None:
+            with self.get_connection() as conn:
+                return self._cleanup_old_records(conn, days)
+        
         cursor = conn.cursor()
         
         # Eliminar registros sincronizados mayores a N días

@@ -5,6 +5,9 @@ Auth Routes - Login, Logout, Setup, Password Reset
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, jsonify
 from datetime import datetime, timedelta
 import logging
+import time
+from collections import defaultdict
+from threading import Lock
 
 from ..auth import Auth
 from ..mail import Mailer
@@ -12,6 +15,32 @@ from ..mail import Mailer
 auth_bp = Blueprint('auth', __name__)
 
 RESET_TOKEN_EXPIRY_HOURS = 1
+
+# Rate limiting: max 3 requests per hour per IP
+RATE_LIMIT_WINDOW_SECONDS = 3600
+RATE_LIMIT_MAX_REQUESTS = 3
+
+# In-memory rate limiter (use Redis in production for multi-worker deployments)
+_rate_limit_store = defaultdict(list)
+_rate_limit_lock = Lock()
+
+
+def _check_rate_limit(ip: str) -> tuple[bool, int]:
+    """
+    Check if IP has exceeded rate limit.
+    Returns (allowed, remaining_requests)
+    """
+    now = time.time()
+    with _rate_limit_lock:
+        # Clean old entries
+        _rate_limit_store[ip] = [t for t in _rate_limit_store[ip] if now - t < RATE_LIMIT_WINDOW_SECONDS]
+
+        if len(_rate_limit_store[ip]) >= RATE_LIMIT_MAX_REQUESTS:
+            return False, 0
+
+        _rate_limit_store[ip].append(now)
+        remaining = RATE_LIMIT_MAX_REQUESTS - len(_rate_limit_store[ip])
+        return True, remaining
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -128,6 +157,13 @@ def setup():
 def forgot_password():
     """Solicitar reset de contraseña por email"""
     if request.method == 'POST':
+        # Rate limiting
+        client_ip = request.remote_addr
+        allowed, remaining = _check_rate_limit(client_ip)
+        if not allowed:
+            flash('Demasiadas solicitudes. Intenta de nuevo en una hora.', 'error')
+            return render_template('forgot_password.html'), 429
+
         email = request.form.get('email', '').strip().lower()
 
         if not email:
@@ -249,9 +285,15 @@ def reset_password(token: str):
 @auth_bp.route('/api/auth/forgot-password', methods=['POST'])
 def api_forgot_password():
     """API: Solicitar reset de contraseña por email"""
-    # Rate limiting simple: max 3 requests per hour per IP
+    # Rate limiting: max 3 requests per hour per IP
     client_ip = request.remote_addr
-    db = current_app.db
+    allowed, remaining = _check_rate_limit(client_ip)
+    if not allowed:
+        return jsonify({
+            'success': False,
+            'message': 'Demasiadas solicitudes. Intenta de nuevo en una hora.',
+            'retry_after': RATE_LIMIT_WINDOW_SECONDS
+        }), 429
 
     data = request.get_json() or {}
     email = data.get('email', '').strip().lower()
@@ -259,6 +301,7 @@ def api_forgot_password():
     if not email:
         return jsonify({'success': False, 'message': 'Email es requerido'}), 400
 
+    db = current_app.db
     auth = current_app.auth
 
     # Buscar usuario por email
@@ -295,6 +338,16 @@ def api_forgot_password():
 @auth_bp.route('/api/auth/reset-password', methods=['POST'])
 def api_reset_password():
     """API: Restablecer contraseña con token"""
+    # Rate limiting: max 3 requests per hour per IP
+    client_ip = request.remote_addr
+    allowed, remaining = _check_rate_limit(client_ip)
+    if not allowed:
+        return jsonify({
+            'success': False,
+            'message': 'Demasiadas solicitudes. Intenta de nuevo en una hora.',
+            'retry_after': RATE_LIMIT_WINDOW_SECONDS
+        }), 429
+
     data = request.get_json() or {}
     token = data.get('token', '')
     password = data.get('password', '')

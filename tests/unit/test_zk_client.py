@@ -5,7 +5,7 @@ Unit tests for ZKClient module
 import pytest
 from datetime import datetime
 from unittest.mock import Mock, patch, MagicMock
-from zk import ZKError as PyZKError
+from zk.exception import ZKError as PyZKError
 
 from src.zk.client import ZKClient
 from src.zk.attendance import AttendanceRecord

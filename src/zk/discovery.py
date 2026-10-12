@@ -13,6 +13,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger(__name__)
 
+# Module-level netifaces reference for patching in tests
+netifaces = None
+try:
+    import netifaces as _netifaces
+    netifaces = _netifaces
+except ImportError:
+    pass
+
 
 @dataclass
 class DiscoveredDevice:
@@ -84,7 +92,7 @@ class ZKDiscovery:
         - IP address: 4 bytes
         - Device info: variable
         """
-        if len(data) < 24:  # Minimum expected response size
+        if len(data) < 10:  # Minimum expected response size (header + ip + mac = 14, but allow shorter)
             return None
 
         try:
@@ -96,12 +104,19 @@ class ZKDiscovery:
             # Offset 14+: Additional info (model, firmware, etc.)
 
             # Extract MAC (6 bytes at offset 8 typically)
-            mac_bytes = data[8:14] if len(data) >= 14 else data[-6:]
+            # For short responses (< 14 bytes), use last 6 bytes
+            if len(data) >= 14:
+                mac_bytes = data[8:14]
+            else:
+                mac_bytes = data[-6:] if len(data) >= 6 else None
+            
+            if mac_bytes is None or len(mac_bytes) != 6:
+                return None
             mac = ':'.join(f'{b:02x}' for b in mac_bytes).upper()
 
             # Extract IP (4 bytes at offset 4 typically)
             ip_bytes = data[4:8] if len(data) >= 8 else None
-            if ip_bytes and len(ip_bytes) == 4:
+            if ip_bytes and len(ip_bytes) == 4 and ip_bytes != b'\x00\x00\x00\x00':
                 ip = '.'.join(str(b) for b in ip_bytes)
             else:
                 ip = addr[0]
@@ -113,11 +128,12 @@ class ZKDiscovery:
             device_name = None
 
             # Some devices include model/firmware in response
-            if len(data) > 24:
+            # Expected format: header(4) + ip(4) + mac(6) = 14 bytes minimum, then text at offset 14+
+            if len(data) > 14:
                 # Try to decode ASCII strings from response
                 try:
-                    # Look for null-terminated strings in the response
-                    text_part = data[24:].decode('ascii', errors='ignore')
+                    # Look for null-terminated strings in the response (starting at offset 14)
+                    text_part = data[14:].decode('ascii', errors='ignore')
                     parts = [p for p in text_part.split('\x00') if p.strip()]
                     if parts:
                         model = parts[0] if len(parts) > 0 else None
