@@ -109,9 +109,6 @@ class ZKDiscovery:
                 mac_bytes = data[8:14]
             else:
                 mac_bytes = data[-6:] if len(data) >= 6 else None
-                mac_bytes = data[8:14]
-            else:
-                mac_bytes = data[-6:] if len(data) >= 6 else None
 
             if mac_bytes is None or len(mac_bytes) != 6:
                 return None

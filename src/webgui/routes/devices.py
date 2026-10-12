@@ -6,7 +6,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from datetime import datetime
 from zk import ZK, ZKError
 
-from src.zk.discovery import discover_devices
+from src.zk_client.discovery import discover_devices
 
 devices_bp = Blueprint('devices', __name__)
 

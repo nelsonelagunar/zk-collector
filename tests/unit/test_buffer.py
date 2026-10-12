@@ -453,8 +453,10 @@ class TestSyncLog:
 
     def test_get_sync_history_limit(self, temp_db):
         """Test sync history limit"""
+        import time
         for i in range(60):
-            temp_db.log_sync(i, 0, 'success', 1.0)
+            temp_db.log_sync(i, 0, 'success', None, 1.0)
+            time.sleep(0.01)
 
         history = temp_db.get_sync_history(limit=50)
         assert len(history) == 50

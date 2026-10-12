@@ -9,8 +9,8 @@ from typing import List, Dict, Optional
 from datetime import datetime
 
 from src.core.config import Config
-from src.zk.client import ZKClient
-from src.zk.attendance import AttendanceRecord
+from src.zk_client.client import ZKClient
+from src.zk_client.attendance import AttendanceRecord
 from src.buffer.repository import BufferRepository
 from src.sync.platform import PlatformSync
 from src.monitoring.health import HealthMonitor

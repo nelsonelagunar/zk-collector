@@ -158,15 +158,10 @@ class TestZKDiscovery:
         assert device.mac == 'AA:BB:CC:DD:EE:FF'
 
     def test_parse_discovery_response_mac_from_end(self):
-        """Test extracción de MAC del final cuando response es corta (less than 14 bytes)"""
+        """Test extracción de MAC cuando response es 24+ bytes (MAC at offset 8)"""
         discovery = ZKDiscovery()
 
-        # The early return requires 24 bytes minimum, so we can't test < 14 directly
-        # But we can test that when len(data) < 14, it would use data[-6:] - this is tested
-        # indirectly by the valid response test. For now, test a 24-byte response where
-        # MAC is at the end of the data (not at offset 8)
-        # Actually the code uses data[8:14] for len >= 14, so this test name is misleading
-        # Let's test a valid case with MAC at offset 8
+        # Valid 24-byte response with MAC at standard offset 8
         data = (
             b'\x00\x00\x00\x00' +  # header (4)
             b'\xc0\xa8\x01\x65' +  # IP (4) = 192.168.1.101
@@ -177,6 +172,7 @@ class TestZKDiscovery:
 
         assert device is not None
         assert device.mac == 'AA:BB:CC:DD:EE:FF'
+        assert device.ip == '192.168.1.101'
         assert device.ip == '192.168.1.101'
 
 
