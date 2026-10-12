@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+
+{% block title %}Asistencia - Attendance Collector{% endblock %}
+
+{% block extra_head %}
+<!-- Flatpickr para date pickers -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="md:flex md:items-center md:justify-between mb-8">
+        <div class="flex-1 min-w-0">
+            <h2 class="text-2xl font-bold leading-7 text-gray-900 dark:text-gray-100 sm:text-3xl sm:truncate">
+                Registros de Asistencia
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Consulta y exporta registros de asistencia
+            </p>
+        </div>
+        <div class="mt-4 flex md:mt-0 md:ml-4">
+            <a href="/attendance/export?format=csv"
+               class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
+                <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                Exportar CSV
+            </a>
+            <a href="/attendance/export?format=xlsx"
+               class="ml-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-700 hover:bg-green-800">
+                <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                Exportar Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg mb-6 border border-gray-200 dark:border-gray-700">
+        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">Filtros</h3>
+        </div>
+        <div class="px-5 py-4">
+            <form id="filter-form" class="flex flex-wrap gap-4 items-end">
+                <div>
+                    <label for="start_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Fecha Inicio
+                    </label>
+                    <input type="text" id="start_date" name="start_date"
+                           class="w-48 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm
+                                  bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           placeholder="YYYY-MM-DD">
+                </div>
+                <div>
+                    <label for="end_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Fecha Fin
+                    </label>
+                    <input type="text" id="end_date" name="end_date"
+                           class="w-48 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm
+                                  bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           placeholder="YYYY-MM-DD">
+                </div>
+                <button type="button" id="btn-filter"
+                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                    Filtrar
+                </button>
+                <button type="button" id="btn-reset"
+                        class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    Limpiar
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de registros -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700">
+        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">Registros</h3>
+            <div id="record-count" class="text-sm text-gray-500 dark:text-gray-400">Cargando...</div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Usuario</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Fecha/Hora</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Estado</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Dispositivo</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tipo Marca</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sync</th>
+                    </tr>
+                </thead>
+                <tbody id="attendance-table-body" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    <!-- Rows loaded via JS -->
+                    <tr>
+                        <td colspan="7" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">Cargando...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <!-- Paginación -->
+        <div id="pagination" class="px-5 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div class="flex-1 flex justify-between sm:hidden">
+                <button id="prev-page" disabled class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Anterior
+                </button>
+                <button id="next-page" disabled class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Siguiente
+                </button>
+            </div>
+            <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-sm text-gray-700 dark:text-gray-300">
+                        Mostrando <span id="showing-start">0</span> a <span id="showing-end">0</span> de <span id="total-records">0</span> resultados
+                    </p>
+                </div>
+                <div>
+                    <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                        <button id="prev-page-lg" disabled class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                        </button>
+                        <div id="page-numbers" class="flex">
+                            <!-- Page numbers inserted here -->
+                        </div>
+                        <button id="next-page-lg" disabled class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+                        </button>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('attendance', () => ({
+        currentPage: 1,
+        perPage: 50,
+        totalRecords: 0,
+        totalPages: 0,
+        startDate: '',
+        endDate: '',
+
+        init() {
+            this.setupDatePickers();
+            this.loadRecords();
+            this.bindEvents();
+        },
+
+        setupDatePickers() {
+            flatpickr("#start_date", {
+                dateFormat: "Y-m-d",
+                locale: "es",
+                onChange: (selectedDates, dateStr) => {
+                    this.startDate = dateStr;
+                }
+            });
+            flatpickr("#end_date", {
+                dateFormat: "Y-m-d",
+                locale: "es",
+                onChange: (selectedDates, dateStr) => {
+                    this.endDate = dateStr;
+                }
+            });
+        },
+
+        bindEvents() {
+            document.getElementById('btn-filter').addEventListener('click', () => {
+                this.currentPage = 1;
+                this.loadRecords();
+            });
+            document.getElementById('btn-reset').addEventListener('click', () => {
+                this.startDate = '';
+                this.endDate = '';
+                document.getElementById('start_date').value = '';
+                document.getElementById('end_date').value = '';
+                this.currentPage = 1;
+                this.loadRecords();
+            });
+            document.getElementById('prev-page').addEventListener('click', () => {
+                if (this.currentPage > 1) {
+                    this.currentPage--;
+                    this.loadRecords();
+                }
+            });
+            document.getElementById('next-page').addEventListener('click', () => {
+                if (this.currentPage < this.totalPages) {
+                    this.currentPage++;
+                    this.loadRecords();
+                }
+            });
+            document.getElementById('prev-page-lg').addEventListener('click', () => {
+                if (this.currentPage > 1) {
+                    this.currentPage--;
+                    this.loadRecords();
+                }
+            });
+            document.getElementById('next-page-lg').addEventListener('click', () => {
+                if (this.currentPage < this.totalPages) {
+                    this.currentPage++;
+                    this.loadRecords();
+                }
+            });
+        },
+
+        async loadRecords() {
+            const params = new URLSearchParams({
+                page: this.currentPage,
+                per_page: this.perPage
+            });
+            if (this.startDate) params.append('start_date', this.startDate);
+            if (this.endDate) params.append('end_date', this.endDate);
+
+            try {
+                const response = await fetch(`/api/attendance?${params}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    console.error('Error:', data.error);
+                    return;
+                }
+
+                this.renderRecords(data.records);
+                this.updatePagination(data.pagination);
+            } catch (error) {
+                console.error('Error loading records:', error);
+            }
+        },
+
+        renderRecords(records) {
+            const tbody = document.getElementById('attendance-table-body');
+            if (records.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">No hay registros</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = records.map(record => `
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">${record.id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">${record.user_id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${record.timestamp}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            ${this.getStatusClass(record.status)}">
+                            ${this.getStatusText(record.status)}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${record.device_ip}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${record.punch_type || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            ${record.synced ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400' : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400'}">
+                            ${record.synced ? 'Sí' : 'Pendiente'}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+        },
+
+        getStatusText(status) {
+            const map = {
+                0: 'Entrada',
+                1: 'Salida',
+                2: 'Entrada Almuerzo',
+                3: 'Salida Almuerzo',
+                4: 'Horas Extra Entrada',
+                5: 'Horas Extra Salida',
+            };
+            return map[status] || `Desconocido (${status})`;
+        },
+
+        getStatusClass(status) {
+            const classes = {
+                0: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400',
+                1: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400',
+                2: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400',
+                3: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400',
+                4: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400',
+                5: 'bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-400',
+            };
+            return classes[status] || 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300';
+        },
+
+        updatePagination(pagination) {
+            this.totalRecords = pagination.total;
+            this.totalPages = pagination.total_pages;
+
+            document.getElementById('record-count').textContent = `${pagination.total} registros`;
+            document.getElementById('showing-start').textContent = ((pagination.page - 1) * pagination.per_page) + 1;
+            document.getElementById('showing-end').textContent = Math.min(pagination.page * pagination.per_page, pagination.total);
+            document.getElementById('total-records').textContent = pagination.total;
+
+            // Update buttons
+            const prevButtons = ['prev-page', 'prev-page-lg'];
+            const nextButtons = ['next-page', 'next-page-lg'];
+
+            prevButtons.forEach(id => {
+                document.getElementById(id).disabled = pagination.page <= 1;
+            });
+            nextButtons.forEach(id => {
+                document.getElementById(id).disabled = pagination.page >= pagination.total_pages;
+            });
+
+            // Render page numbers
+            const pageNumbersEl = document.getElementById('page-numbers');
+            let pagesHtml = '';
+            const maxPages = 5;
+            let startPage = Math.max(1, pagination.page - Math.floor(maxPages / 2));
+            let endPage = Math.min(pagination.total_pages, startPage + maxPages - 1);
+
+            if (endPage - startPage + 1 < maxPages) {
+                startPage = Math.max(1, endPage - maxPages + 1);
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                pagesHtml += `
+                    <button onclick="document.querySelector('[x-data]').__x.currentPage = ${i}; document.querySelector('[x-data]').__x.loadRecords();"
+                            class="relative inline-flex items-center px-4 py-2 border text-sm font-medium
+                                ${i === pagination.page
+                                    ? 'z-10 bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-600 dark:text-blue-400'
+                                    : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600'}">
+                        ${i}
+                    </button>
+                `;
+            }
+            pageNumbersEl.innerHTML = pagesHtml;
+        }
+    }));
+});
+</script>
+{% endblock %}

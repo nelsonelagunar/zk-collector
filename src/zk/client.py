@@ -36,7 +36,7 @@ class ZKClient:
         ip: str,
         port: int = 4370,
         timeout: int = 5,
-        password: int = 0,
+        password: str = "0",
         force_udp: bool = False,
         ommit_ping: bool = False,
         encoding: str = 'utf-8'

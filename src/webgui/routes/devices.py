@@ -6,6 +6,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from datetime import datetime
 from zk import ZK, ZKError
 
+from src.zk.discovery import discover_devices
+
 devices_bp = Blueprint('devices', __name__)
 
 
@@ -172,7 +174,7 @@ def test_device(device_id):
 def api_test_device():
     """API endpoint para test de conexión desde el form"""
     data = request.get_json()
-    
+
     try:
         zk = ZK(
             data.get('address', ''),
@@ -181,16 +183,16 @@ def api_test_device():
             password=data.get('password', 0),
             force_udp=(data.get('protocol') == 'udp')
         )
-        
+
         conn = zk.connect()
-        
+
         if conn:
             device_info = {
                 'firmware': zk.get_firmware_version(),
                 'serial': zk.get_serialnumber(),
             }
             zk.disconnect()
-            
+
             return jsonify({
                 'success': True,
                 'message': 'Conexión exitosa',
@@ -201,8 +203,96 @@ def api_test_device():
                 'success': False,
                 'message': 'No se pudo conectar'
             })
-            
+
     except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+
+@devices_bp.route('/api/devices/discover', methods=['POST'])
+def api_discover_devices():
+    """API endpoint para descubrimiento automático de dispositivos en LAN"""
+    data = request.get_json() or {}
+
+    network = data.get('network')  # Optional CIDR like "192.168.1.0/24"
+    timeout = data.get('timeout', 3.0)
+    retries = data.get('retries', 2)
+    fetch_details = data.get('fetch_details', True)
+
+    try:
+        logger = current_app.logger
+        logger.info(f"Iniciando descubrimiento de dispositivos (network={network}, timeout={timeout})")
+
+        devices = discover_devices(
+            network=network,
+            timeout=timeout,
+            retries=retries,
+            fetch_details=fetch_details
+        )
+
+        # Filter out devices already in database
+        db = current_app.db
+        existing_ips = set()
+        existing_devices = db.fetch_all("SELECT address FROM devices")
+        for d in existing_devices:
+            existing_ips.add(d['address'])
+
+        # Mark which devices are already configured
+        for device in devices:
+            device['already_configured'] = device['ip'] in existing_ips
+
+        return jsonify({
+            'success': True,
+            'message': f'Descubiertos {len(devices)} dispositivo(s)',
+            'devices': devices
+        })
+
+    except Exception as e:
+        logger = current_app.logger
+        logger.error(f"Error en descubrimiento: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error en descubrimiento: {str(e)}'
+        }), 500
+
+
+@devices_bp.route('/api/devices/discover/quick', methods=['POST'])
+def api_quick_discover():
+    """Quick discovery - just UDP broadcast without TCP detail fetch (faster)"""
+    data = request.get_json() or {}
+
+    network = data.get('network')
+    timeout = data.get('timeout', 2.0)
+    retries = data.get('retries', 1)
+
+    try:
+        logger = current_app.logger
+        logger.info(f"Quick discovery: network={network}")
+
+        devices = discover_devices(
+            network=network,
+            timeout=timeout,
+            retries=retries,
+            fetch_details=False
+        )
+
+        db = current_app.db
+        existing_ips = set(d['address'] for d in db.fetch_all("SELECT address FROM devices"))
+
+        for device in devices:
+            device['already_configured'] = device['ip'] in existing_ips
+
+        return jsonify({
+            'success': True,
+            'message': f'Encontrados {len(devices)} dispositivo(s)',
+            'devices': devices
+        })
+
+    except Exception as e:
+        logger = current_app.logger
+        logger.error(f"Error en quick discovery: {e}")
         return jsonify({
             'success': False,
             'message': f'Error: {str(e)}'

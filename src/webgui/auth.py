@@ -7,8 +7,9 @@ import os
 import jwt
 import secrets
 import hashlib
+import logging
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, List
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
@@ -129,25 +130,51 @@ class Auth:
     def validate_password_strength(password: str) -> Tuple[bool, List[str]]:
         """
         Validar fortaleza de contraseña
-        
+
         Returns:
             Tuple[bool, List[str]]: (es_valida, lista_de_errores)
         """
         errors = []
-        
+
         if len(password) < 12:
             errors.append("Mínimo 12 caracteres")
-        
+
         if not any(c.isupper() for c in password):
             errors.append("Al menos una mayúscula")
-        
+
         if not any(c.islower() for c in password):
             errors.append("Al menos una minúscula")
-        
+
         if not any(c.isdigit() for c in password):
             errors.append("Al menos un número")
-        
+
         if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in password):
             errors.append("Al menos un carácter especial")
-        
+
         return len(errors) == 0, errors
+
+    @staticmethod
+    def hash_reset_token(token: str) -> str:
+        """
+        Hash del token de reset para almacenamiento seguro
+        Uses SHA256 for fast, deterministic hashing
+        """
+        return hashlib.sha256(token.encode()).hexdigest()
+
+    @staticmethod
+    def verify_reset_token(token: str, token_hash: str) -> bool:
+        """
+        Verificar token de reset contra su hash
+        """
+        return hashlib.sha256(token.encode()).hexdigest() == token_hash
+
+    def generate_reset_token_and_hash(self) -> Tuple[str, str]:
+        """
+        Generar token de reset y su hash para almacenamiento
+
+        Returns:
+            Tuple[str, str]: (token_plano, token_hash)
+        """
+        token = self.generate_password_reset_token()
+        token_hash = self.hash_reset_token(token)
+        return token, token_hash

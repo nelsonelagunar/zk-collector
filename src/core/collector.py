@@ -2,6 +2,7 @@
 Attendance Collector - Orquestador principal
 """
 
+import os
 import time
 import logging
 from typing import List, Dict, Optional
@@ -13,6 +14,7 @@ from src.zk.attendance import AttendanceRecord
 from src.buffer.repository import BufferRepository
 from src.sync.platform import PlatformSync
 from src.monitoring.health import HealthMonitor
+from src.core.constants import DEFAULT_DATA_DIR
 
 
 logger = logging.getLogger(__name__)
@@ -34,8 +36,10 @@ class AttendanceCollector:
         self.running = False
         
         # Inicializar componentes
+        # Use config value or fallback to env var via constants
+        buffer_db_path = self.config.get('buffer.db_path') or os.environ.get('BUFFER_DB_PATH') or DEFAULT_DATA_DIR + '/buffer.db'
         self.buffer = BufferRepository(
-            db_path=self.config.get('buffer.db_path', '/opt/attendance/data/buffer.db'),
+            db_path=buffer_db_path,
             max_records=self.config.get('buffer.max_records', 10000)
         )
         

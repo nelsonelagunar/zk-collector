@@ -12,12 +12,17 @@ import os
 import sys
 import signal
 import logging
+import argparse
 from typing import Optional
 from pathlib import Path
 
 # Importar módulos del paquete
 from src.core.collector import AttendanceCollector
 from src.core.config import Config
+from src.core.constants import (
+    DEFAULT_CONFIG_PATH, DEFAULT_DATA_DIR, DEFAULT_LOG_DIR,
+    DEFAULT_LOG_LEVEL, DEFAULT_LOG_FORMAT
+)
 from src.utils.logging import setup_logging
 from src.utils.helpers import get_system_info
 
@@ -35,22 +40,48 @@ class Application:
         self.collector: Optional[AttendanceCollector] = None
         self.logger: Optional[logging.Logger] = None
         self.running = False
+        self.validate_only = False
         
-        # Rutas críticas
-        self.config_path = Path(os.environ.get(
-            'CONFIG_PATH', 
-            '/etc/attendance/collector.yaml'
-        ))
-        self.data_dir = Path(os.environ.get(
-            'DATA_DIR',
-            '/opt/attendance/data'
-        ))
-        self.log_dir = Path(os.environ.get(
-            'LOG_DIR',
-            '/var/log/attendance'
-        ))
+        # Rutas críticas (configurables via env vars, con defaults en constants)
+        self.config_path = Path(os.environ.get('CONFIG_PATH', DEFAULT_CONFIG_PATH))
+        self.data_dir = Path(os.environ.get('DATA_DIR', DEFAULT_DATA_DIR))
+        self.log_dir = Path(os.environ.get('LOG_DIR', DEFAULT_LOG_DIR))
     
-    def initialize(self) -> bool:
+    def parse_args(self):
+        """Parse command line arguments"""
+        parser = argparse.ArgumentParser(description='ZKTeco Attendance Collector')
+        parser.add_argument(
+            '--validate-config', 
+            action='store_true',
+            help='Validate configuration and exit'
+        )
+        parser.add_argument(
+            '--config',
+            type=str,
+            help='Path to configuration file'
+        )
+        parser.add_argument(
+            '--log-format',
+            choices=['text', 'json'],
+            default=os.environ.get('LOG_FORMAT', DEFAULT_LOG_FORMAT),
+            help='Log format (text or json)'
+        )
+        parser.add_argument(
+            '--log-level',
+            choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
+            default=os.environ.get('LOG_LEVEL', DEFAULT_LOG_LEVEL),
+            help='Log level'
+        )
+        args = parser.parse_args()
+        
+        self.validate_only = args.validate_config
+        
+        if args.config:
+            self.config_path = Path(args.config)
+        
+        return args
+    
+    def initialize(self, log_format: str = 'text', log_level: int = logging.INFO) -> bool:
         """Inicializar la aplicación"""
         try:
             # Crear directorios necesarios
@@ -59,7 +90,8 @@ class Application:
             # Configurar logging
             self.logger = setup_logging(
                 log_dir=self.log_dir,
-                level=logging.INFO
+                level=log_level,
+                log_format=log_format
             )
             self.logger.info("=" * 60)
             self.logger.info(f"Attendance Collector v{__version__}")
@@ -90,6 +122,11 @@ class Application:
             # Validar configuración crítica
             if not self._validate_config():
                 return False
+            
+            # Si solo validar, salir exitosamente
+            if self.validate_only:
+                self.logger.info("✓ Validación de configuración exitosa")
+                return True
             
             # Inicializar colector
             self.collector = AttendanceCollector(self.config)
@@ -156,6 +193,10 @@ class Application:
         if not self.initialize():
             sys.exit(1)
         
+        # Si solo validar, salir
+        if self.validate_only:
+            sys.exit(0)
+        
         self.running = True
         
         try:
@@ -170,18 +211,38 @@ class Application:
     
     def shutdown(self):
         """Apagado limpio de la aplicación"""
-        self.logger.info("Iniciando apagado...")
+        if self.logger:
+            self.logger.info("Iniciando apagado...")
         
         if self.collector:
             self.collector.stop()
         
-        self.logger.info("Apagado completado")
-        self.logger.info("=" * 60)
+        if self.logger:
+            self.logger.info("Apagado completado")
+            self.logger.info("=" * 60)
 
 
 def main():
     """Entry point"""
     app = Application()
+    args = app.parse_args()
+    
+    # Parse log level
+    log_level_map = {
+        'DEBUG': logging.DEBUG,
+        'INFO': logging.INFO,
+        'WARNING': logging.WARNING,
+        'ERROR': logging.ERROR,
+    }
+    log_level = log_level_map.get(args.log_level, logging.INFO)
+    log_format = args.log_format
+    
+    if not app.initialize(log_format=log_format, log_level=log_level):
+        sys.exit(1)
+    
+    if app.validate_only:
+        sys.exit(0)
+    
     app.run()
 
 
