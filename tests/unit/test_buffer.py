@@ -453,18 +453,24 @@ class TestSyncLog:
 
     def test_get_sync_history_limit(self, temp_db):
         """Test sync history limit"""
-        import time
+        from datetime import datetime, timedelta
+        base_time = datetime.now()
         for i in range(60):
-            temp_db.log_sync(i, 0, 'success', None, 1.0)
-            time.sleep(0.01)
+            # Insert with explicit timestamps to ensure ordering
+            with temp_db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO sync_log 
+                    (records_synced, records_failed, status, error_message, duration_seconds, timestamp)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (i, 0, 'success', None, 1.0, (base_time + timedelta(seconds=i)).isoformat()))
 
         history = temp_db.get_sync_history(limit=50)
         assert len(history) == 50
 
-        # Should be ordered by timestamp DESC (newest first), then by id DESC for stability
-        # Due to second-level precision, we verify the latest records are returned
-        assert history[0]['records_synced'] >= 58  # At least 58 or 59
-        assert history[49]['records_synced'] <= 10  # At most 10
+        # Should be ordered by timestamp DESC (newest first)
+        assert history[0]['records_synced'] == 59
+        assert history[49]['records_synced'] == 10
 
 
 class TestClearAll:

@@ -84,7 +84,7 @@ def create_mock_zk_attendance(user_id: str, timestamp: datetime, status: int):
 @pytest.fixture
 def mock_zk_class():
     """Fixture to mock the pyzk ZK class"""
-    with patch('src.zk.client.ZK') as mock_zk:
+    with patch('src.zk_client.client.ZK') as mock_zk:
         mock_device = MockZKDevice()
         mock_zk.return_value = mock_device
         yield mock_zk, mock_device
