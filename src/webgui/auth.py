@@ -9,7 +9,7 @@ import secrets
 import logging
 import hashlib
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, List
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 
