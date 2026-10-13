@@ -7,9 +7,25 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 
+class JsonFormatter(logging.Formatter):
+    """JSON formatter for structured logging"""
+    def format(self, record):
+        import json
+        log_obj = {
+            'timestamp': self.formatTime(record, self.datefmt),
+            'logger': record.name,
+            'level': record.levelname,
+            'message': record.getMessage(),
+        }
+        if record.exc_info:
+            log_obj['exception'] = self.formatException(record.exc_info)
+        return json.dumps(log_obj)
+
+
 def setup_logging(
     log_dir: Path,
     level: int = logging.INFO,
+    log_format: str = "text",
     max_size_mb: int = 10,
     backup_count: int = 5
 ) -> logging.Logger:
@@ -19,6 +35,7 @@ def setup_logging(
     Args:
         log_dir: Directorio para archivos de log
         level: Nivel de logging
+        log_format: Formato de log ("text" o "json")
         max_size_mb: Tamaño máximo por archivo (MB)
         backup_count: Número de archivos de backup
 
@@ -34,10 +51,13 @@ def setup_logging(
     logger.handlers.clear()
 
     # Formatter
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
+    if log_format == "json":
+        formatter: logging.Formatter = JsonFormatter(datefmt='%Y-%m-%d %H:%M:%S')
+    else:
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
 
     # Handler de consola
     console_handler = logging.StreamHandler()
