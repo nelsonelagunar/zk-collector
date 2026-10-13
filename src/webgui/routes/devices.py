@@ -4,7 +4,8 @@ Devices Routes - CRUD de dispositivos ZKTeco
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from datetime import datetime
-from zk import ZK, ZKError
+from zk import ZK
+from zk.exception import ZKError
 
 devices_bp = Blueprint('devices', __name__)
 
