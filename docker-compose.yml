@@ -30,6 +30,14 @@ services:
       - LOG_FORMAT=${LOG_FORMAT:-text}
       - WEBGUI_SECRET_KEY=${WEBGUI_SECRET_KEY}
 
+      # SMTP Configuration (for password reset emails - all required together)
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL}
+      - SMTP_USE_TLS=${SMTP_USE_TLS}
+
       # Collector settings (can be overridden from collector.yaml)
       - ZK_COLLECTOR_HOST=0.0.0.0
       - ZK_COLLECTOR_PORT=8080

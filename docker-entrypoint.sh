@@ -26,6 +26,16 @@ OPTIONAL_VARS="
     LOG_FORMAT
 "
 
+# SMTP Configuration (for password reset emails)
+SMTP_VARS="
+    SMTP_HOST
+    SMTP_PORT
+    SMTP_USERNAME
+    SMTP_PASSWORD
+    SMTP_FROM_EMAIL
+    SMTP_USE_TLS
+"
+
 MISSING_VARS=""
 
 for var in $REQUIRED_VARS; do
@@ -46,6 +56,34 @@ for var in $OPTIONAL_VARS; do
         echo "  ✓ $var is set"
     fi
 done
+
+# Check SMTP configuration
+echo "Checking SMTP configuration..."
+SMTP_CONFIGURED=true
+for var in $SMTP_VARS; do
+    eval value=\$$var
+    if [ -z "$value" ]; then
+        SMTP_CONFIGURED=false
+        echo "  ⚠ SMTP (not set): $var"
+    else
+        echo "  ✓ SMTP $var is set"
+    fi
+done
+
+if [ "$SMTP_CONFIGURED" = "true" ] && [ -f "$WEBGUI_DB_PATH" ]; then
+    echo "Writing SMTP configuration to system_config..."
+    sqlite3 "$WEBGUI_DB_PATH" "
+        UPDATE system_config SET value = '$SMTP_HOST' WHERE key = 'smtp_host';
+        UPDATE system_config SET value = '$SMTP_PORT' WHERE key = 'smtp_port';
+        UPDATE system_config SET value = '$SMTP_USERNAME' WHERE key = 'smtp_username';
+        UPDATE system_config SET value = '$SMTP_PASSWORD' WHERE key = 'smtp_password';
+        UPDATE system_config SET value = '$SMTP_FROM_EMAIL' WHERE key = 'smtp_from_email';
+        UPDATE system_config SET value = '$SMTP_USE_TLS' WHERE key = 'smtp_use_tls';
+        UPDATE system_config SET value = 'true' WHERE key = 'smtp_configured';
+    " 2>/dev/null && echo "  SMTP configuration written to DB" || echo "  ⚠ Failed to write SMTP config to DB"
+elif [ "$SMTP_CONFIGURED" = "false" ]; then
+    echo "  SMTP not fully configured - password reset will show token in UI (dev mode)"
+fi
 
 if [ -n "$MISSING_VARS" ]; then
     echo ""
@@ -75,7 +113,15 @@ migrate_devices_from_yaml_to_webgui_db() {
         return 0
     fi
 
-    DEVICE_COUNT=$(sqlite3 "$WEBGUI_DB_PATH" "SELECT COUNT(*) FROM devices;" 2>/dev/null || echo "0")
+    DEVICE_COUNT=$(python3 -c "
+import sqlite3
+conn = sqlite3.connect('$WEBGUI_DB_PATH')
+cursor = conn.cursor()
+cursor.execute('SELECT COUNT(*) FROM devices;')
+count = cursor.fetchone()[0]
+conn.close()
+print(count)
+" 2>/dev/null || echo "0")
     if [ "$DEVICE_COUNT" -gt 0 ]; then
         echo "  WebGUI DB already has $DEVICE_COUNT device(s) (skipping migration, preserving source of truth)"
         return 0
