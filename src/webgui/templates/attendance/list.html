@@ -64,6 +64,25 @@
                                   bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                            placeholder="YYYY-MM-DD">
                 </div>
+                <div>
+                    <label for="user_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        ID Usuario
+                    </label>
+                    <input type="text" id="user_id" name="user_id"
+                           class="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm
+                                  bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           placeholder="ID empleado">
+                </div>
+                <div>
+                    <label for="device_ip" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Dispositivo
+                    </label>
+                    <select id="device_ip" name="device_ip"
+                            class="w-52 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm
+                                   bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Todos los dispositivos</option>
+                    </select>
+                </div>
                 <button type="button" id="btn-filter"
                         class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
                     Filtrar
@@ -148,9 +167,13 @@ document.addEventListener('alpine:init', () => {
         totalPages: 0,
         startDate: '',
         endDate: '',
+        userId: '',
+        deviceIp: '',
+        devices: [],
 
         init() {
             this.setupDatePickers();
+            this.loadDevices();
             this.loadRecords();
             this.bindEvents();
         },
@@ -172,6 +195,34 @@ document.addEventListener('alpine:init', () => {
             });
         },
 
+        async loadDevices() {
+            try {
+                const response = await fetch('/api/devices');
+                const data = await response.json();
+                if (data.devices) {
+                    this.devices = data.devices;
+                    this.populateDeviceSelect();
+                }
+            } catch (error) {
+                console.error('Error loading devices:', error);
+            }
+        },
+
+        populateDeviceSelect() {
+            const select = document.getElementById('device_ip');
+            if (!select) return;
+
+            // Clear existing options except the first one
+            select.innerHTML = '<option value="">Todos los dispositivos</option>';
+
+            this.devices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.address;
+                option.textContent = `${device.name} (${device.address})`;
+                select.appendChild(option);
+            });
+        },
+
         bindEvents() {
             document.getElementById('btn-filter').addEventListener('click', () => {
                 this.currentPage = 1;
@@ -180,8 +231,12 @@ document.addEventListener('alpine:init', () => {
             document.getElementById('btn-reset').addEventListener('click', () => {
                 this.startDate = '';
                 this.endDate = '';
+                this.userId = '';
+                this.deviceIp = '';
                 document.getElementById('start_date').value = '';
                 document.getElementById('end_date').value = '';
+                document.getElementById('user_id').value = '';
+                document.getElementById('device_ip').value = '';
                 this.currentPage = 1;
                 this.loadRecords();
             });
@@ -209,6 +264,14 @@ document.addEventListener('alpine:init', () => {
                     this.loadRecords();
                 }
             });
+
+            // Listen for filter input changes
+            document.getElementById('user_id').addEventListener('change', (e) => {
+                this.userId = e.target.value;
+            });
+            document.getElementById('device_ip').addEventListener('change', (e) => {
+                this.deviceIp = e.target.value;
+            });
         },
 
         async loadRecords() {
@@ -218,6 +281,8 @@ document.addEventListener('alpine:init', () => {
             });
             if (this.startDate) params.append('start_date', this.startDate);
             if (this.endDate) params.append('end_date', this.endDate);
+            if (this.userId) params.append('user_id', this.userId);
+            if (this.deviceIp) params.append('device_ip', this.deviceIp);
 
             try {
                 const response = await fetch(`/api/attendance?${params}`);
@@ -340,6 +405,8 @@ document.addEventListener('alpine:init', () => {
             });
             if (this.startDate) params.append('start', this.startDate);
             if (this.endDate) params.append('end', this.endDate);
+            if (this.userId) params.append('user_id', this.userId);
+            if (this.deviceIp) params.append('device_ip', this.deviceIp);
 
             window.location.href = `/attendance/export?${params.toString()}`;
         }

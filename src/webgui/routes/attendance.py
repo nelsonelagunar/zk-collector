@@ -33,6 +33,17 @@ def attendance_page():
     return render_template("attendance/list.html")
 
 
+@attendance_bp.route("/api/devices")
+def api_devices():
+    """API para obtener lista de dispositivos para el select de filtros"""
+    if "user_id" not in session:
+        return jsonify({"error": "No autenticado"}), 401
+
+    db = current_app.db
+    devices = db.fetch_all("SELECT id, name, address FROM devices ORDER BY name")
+    return jsonify({"devices": [dict(d) for d in devices]})
+
+
 @attendance_bp.route("/api/attendance")
 def api_attendance():
     """API para obtener registros de asistencia con paginación y filtros"""
