@@ -6,6 +6,7 @@ Manejo de autenticación con JWT y Argon2id
 import os
 import jwt
 import secrets
+import logging
 import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Tuple
