@@ -2,9 +2,9 @@
 Fixtures y configuración común para tests
 """
 
-import pytest
-from pathlib import Path
 from unittest.mock import Mock
+
+import pytest
 
 
 @pytest.fixture

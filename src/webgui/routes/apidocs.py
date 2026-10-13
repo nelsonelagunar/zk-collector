@@ -3,7 +3,8 @@ API Docs Routes - OpenAPI spec + Swagger UI at /api/docs
 """
 
 from pathlib import Path
-from flask import Blueprint, jsonify, send_file, abort
+
+from flask import Blueprint, abort, send_file
 
 openapi_path = Path(__file__).resolve().parents[3] / "docs" / "openapi.yaml"
 
@@ -45,6 +46,7 @@ def openapi_spec():
 def openapi_spec_json():
     """JSON variant of the OpenAPI spec"""
     import json as jsonlib
+
     import yaml
     if not openapi_path.exists():
         abort(404, description="OpenAPI spec not bundled with this deployment")

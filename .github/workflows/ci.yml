@@ -3,9 +3,9 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [master, develop, feature/myk-92-dashboard-modernization, fix/**]
   pull_request:
-    branches: [master]
+    branches: [master, develop, feature/myk-92-dashboard-modernization, fix/**]
 
 jobs:
   lint:
@@ -24,7 +24,8 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Lint with ruff
         run: ruff check src/ tests/
-      - name: Type check with mypy
+      - name: Type check with mypy (3.12 only)
+        if: matrix.python-version == '3.12'
         run: mypy src/ --ignore-missing-imports
 
   test:

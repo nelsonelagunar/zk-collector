@@ -3,13 +3,13 @@ Módulo de Configuración
 Manejo de configuración YAML con encriptación AES-256
 """
 
-import os
-import yaml
 import logging
+import os
 from pathlib import Path
-from typing import Any, Optional, Dict, List
-from cryptography.fernet import Fernet
+from typing import Any
 
+import yaml
+from cryptography.fernet import Fernet
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class Config:
     - Encriptación AES-256
     - Validación de schema
     """
-    
+
     SCHEMA = {
         'platform': {
             'required': True,
@@ -83,40 +83,40 @@ class Config:
             }
         }
     }
-    
-    def __init__(self, config_path: Path, encryption_key: Optional[str] = None):
+
+    def __init__(self, config_path: Path, encryption_key: str | None = None):
         self.config_path = config_path
         self.encryption_key = encryption_key or os.environ.get('ENCRYPTION_KEY')
-        self.config: Dict = {}
+        self.config: dict = {}
         self._load()
         self._validate()
-    
+
     def _load(self):
         """Cargar configuración desde archivo YAML"""
         try:
-            with open(self.config_path, 'r', encoding='utf-8') as f:
+            with open(self.config_path, encoding='utf-8') as f:
                 raw_config = yaml.safe_load(f)
-            
+
             self.config = raw_config
-            
+
             # Desencriptar valores sensibles
             if self.encryption_key:
                 self._decrypt_sensitive_values()
-            
+
             # Aplicar valores por defecto del schema
             self._apply_defaults()
-            
-        except FileNotFoundError:
-            raise ConfigError(f"Archivo no encontrado: {self.config_path}")
+
+        except FileNotFoundError as e:
+            raise ConfigError(f"Archivo no encontrado: {self.config_path}") from e
         except yaml.YAMLError as e:
-            raise ConfigError(f"Error parseando YAML: {e}")
+            raise ConfigError(f"Error parseando YAML: {e}") from e
         except Exception as e:
-            raise ConfigError(f"Error cargando configuración: {e}")
-    
+            raise ConfigError(f"Error cargando configuración: {e}") from e
+
     def _decrypt_sensitive_values(self):
         """Desencriptar valores sensibles"""
         fernet = Fernet(self.encryption_key.encode())
-        
+
         # Platform API Key
         if 'platform' in self.config and 'api_key' in self.config['platform']:
             try:
@@ -125,7 +125,7 @@ class Config:
                 self.config['platform']['api_key'] = decrypted
             except Exception as e:
                 logger.warning(f"No se pudo desencriptar api_key: {e}")
-    
+
     def _apply_defaults(self):
         """Aplicar valores por defecto del schema"""
         for section, schema in self.SCHEMA.items():
@@ -133,48 +133,47 @@ class Config:
                 if schema.get('required', False):
                     raise ConfigError(f"Sección requerida faltante: {section}")
                 continue
-            
+
             if 'fields' in schema:
                 for field, field_schema in schema['fields'].items():
-                    if field not in self.config[section]:
-                        if 'default' in field_schema:
-                            self.config[section][field] = field_schema['default']
-    
+                    if field not in self.config[section] and 'default' in field_schema:
+                        self.config[section][field] = field_schema['default']
+
     def _validate(self):
         """Validar configuración contra schema"""
         # Validaciones básicas
         if 'platform' not in self.config:
             raise ConfigError("Sección 'platform' es requerida")
-        
+
         if 'devices' not in self.config:
             raise ConfigError("Sección 'devices' es requerida")
-        
+
         if not self.config['devices']:
             raise ConfigError("Al menos un dispositivo debe estar configurado")
-        
+
         # Validar URLs
         platform_url = self.config['platform'].get('url', '')
         if not platform_url.startswith(('http://', 'https://')):
             raise ConfigError("platform.url debe ser una URL válida")
-        
+
         # Validar IPs de dispositivos
         import re
         ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
         for i, device in enumerate(self.config['devices']):
             if not ip_pattern.match(device.get('ip', '')):
                 raise ConfigError(f"Dispositivo {i+1}: IP inválida")
-    
+
     def get(self, key: str, default: Any = None) -> Any:
         """
         Obtener valor de configuración usando notación dot
-        
+
         Ejemplo:
             config.get('platform.url')
             config.get('devices.0.ip')
         """
         keys = key.split('.')
-        value = self.config
-        
+        value: Any = self.config
+
         for k in keys:
             if isinstance(value, dict):
                 value = value.get(k)
@@ -188,18 +187,18 @@ class Config:
                     return default
             else:
                 return default
-        
+
         return value
-    
-    def get_all(self) -> Dict:
+
+    def get_all(self) -> dict:
         """Obtener toda la configuración"""
         return self.config.copy()
-    
-    def save(self, output_path: Optional[Path] = None):
+
+    def save(self, output_path: Path | None = None):
         """Guardar configuración a archivo"""
         path = output_path or self.config_path
-        
+
         with open(path, 'w', encoding='utf-8') as f:
             yaml.dump(self.config, f, default_flow_style=False, allow_unicode=True)
-        
+
         logger.info(f"Configuración guardada: {path}")
