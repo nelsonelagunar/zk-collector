@@ -119,7 +119,8 @@ class Application:
                 return True
 
             # Inicializar colector
-            self.collector = AttendanceCollector(self.config)
+            webgui_db_path = self.data_dir / "webgui.db"
+            self.collector = AttendanceCollector(self.config, webgui_db_path=str(webgui_db_path))
             self.logger.info("Colector inicializado correctamente")
 
             # Configurar señales
@@ -146,7 +147,9 @@ class Application:
         if self.config is None or self.logger is None:
             return False
 
-        required = ["platform.url", "platform.api_key", "platform.tenant_id", "devices"]
+        # Devices ya no son requeridos en collector.yaml (se leen de WebGUI DB)
+        # collector.yaml devices section es fallback si WebGUI DB está vacío
+        required = ["platform.url", "platform.api_key", "platform.tenant_id"]
 
         for key in required:
             value = self.config.get(key)
@@ -154,16 +157,16 @@ class Application:
                 self.logger.error(f"Configuración requerida faltante: {key}")  # type: ignore[union-attr]
                 return False
 
-        # Validar dispositivos
+        # Validar dispositivos en collector.yaml solo si existen (fallback)
         devices = self.config.get("devices", [])
-        if not devices:
-            self.logger.error("No hay dispositivos configurados")  # type: ignore[union-attr]
-            return False
-
-        for i, device in enumerate(devices):
-            if "ip" not in device:
-                self.logger.error(f"Dispositivo {i + 1} no tiene IP configurada")  # type: ignore[union-attr]
-                return False
+        if devices:
+            for i, device in enumerate(devices):
+                if "ip" not in device:
+                    self.logger.error(f"Dispositivo {i + 1} no tiene IP configurada")  # type: ignore[union-attr]
+                    return False
+            self.logger.info(f"collector.yaml tiene {len(devices)} dispositivo(s) como fallback")
+        else:
+            self.logger.info("collector.yaml sin devices - fuente de verdad: WebGUI DB")
 
         return True
 

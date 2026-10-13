@@ -20,13 +20,34 @@ def app(tmp_path):
     tmp_path / "webgui.db"
     buffer_db_path = tmp_path / "buffer.db"
 
-    app = Flask(__name__)
+    # Find the templates directory
+    import os
+    template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "src", "webgui", "templates")
+
+    app = Flask(__name__, template_folder=template_dir)
     app.config["SECRET_KEY"] = "test-secret-key"
     app.config["TESTING"] = True
 
     # Mock buffer repository (empty by default)
     buffer_repo = BufferRepository(buffer_db_path)
     app.buffer_repo = buffer_repo
+
+    # Mock database for devices API
+    from unittest.mock import Mock
+    mock_db = Mock()
+
+    def fetch_all_side_effect(query, params=()):
+        if "device_users" in query:
+            # device_users lookup rows: (device_ip, user_id) -> name
+            return []
+        # The devices query uses: SELECT id, name, ip AS address FROM devices
+        return [
+            {"id": 1, "name": "Test Device 1", "address": "192.168.1.101"},
+            {"id": 2, "name": "Test Device 2", "address": "192.168.1.102"},
+        ]
+
+    mock_db.fetch_all.side_effect = fetch_all_side_effect
+    app.db = mock_db
 
     # Register attendance blueprint
     from src.webgui.routes.attendance import attendance_bp

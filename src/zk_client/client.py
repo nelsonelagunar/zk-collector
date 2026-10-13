@@ -211,15 +211,26 @@ class ZKClient:
         Obtener lista de usuarios del dispositivo
 
         Returns:
-            Lista de usuarios o None si hay error
+            Lista de usuarios normalizada: [{"user_id": "123", "name": "Juan Perez",
+            "privilege": 0, "password": "", "group_id": 1, "user_role": 0}] o None si hay error
         """
         if not self.connected or not self.zk:
             return None
 
         try:
-            users = self.zk.get_users()
-            logger.info(f"Obtenidos {len(users)} usuarios de {self.ip}")
-            return users  # type: ignore[no-any-return]
+            raw_users = self.zk.get_users()
+            normalized_users = []
+            for u in raw_users:
+                normalized_users.append({
+                    "user_id": str(u.user_id) if u.user_id else str(u.uid),
+                    "name": str(u.name) if u.name else "",
+                    "privilege": int(u.privilege) if u.privilege else 0,
+                    "password": str(u.password) if u.password else "",
+                    "group_id": int(u.group_id) if u.group_id else 1,
+                    "user_role": 0,
+                })
+            logger.info(f"Obtenidos {len(normalized_users)} usuarios de {self.ip}")
+            return normalized_users
         except Exception as e:
             logger.error(f"Error obteniendo usuarios: {e}")
             return None

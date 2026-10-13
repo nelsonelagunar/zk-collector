@@ -72,15 +72,20 @@ done
 
 if [ "$SMTP_CONFIGURED" = "true" ] && [ -f "$WEBGUI_DB_PATH" ]; then
     echo "Writing SMTP configuration to system_config..."
-    sqlite3 "$WEBGUI_DB_PATH" "
-        UPDATE system_config SET value = '$SMTP_HOST' WHERE key = 'smtp_host';
-        UPDATE system_config SET value = '$SMTP_PORT' WHERE key = 'smtp_port';
-        UPDATE system_config SET value = '$SMTP_USERNAME' WHERE key = 'smtp_username';
-        UPDATE system_config SET value = '$SMTP_PASSWORD' WHERE key = 'smtp_password';
-        UPDATE system_config SET value = '$SMTP_FROM_EMAIL' WHERE key = 'smtp_from_email';
-        UPDATE system_config SET value = '$SMTP_USE_TLS' WHERE key = 'smtp_use_tls';
-        UPDATE system_config SET value = 'true' WHERE key = 'smtp_configured';
-    " 2>/dev/null && echo "  SMTP configuration written to DB" || echo "  ⚠ Failed to write SMTP config to DB"
+    python3 -c "
+import sqlite3
+conn = sqlite3.connect('$WEBGUI_DB_PATH')
+cursor = conn.cursor()
+cursor.execute(\"UPDATE system_config SET value = ? WHERE key = 'smtp_host'\", ('$SMTP_HOST',))
+cursor.execute(\"UPDATE system_config SET value = ? WHERE key = 'smtp_port'\", ('$SMTP_PORT',))
+cursor.execute(\"UPDATE system_config SET value = ? WHERE key = 'smtp_username'\", ('$SMTP_USERNAME',))
+cursor.execute(\"UPDATE system_config SET value = ? WHERE key = 'smtp_password'\", ('$SMTP_PASSWORD',))
+cursor.execute(\"UPDATE system_config SET value = ? WHERE key = 'smtp_from_email'\", ('$SMTP_FROM_EMAIL',))
+cursor.execute(\"UPDATE system_config SET value = ? WHERE key = 'smtp_use_tls'\", ('$SMTP_USE_TLS',))
+cursor.execute(\"UPDATE system_config SET value = 'true' WHERE key = 'smtp_configured'\")
+conn.commit()
+conn.close()
+" 2>/dev/null && echo "  SMTP configuration written to DB" || echo "  ⚠ Failed to write SMTP config to DB"
 elif [ "$SMTP_CONFIGURED" = "false" ]; then
     echo "  SMTP not fully configured - password reset will show token in UI (dev mode)"
 fi

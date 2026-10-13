@@ -339,8 +339,9 @@ class TestPollDevices:
     @patch("src.core.collector.BufferRepository")
     @patch("src.core.collector.PlatformSync")
     @patch("src.core.collector.HealthMonitor")
+    @patch("src.core.collector.AttendanceCollector._load_devices_from_webgui_db")
     def test_poll_devices_multiple_devices(
-        self, mock_health, mock_platform, mock_buffer, mock_config
+        self, mock_load_devices, mock_health, mock_platform, mock_buffer, mock_config
     ):
         """Test polling multiple devices"""
         mock_buffer_instance = Mock()
@@ -363,18 +364,24 @@ class TestPollDevices:
             )
         ]
 
-        collector = AttendanceCollector(mock_config)
-        collector.zk_clients = {
-            "192.168.1.101": mock_zk1,
-            "192.168.1.102": mock_zk2,
-        }
-        collector.buffer = mock_buffer_instance
+        # Mock WebGUI DB to return two devices
+        mock_load_devices.return_value = [
+            {"ip": "192.168.1.101", "port": 4370, "timeout": 5, "password": "0", "name": "Device 1", "enabled": True},
+            {"ip": "192.168.1.102", "port": 4370, "timeout": 5, "password": "0", "name": "Device 2", "enabled": True},
+        ]
 
-        collector.poll_devices()
+        # Mock ZKClient creation
+        with patch("src.core.collector.ZKClient") as mock_zk_class:
+            mock_zk_class.side_effect = [mock_zk1, mock_zk2]
 
-        assert mock_zk1.connect.called
-        assert mock_zk2.connect.called
-        assert mock_buffer_instance.add_records.call_count == 2
+            collector = AttendanceCollector(mock_config)
+            collector.buffer = mock_buffer_instance
+
+            collector.poll_devices()
+
+            assert mock_zk1.connect.called
+            assert mock_zk2.connect.called
+            assert mock_buffer_instance.add_records.call_count == 2
 
 
 class TestSyncToPlatform:

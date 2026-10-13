@@ -389,11 +389,27 @@ class TestZKClientOtherMethods:
         client = ZKClient("192.168.1.101")
         client.connected = True
         client.zk = Mock()
-        client.zk.get_users.return_value = [{"user_id": "1", "name": "Test"}]
+
+        # Mock User objects as returned by pyzk
+        mock_user = Mock()
+        mock_user.uid = 1
+        mock_user.user_id = "1"
+        mock_user.name = "Test"
+        mock_user.privilege = 0
+        mock_user.password = ""
+        mock_user.group_id = "1"
+
+        client.zk.get_users.return_value = [mock_user]
 
         users = client.get_users()
 
-        assert users == [{"user_id": "1", "name": "Test"}]
+        assert users is not None
+        assert len(users) == 1
+        assert users[0]["user_id"] == "1"
+        assert users[0]["name"] == "Test"
+        assert users[0]["privilege"] == 0
+        assert users[0]["group_id"] == 1
+        assert users[0]["user_role"] == 0
 
     def test_get_users_not_connected(self):
         """Test get_users when not connected"""

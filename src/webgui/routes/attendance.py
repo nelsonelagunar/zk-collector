@@ -40,7 +40,7 @@ def api_devices():
         return jsonify({"error": "No autenticado"}), 401
 
     db = current_app.db
-    devices = db.fetch_all("SELECT id, name, address FROM devices ORDER BY name")
+    devices = db.fetch_all("SELECT id, name, ip AS address FROM devices ORDER BY name")
     return jsonify({"devices": [dict(d) for d in devices]})
 
 
@@ -80,6 +80,33 @@ def api_attendance():
         device_ip=device_ip if device_ip else None,
         user_id=user_id if user_id else None,
     )
+
+    # Add user_name from device_users table (webgui.db) via in-memory lookup
+    if records:
+        # Build lookup key set: (device_ip, user_id)
+        user_keys = [(r["device_ip"], r["user_id"]) for r in records if r.get("device_ip") and r.get("user_id")]
+
+        # Query device_users from webgui.db
+        db = current_app.db
+        if user_keys:
+            # SQLite doesn't support row-value IN syntax; build OR conditions
+            conditions = " OR ".join(["(device_ip=? AND user_id=?)"] * len(user_keys))
+            params = []
+            for k in user_keys:
+                params.extend([k[0], k[1]])
+
+            query = f"""
+                SELECT device_ip, user_id, name
+                FROM device_users
+                WHERE {conditions}
+            """
+            user_rows = db.fetch_all(query, tuple(params))
+            user_lookup = {(r["device_ip"], r["user_id"]): r["name"] for r in user_rows}
+
+            # Merge user_name into records
+            for record in records:
+                key = (record.get("device_ip"), record.get("user_id"))
+                record["user_name"] = user_lookup.get(key, "")
 
     return jsonify(
         {

@@ -41,7 +41,7 @@ def create_device():
             "name": request.form.get("name", ""),
             "location": request.form.get("location", ""),
             "zone": request.form.get("zone", ""),
-            "address": request.form.get("address", ""),
+            "ip": request.form.get("address", ""),  # Form uses 'address', DB uses 'ip'
             "port": int(request.form.get("port", 4370)),
             "password": int(request.form.get("password", 0)),
             "timeout": int(request.form.get("timeout", 5)),
@@ -52,7 +52,7 @@ def create_device():
         errors = []
         if not data["name"]:
             errors.append("Nombre es requerido")
-        if not data["address"]:
+        if not data["ip"]:
             errors.append("Dirección es requerida")
 
         if errors:
@@ -80,7 +80,7 @@ def edit_device(device_id):
             "name": request.form.get("name", ""),
             "location": request.form.get("location", ""),
             "zone": request.form.get("zone", ""),
-            "address": request.form.get("address", ""),
+            "ip": request.form.get("address", ""),  # Form uses 'address', DB uses 'ip'
             "port": int(request.form.get("port", 4370)),
             "password": int(request.form.get("password", 0)),
             "timeout": int(request.form.get("timeout", 5)),
@@ -89,7 +89,7 @@ def edit_device(device_id):
         }
 
         # Validaciones
-        if not data["name"] or not data["address"]:
+        if not data["name"] or not data["ip"]:
             flash("Nombre y dirección son requeridos", "error")
             return render_template("devices/edit.html", device_id=device_id)
 
@@ -106,6 +106,8 @@ def edit_device(device_id):
         flash("Dispositivo no encontrado", "error")
         return redirect(url_for("devices.list_devices"))
 
+    # Template expects 'address' field (form field name)
+    device["address"] = device["ip"]
     return render_template("devices/edit.html", device=device)
 
 
@@ -129,9 +131,9 @@ def test_device(device_id):
         return jsonify({"success": False, "message": "Dispositivo no encontrado"}), 404
 
     try:
-        # Intentar conexión
+        # Intentar conexión - DB uses 'ip' column
         zk = ZK(
-            device["address"],
+            device["ip"],
             port=device["port"],
             timeout=device["timeout"],
             password=device["password"],
@@ -406,3 +408,115 @@ def toggle_device(device_id):
         db.update("devices", {"is_enabled": new_status}, "id = ?", (device_id,))
 
     return redirect(url_for("devices.list_devices"))
+
+
+@devices_bp.route("/<int:device_id>")
+def device_detail(device_id):
+    """Detalle del dispositivo"""
+    db = current_app.db
+    device = db.fetch_one("SELECT * FROM devices WHERE id = ?", (device_id,))
+
+    if not device:
+        flash("Dispositivo no encontrado", "error")
+        return redirect(url_for("devices.list_devices"))
+
+    return render_template("devices/detail.html", device=device)
+
+
+@devices_bp.route("/<int:device_id>/users")
+def device_users(device_id):
+    """Usuarios del dispositivo"""
+    db = current_app.db
+    device = db.fetch_one("SELECT * FROM devices WHERE id = ?", (device_id,))
+
+    if not device:
+        flash("Dispositivo no encontrado", "error")
+        return redirect(url_for("devices.list_devices"))
+
+    return render_template("devices/users.html", device=device)
+
+
+@devices_bp.route("/<int:device_id>/sync-users", methods=["POST"])
+def sync_users(device_id):
+    """Sincronizar usuarios desde dispositivo ZKTeco"""
+    db = current_app.db
+    device = db.fetch_one("SELECT * FROM devices WHERE id = ?", (device_id,))
+
+    if not device:
+        return jsonify({"success": False, "message": "Dispositivo no encontrado"}), 404
+
+    try:
+        from src.zk_client.client import ZKClient
+
+        client = ZKClient(
+            ip=device["ip"],
+            port=device["port"],
+            timeout=device["timeout"],
+            password=str(device["password"]),
+            force_udp=(device["protocol"] == "udp"),
+        )
+
+        if not client.connect(max_retries=2, retry_delay=1.0):
+            return jsonify({"success": False, "message": "No se pudo conectar al dispositivo"}), 500
+
+        users = client.get_users()
+        client.disconnect()
+
+        if users is None:
+            return (
+                jsonify({"success": False, "message": "Error obteniendo usuarios del dispositivo"}),
+                500,
+            )
+
+        # Upsert users into device_users table
+        synced_count = 0
+        for user in users:
+            db.execute(
+                """
+                INSERT INTO device_users (device_ip, user_id, name, privilege, group_id, user_role, synced_at)
+                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(device_ip, user_id) DO UPDATE SET
+                    name = excluded.name,
+                    privilege = excluded.privilege,
+                    group_id = excluded.group_id,
+                    user_role = excluded.user_role,
+                    synced_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    device["ip"],
+                    user["user_id"],
+                    user["name"],
+                    user["privilege"],
+                    user["group_id"],
+                    user["user_role"],
+                ),
+            )
+            synced_count += 1
+
+        return jsonify(
+            {"success": True, "message": f"Sincronizados {synced_count} usuarios", "count": synced_count}
+        )
+
+    except Exception as e:
+        logger.error(f"Error sincronizando usuarios: {e}")
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+
+@devices_bp.route("/api/device-users")
+def api_device_users():
+    """API para obtener lista de usuarios de un dispositivo"""
+    device_ip = request.args.get("device_ip", "")
+
+    if not device_ip:
+        return jsonify({"error": "device_ip parameter required"}), 400
+
+    db = current_app.db
+    users = db.fetch_all(
+        "SELECT user_id, name FROM device_users WHERE device_ip = ? ORDER BY name",
+        (device_ip,),
+    )
+
+    return jsonify(
+        {"users": [{"user_id": u["user_id"], "name": u["name"]} for u in users]}
+    )

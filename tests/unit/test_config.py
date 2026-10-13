@@ -113,7 +113,7 @@ class TestConfigValidation:
             Config(config_file)
 
     def test_missing_devices_section(self, tmp_path):
-        """Test missing devices section raises error"""
+        """Test missing devices section is OK (WebGUI DB is source of truth)"""
         config_data = {
             "platform": {
                 "url": "https://test.example.com",
@@ -124,11 +124,12 @@ class TestConfigValidation:
         config_file = tmp_path / "config.yaml"
         with open(config_file, "w") as f:
             yaml.dump(config_data, f)
-        with pytest.raises(ConfigError, match="Sección requerida faltante: devices"):
-            Config(config_file)
+        config = Config(config_file)
+        # Devices normalized to empty list (fallback source is WebGUI DB)
+        assert config.get("devices", []) == []
 
     def test_empty_devices_list(self, tmp_path):
-        """Test empty devices list raises error"""
+        """Test empty devices list is OK (WebGUI DB is source of truth)"""
         config_data = {
             "platform": {
                 "url": "https://test.example.com",
@@ -140,7 +141,24 @@ class TestConfigValidation:
         config_file = tmp_path / "config.yaml"
         with open(config_file, "w") as f:
             yaml.dump(config_data, f)
-        with pytest.raises(ConfigError, match="Al menos un dispositivo debe estar configurado"):
+        config = Config(config_file)
+        assert config.get("devices", []) == []
+
+    def test_invalid_devices_type(self, tmp_path):
+        """Test devices section with invalid type raises error"""
+        config_data = {
+            "platform": {
+                "url": "https://test.example.com",
+                "api_key": "key",
+                "tenant_id": "tenant",
+            },
+            "devices": "not-a-list",
+        }
+        config_file = tmp_path / "config.yaml"
+        with open(config_file, "w") as f:
+            yaml.dump(config_data, f)
+        # Error occurs in _apply_defaults before validation
+        with pytest.raises(ConfigError, match="Error cargando configuración"):
             Config(config_file)
 
     def test_invalid_platform_url(self, tmp_path):

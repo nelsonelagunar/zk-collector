@@ -11,9 +11,10 @@ from pathlib import Path
 
 from src.buffer.repository import BufferRepository
 from src.core.config import Config
+from src.core.constants import DEFAULT_DATA_DIR
 from src.monitoring.health import HealthMonitor
 from src.sync.platform import PlatformSync
-from src.zkt.client import ZKClient
+from src.zk_client.client import ZKClient
 
 logger = logging.getLogger(__name__)
 
@@ -29,35 +30,49 @@ class AttendanceCollector:
     - Monitoreo de salud
     """
 
-    def __init__(self, config: Config):
+    # Cache TTL for devices from WebGUI DB (seconds)
+    DEVICES_CACHE_TTL = 60
+
+    def __init__(self, config: Config, webgui_db_path: str | None = None):
         self.config = config
         self.running = False
 
+        # WebGUI DB path (for device source of truth)
+        self.webgui_db_path = webgui_db_path or os.environ.get(
+            "WEBGUI_DB_PATH", DEFAULT_DATA_DIR + "/webgui.db"
+        )
+
         # Inicializar componentes
+        # Use config value or fallback to env var via constants
+        buffer_db_path = (
+            self.config.get("buffer.db_path")
+            or os.environ.get("BUFFER_DB_PATH")
+            or DEFAULT_DATA_DIR + "/buffer.db"
+        )
         self.buffer = BufferRepository(
-            db_path=self.config.get('buffer.db_path', '/opt/attendance/data/buffer.db'),
-            max_records=self.config.get('buffer.max_records', 10000)
+            db_path=Path(buffer_db_path), max_records=self.config.get("buffer.max_records", 10000)
         )
 
         self.platform_sync = PlatformSync(
-            platform_url=self.config.get('platform.url'),
-            api_key=self.config.get('platform.api_key'),
-            tenant_id=self.config.get('platform.tenant_id'),
-            timeout=self.config.get('platform.timeout', 30),
-            retry_attempts=self.config.get('platform.retry_attempts', 3)
+            platform_url=self.config.get("platform.url"),
+            api_key=self.config.get("platform.api_key"),
+            tenant_id=self.config.get("platform.tenant_id"),
+            timeout=self.config.get("platform.timeout", 30),
+            retry_attempts=self.config.get("platform.retry_attempts", 3),
         )
 
         self.health_monitor = HealthMonitor(
             platform_sync=self.platform_sync,
-            interval=self.config.get('health.heartbeat_interval', 300)
+            interval=self.config.get("health.heartbeat_interval", 300),
         )
 
         # Configuración de intervalos
-        self.poll_interval = self.config.get('poll_interval_seconds', 300)
-        self.sync_interval = self.config.get('sync_interval_seconds', 60)
+        self.poll_interval = self.config.get("poll_interval_seconds", 300)
+        self.sync_interval = self.config.get("sync_interval_seconds", 60)
 
-        # Dispositivos
-        self.devices_config = self.config.get('devices', [])
+        # Dispositivos - cache
+        self._devices_cache: list[dict] | None = None
+        self._devices_cache_timestamp: float | None = None
         self.zk_clients: dict[str, ZKClient] = {}
 
         # Estado
@@ -65,134 +80,156 @@ class AttendanceCollector:
         self.last_sync: datetime | None = None
         self.last_heartbeat: datetime | None = None
 
-        # WebGUI DB device cache
-        self._devices_cache: list[dict] | None = None
-        self._devices_cache_ts: float = 0
-        self._devices_cache_ttl: int = 60  # 60 seconds TTL
-
         logger.info("AttendanceCollector inicializado")
+        logger.info(f"WebGUI DB path: {self.webgui_db_path}")
 
     def _load_devices_from_webgui_db(self) -> list[dict]:
         """
-        Cargar dispositivos desde la base de datos del WebGUI.
+        Cargar dispositivos habilitados desde la WebGUI DB (SQLite).
 
-        Lee de /app/data/webgui.db (o WEBGUI_DB_PATH env var),
-        tabla devices WHERE enabled=1.
-        Cachea resultado por 60 segundos (TTL).
-        Retorna lista vacía si la DB no existe o falla.
+        Returns:
+            Lista de dicts con: ip, port, timeout, password, name, enabled
         """
-        # Verificar cache TTL
-        current_time = time.time()
-        if (
-            self._devices_cache is not None
-            and (current_time - self._devices_cache_ts) < self._devices_cache_ttl
-        ):
-            logger.debug("Retornando dispositivos desde cache (TTL válido)")
-            return self._devices_cache
-
-        # Obtener ruta de la DB
-        webgui_db_path = os.environ.get('WEBGUI_DB_PATH', '/app/data/webgui.db')
-
-        if not Path(webgui_db_path).exists():
-            logger.warning(f"WebGUI DB no encontrada en {webgui_db_path}, retornando lista vacía")
-            self._devices_cache = []
-            self._devices_cache_ts = current_time
+        if not os.path.exists(self.webgui_db_path):
+            logger.warning(f"WebGUI DB no existe: {self.webgui_db_path}")
             return []
 
         try:
-            with sqlite3.connect(webgui_db_path, timeout=5) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
+            conn = sqlite3.connect(self.webgui_db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
 
-                cursor.execute('''
-                    SELECT id, name, address as ip, port, password, timeout
-                    FROM devices
-                    WHERE is_enabled = 1
-                ''')
+            cursor.execute("""
+                SELECT ip, port, password, timeout, name
+                FROM devices
+                WHERE enabled = 1
+            """)
 
-                rows = cursor.fetchall()
-                devices = [dict(row) for row in rows]
+            devices = []
+            for row in cursor.fetchall():
+                devices.append({
+                    "ip": row["ip"],
+                    "port": row["port"] if row["port"] else 4370,
+                    "timeout": row["timeout"] if row["timeout"] else 5,
+                    "password": row["password"] if row["password"] else "0",
+                    "name": row["name"] if row["name"] else "Unknown",
+                    "enabled": True,
+                })
 
-            self._devices_cache = devices
-            self._devices_cache_ts = current_time
+            conn.close()
             logger.info(f"Cargados {len(devices)} dispositivos desde WebGUI DB")
             return devices
 
         except sqlite3.Error as e:
-            logger.warning(f"Error leyendo WebGUI DB: {e}, retornando lista vacía")
-            self._devices_cache = []
-            self._devices_cache_ts = current_time
+            logger.error(f"Error leyendo WebGUI DB: {e}")
             return []
         except Exception as e:
-            logger.warning(f"Error inesperado leyendo WebGUI DB: {e}, retornando lista vacía")
-            self._devices_cache = []
-            self._devices_cache_ts = current_time
+            logger.error(f"Error inesperado leyendo WebGUI DB: {e}")
             return []
 
-    def _initialize_devices(self):
-        """Inicializar clientes para cada dispositivo"""
-        # Intentar cargar desde WebGUI DB primero
+    def _get_devices_with_cache(self) -> list[dict]:
+        """
+        Obtener dispositivos con cache TTL de 60s.
+
+        Returns:
+            Lista de dispositivos (desde cache o WebGUI DB)
+        """
+        now = time.time()
+
+        # Check cache validity
+        if (
+            self._devices_cache is not None
+            and self._devices_cache_timestamp is not None
+            and (now - self._devices_cache_timestamp) < self.DEVICES_CACHE_TTL
+        ):
+            logger.debug("Usando devices cacheados")
+            return self._devices_cache
+
+        # Cache miss or expired - load from WebGUI DB
+        logger.debug("Cache miss/expirado - cargando desde WebGUI DB")
         devices = self._load_devices_from_webgui_db()
 
-        if devices:
-            logger.info("Devices loaded from WebGUI DB")
-        else:
-            # Fallback a collector.yaml si WebGUI DB está vacía o no existe
-            devices = self.devices_config
-            logger.info("Devices loaded from collector.yaml (fallback)")
+        # Fallback to collector.yaml if WebGUI DB has no devices
+        if not devices:
+            logger.info("WebGUI DB sin dispositivos, usando collector.yaml como fallback")
+            devices = self.config.get("devices", [])
+
+        self._devices_cache = devices
+        self._devices_cache_timestamp = now
+        return devices
+
+    def _initialize_devices(self):
+        """Inicializar clientes para cada dispositivo desde WebGUI DB"""
+        devices = self._get_devices_with_cache()
+
+        if not devices:
+            logger.warning("No hay dispositivos configurados para polling")
+            return
 
         for device in devices:
-            # Solo collector.yaml usa 'enabled'; WebGUI DB ya filtra is_enabled=1
-            if 'enabled' in device and not device.get('enabled', True):
+            if not device.get("enabled", True):
                 logger.info(f"Dispositivo deshabilitado: {device.get('ip')}")
                 continue
 
-            ip = device.get('ip')
-            if not ip:
-                logger.warning(f"Dispositivo sin IP, omitiendo: {device.get('name')}")
+            ip = device.get("ip")
+            if ip in self.zk_clients:
+                # Device already initialized, skip
                 continue
 
             client = ZKClient(
                 ip=ip,
-                port=device.get('port', 4370),
-                timeout=device.get('timeout', 5),
-                password=device.get('password', 0)
+                port=device.get("port", 4370),
+                timeout=device.get("timeout", 5),
+                password=device.get("password", 0),
             )
             self.zk_clients[ip] = client
-            logger.info(f"Dispositivo configurado: {ip}")
+            logger.info(f"Dispositivo configurado: {ip} ({device.get('name', 'Unknown')})")
+
+    def _sync_device_clients(self):
+        """
+        Sincronizar clientes ZK con la lista actual de dispositivos.
+        - Agrega nuevos dispositivos
+        - Desconecta y remueve dispositivos que ya no están en la DB o están deshabilitados
+        """
+        # Get current device IPs from WebGUI DB (with cache)
+        current_devices = self._get_devices_with_cache()
+        current_ips = {d["ip"] for d in current_devices if d.get("enabled", True)}
+
+        # Remove clients for devices no longer in DB or disabled
+        ips_to_remove = set(self.zk_clients.keys()) - current_ips
+        for ip in ips_to_remove:
+            client = self.zk_clients[ip]
+            if client.connected:
+                client.disconnect()
+            del self.zk_clients[ip]
+            logger.info(f"Dispositivo removido del polling: {ip}")
+
+        # Add new clients for devices not yet initialized
+        for device in current_devices:
+            if not device.get("enabled", True):
+                continue
+
+            ip = device.get("ip")
+            if ip not in self.zk_clients:
+                client = ZKClient(
+                    ip=ip,
+                    port=device.get("port", 4370),
+                    timeout=device.get("timeout", 5),
+                    password=device.get("password", 0),
+                )
+                self.zk_clients[ip] = client
+                logger.info(
+                    f"Nuevo dispositivo agregado al polling: {ip} "
+                    f"({device.get('name', 'Unknown')})"
+                )
 
     def poll_devices(self):
         """Polling de todos los dispositivos configurados"""
-        # Refrescar lista de dispositivos si TTL expiró
-        current_devices = self._load_devices_from_webgui_db()
-
-        if current_devices:
-            current_ips = {d['ip'] for d in current_devices if d.get('ip')}
-            existing_ips = set(self.zk_clients.keys())
-
-            # IPs nuevas - agregar clientes
-            new_ips = current_ips - existing_ips
-            for ip in new_ips:
-                device = next((d for d in current_devices if d['ip'] == ip), None)
-                if device:
-                    client = ZKClient(
-                        ip=ip,
-                        port=device.get('port', 4370),
-                        timeout=device.get('timeout', 5),
-                        password=device.get('password', 0)
-                    )
-                    self.zk_clients[ip] = client
-                    logger.info(f"Nuevo dispositivo agregado: {ip}")
-
-            # IPs removidas - desconectar y eliminar clientes
-            removed_ips = existing_ips - current_ips
-            for ip in removed_ips:
-                client = self.zk_clients.pop(ip, None)
-                if client and client.connected:
-                    client.disconnect()
-                logger.info(f"Dispositivo removido: {ip}")
-
         logger.info("Iniciando polling de dispositivos...")
+
+        # Refresh device clients from WebGUI DB (cache TTL 60s)
+        self._initialize_devices()
+        self._sync_device_clients()
 
         success_count = 0
         error_count = 0
@@ -208,10 +245,7 @@ class AttendanceCollector:
                     continue
 
                 # Obtener registros
-                attendances = client.get_attendance(
-                    clear_after_read=False,
-                    disable_device=True
-                )
+                attendances = client.get_attendance(clear_after_read=False, disable_device=True)
 
                 if attendances:
                     # Guardar en buffer
@@ -244,7 +278,7 @@ class AttendanceCollector:
 
         if not unsynced:
             logger.info("No hay registros pendientes de sincronizar")
-            self.buffer.log_sync(0, 0, 'success', duration_seconds=0)
+            self.buffer.log_sync(0, 0, "success", duration_seconds=0)
             return
 
         # Sincronizar
@@ -254,25 +288,25 @@ class AttendanceCollector:
 
         if success:
             # Marcar como sincronizados
-            record_ids = [r['id'] for r in unsynced]
+            record_ids = [r["id"] for r in unsynced]
             self.buffer.mark_as_synced(record_ids)
             self.buffer.log_sync(
                 records_synced=len(unsynced),
                 records_failed=0,
-                status='success',
-                duration_seconds=duration
+                status="success",
+                duration_seconds=duration,
             )
             logger.info(f"Sincronización completada: {len(unsynced)} registros en {duration:.2f}s")
         else:
             # Marcar como fallido
-            record_ids = [r['id'] for r in unsynced]
+            record_ids = [r["id"] for r in unsynced]
             self.buffer.mark_sync_failed(record_ids)
             self.buffer.log_sync(
                 records_synced=0,
                 records_failed=len(unsynced),
-                status='failed',
-                error_message='Platform error',
-                duration_seconds=duration
+                status="failed",
+                error_message="Platform error",
+                duration_seconds=duration,
             )
             logger.error("Sincronización fallida")
 

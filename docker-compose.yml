@@ -42,8 +42,32 @@ services:
       - ZK_COLLECTOR_HOST=0.0.0.0
       - ZK_COLLECTOR_PORT=8080
       - ZK_COLLECTOR_DATA=/app/data
+      # Emulator configuration (when using --profile mock)
+      - ZK_EMULATOR_HOST=${ZK_EMULATOR_HOST:-}
+      - ZK_EMULATOR_PORT=${ZK_EMULATOR_PORT:-4370}
     entrypoint: ["/app/docker-entrypoint.sh"]
     # Native HEALTHCHECK from Dockerfile is used (interval=30s, timeout=5s, retries=3)
+
+  # Mock profile: ZKTeco Emulator for E2E testing without physical device
+  # Usage: docker-compose --profile mock up -d
+  zk-emulator:
+    build: .
+    container_name: zk-emulator
+    restart: unless-stopped
+    profiles: ["mock"]
+    ports:
+      - "4370:4370"
+    entrypoint: ["python", "-m", "mock.zk_emulator"]
+    environment:
+      - ZK_EMULATOR_HOST=0.0.0.0
+      - ZK_EMULATOR_PORT=4370
+      - MOCK_ATTENDANCE_SEED=${MOCK_ATTENDANCE_SEED:-mock/attendance_seed.json}
+      - PYTHONPATH=/app
+    volumes:
+      - ./mock:/app/mock:ro
+      - ./configs:/app/configs:ro
+    depends_on:
+      - zk-collector
 
 volumes:
   zk-data:

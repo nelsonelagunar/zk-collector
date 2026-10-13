@@ -41,7 +41,7 @@ class Config:
             },
         },
         "devices": {
-            "required": True,
+            "required": False,  # Fuente de verdad: WebGUI DB; collector.yaml es fallback
             "type": "list",
             "item_schema": {
                 "ip": {"type": "string", "required": True},
@@ -112,18 +112,21 @@ class Config:
         if "platform" not in self.config:
             raise ConfigError("Sección 'platform' es requerida")
 
-        if "devices" not in self.config:
-            raise ConfigError("Sección 'devices' es requerida")
-
-        if not self.config["devices"]:
-            raise ConfigError("Al menos un dispositivo debe estar configurado")
+        # 'devices' ya no es requerida: la fuente de verdad es la WebGUI DB.
+        # collector.yaml mantiene la sección como fallback por compatibilidad.
+        if "devices" in self.config and self.config["devices"] is not None:
+            if not isinstance(self.config["devices"], list):
+                raise ConfigError("Sección 'devices' debe ser una lista")
+        else:
+            # Normalizar a lista vacía para el fallback
+            self.config["devices"] = []
 
         # Validar URLs
         platform_url = self.config["platform"].get("url", "")
         if not platform_url.startswith(("http://", "https://")):
             raise ConfigError("platform.url debe ser una URL válida")
 
-        # Validar IPs de dispositivos
+        # Validar IPs de dispositivos (solo si existen - fallback)
         import re
 
         ip_pattern = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
@@ -198,8 +201,13 @@ class Config:
                     if field not in self.config[section] and "default" in field_schema:
                         self.config[section][field] = field_schema["default"]
 
-            # Apply defaults for list items
-            if schema.get("type") == "list" and "item_schema" in schema:
+            # Apply defaults for list items (skip if section is not a valid list —
+            # _validate() will raise the proper ConfigError for wrong types)
+            if (
+                schema.get("type") == "list"
+                and "item_schema" in schema
+                and isinstance(self.config[section], list)
+            ):
                 for item in self.config[section]:
                     for field, field_schema in schema["item_schema"].items():
                         if field not in item and "default" in field_schema:
