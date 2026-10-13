@@ -1,0 +1,9 @@
+{
+  "idempotencyKey": "myk-177-devops-docker-mock",
+  "title": "[MYK-177] devops: Docker-compose profile mock para emulador + collector",
+  "description": "### Entregables\n1. `docker-compose.yml` actualizado con profile `mock` y servicio `zk-emulator`\n2. Collector en modo dev apunta a `zk-emulator:4370`\n3. `docker-compose --profile mock up` levanta emulador + collector + webgui\n\n### Criterio de aceptacion\n```\n# 1. Emulador arranca y escucha en :4370\ndocker-compose --profile mock up -d zk-emulator\ndocker logs zk-emulator | grep \"Listening on 0.0.0.0:4370\"\n\n# 2. Collector conecta al emulador y pollea\ndocker-compose --profile mock up -d zk-collector\ndocker logs zk-collector | grep -E \"Polling dispositivo zk-emulator|Attendance Collector Iniciado\"\n\n# 3. Registros sinteticos aparecen en pagina asistencia del deploy\ncurl -s http://10.0.0.16:8081/api/attendance | jq '.records | length'\n# Debe ser > 0 (registros del seed)\n```\n\n### Configuracion requerida\n- Servicio `zk-emulator` con profile `mock`\n- Puerto 4370 expuesto\n- Variable `ZK_EMULATOR_HOST=zk-emulator` y `ZK_EMULATOR_PORT=4370` para collector\n- Volumen `./mock:/app/mock:ro` para seed de asistencia\n- `depends_on: zk-collector`",
+  "projectId": "dff21b9a-f1da-4684-b613-c0d87b735c49",
+  "assigneeActorId": "devops",
+  "status": "todo",
+  "priority": "critical"
+}

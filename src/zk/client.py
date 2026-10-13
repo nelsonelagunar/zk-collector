@@ -95,16 +95,19 @@ class ZKClient:
                     time.sleep(retry_delay)
             except ConnectionRefusedError as e:
                 logger.error(f"Conexión rechazada por {self.ip}:{self.port}: {e}")
-                raise ZKConnectionError(f"Conexión rechazada: {e}")
+                raise ZKConnectionError(f"Conexión rechazada: {e}") from e
             except TimeoutError as e:
                 logger.error(f"Timeout conectando a {self.ip}:{self.port}: {e}")
                 if attempt < max_retries:
                     time.sleep(retry_delay)
             except Exception as e:
                 logger.error(f"Error inesperado conectando a {self.ip}:{self.port}: {e}")
-                raise ZKConnectionError(f"Error inesperado: {e}")
+                raise ZKConnectionError(f"Error inesperado: {e}") from e
 
-        logger.error(f"No se pudo conectar a {self.ip}:{self.port} después de {max_retries} intentos")
+        logger.error(
+            f"No se pudo conectar a {self.ip}:{self.port} "
+            f"después de {max_retries} intentos"
+        )
         self.connected = False
         return False
 
@@ -167,10 +170,10 @@ class ZKClient:
 
         except PyZKError as e:
             logger.error(f"ZKError obteniendo attendance: {e}")
-            raise ZKAttendanceError(f"Error obteniendo attendance: {e}")
+            raise ZKAttendanceError(f"Error obteniendo attendance: {e}") from e
         except Exception as e:
             logger.error(f"Error inesperado obteniendo attendance: {e}")
-            raise ZKAttendanceError(f"Error inesperado: {e}")
+            raise ZKAttendanceError(f"Error inesperado: {e}") from e
         finally:
             if disable_device:
                 try:
@@ -220,7 +223,7 @@ class ZKClient:
         try:
             users = self.zk.get_users()
             logger.info(f"Obtenidos {len(users)} usuarios de {self.ip}")
-            return users
+            return users if isinstance(users, list) else None
         except Exception as e:
             logger.error(f"Error obteniendo usuarios: {e}")
             return None
@@ -238,7 +241,7 @@ class ZKClient:
         try:
             device_time = self.zk.get_time()
             logger.debug(f"Hora del dispositivo {self.ip}: {device_time}")
-            return device_time
+            return device_time if isinstance(device_time, datetime) else None
         except Exception as e:
             logger.error(f"Error obteniendo hora del dispositivo: {e}")
             return None
@@ -294,7 +297,7 @@ class ZKClient:
                 # Intentar obtener información básica
                 self.zk.get_firmware_version()
                 return True
-            except:
+            except Exception:
                 self.connected = False
                 return False
         return False
@@ -306,11 +309,13 @@ class ZKClient:
         Returns:
             Dict con estado de conexión
         """
+        attempt = self.last_connection_attempt
+        success = self.last_successful_connection
         return {
             'ip': self.ip,
             'port': self.port,
             'connected': self.connected,
-            'last_attempt': self.last_connection_attempt.isoformat() if self.last_connection_attempt else None,
-            'last_success': self.last_successful_connection.isoformat() if self.last_successful_connection else None,
+            'last_attempt': attempt.isoformat() if attempt else None,
+            'last_success': success.isoformat() if success else None,
             'failed_attempts': self.connection_attempts,
         }

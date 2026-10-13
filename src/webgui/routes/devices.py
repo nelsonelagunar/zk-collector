@@ -2,9 +2,21 @@
 Devices Routes - CRUD de dispositivos ZKTeco
 """
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from datetime import datetime
-from zk import ZK, ZKError
+
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
+from zk.exception import ZKError
+
+from zk import ZK
 
 devices_bp = Blueprint('devices', __name__)
 
@@ -31,26 +43,26 @@ def create_device():
             'timeout': int(request.form.get('timeout', 5)),
             'protocol': request.form.get('protocol', 'tcp'),
         }
-        
+
         # Validaciones
         errors = []
         if not data['name']:
             errors.append('Nombre es requerido')
         if not data['address']:
             errors.append('Dirección es requerida')
-        
+
         if errors:
             for error in errors:
                 flash(error, 'error')
             return render_template('devices/create.html')
-        
+
         # Guardar en DB
         db = current_app.db
-        device_id = db.insert('devices', data)
-        
+        db.insert('devices', data)
+
         flash(f'Dispositivo "{data["name"]}" creado exitosamente', 'success')
         return redirect(url_for('devices.list_devices'))
-    
+
     return render_template('devices/create.html')
 
 
@@ -58,7 +70,7 @@ def create_device():
 def edit_device(device_id):
     """Editar dispositivo"""
     db = current_app.db
-    
+
     if request.method == 'POST':
         data = {
             'name': request.form.get('name', ''),
@@ -71,25 +83,25 @@ def edit_device(device_id):
             'protocol': request.form.get('protocol', 'tcp'),
             'updated_at': datetime.now().isoformat(),
         }
-        
+
         # Validaciones
         if not data['name'] or not data['address']:
             flash('Nombre y dirección son requeridos', 'error')
             return render_template('devices/edit.html', device_id=device_id)
-        
+
         # Actualizar en DB
         db.update('devices', data, 'id = ?', (device_id,))
-        
-        flash(f'Dispositivo actualizado', 'success')
+
+        flash('Dispositivo actualizado', 'success')
         return redirect(url_for('devices.list_devices'))
-    
+
     # GET - mostrar form
     device = db.fetch_one("SELECT * FROM devices WHERE id = ?", (device_id,))
-    
+
     if not device:
         flash('Dispositivo no encontrado', 'error')
         return redirect(url_for('devices.list_devices'))
-    
+
     return render_template('devices/edit.html', device=device)
 
 
@@ -98,7 +110,7 @@ def delete_device(device_id):
     """Eliminar dispositivo"""
     db = current_app.db
     db.delete('devices', 'id = ?', (device_id,))
-    
+
     flash('Dispositivo eliminado', 'success')
     return redirect(url_for('devices.list_devices'))
 
@@ -108,10 +120,10 @@ def test_device(device_id):
     """Probar conexión con dispositivo - API endpoint"""
     db = current_app.db
     device = db.fetch_one("SELECT * FROM devices WHERE id = ?", (device_id,))
-    
+
     if not device:
         return jsonify({'success': False, 'message': 'Dispositivo no encontrado'}), 404
-    
+
     try:
         # Intentar conexión
         zk = ZK(
@@ -121,9 +133,9 @@ def test_device(device_id):
             password=device['password'],
             force_udp=(device['protocol'] == 'udp')
         )
-        
+
         conn = zk.connect()
-        
+
         if conn:
             # Obtener información
             device_info = {
@@ -131,7 +143,7 @@ def test_device(device_id):
                 'serial': zk.get_serialnumber(),
                 'platform': zk.get_platform(),
             }
-            
+
             # Actualizar estado en DB
             db.update('devices', {
                 'status': 'online',
@@ -139,9 +151,9 @@ def test_device(device_id):
                 'firmware_version': device_info['firmware'],
                 'serial_number': device_info['serial'],
             }, 'id = ?', (device_id,))
-            
+
             zk.disconnect()
-            
+
             return jsonify({
                 'success': True,
                 'message': 'Conexión exitosa',
@@ -152,11 +164,11 @@ def test_device(device_id):
                 'success': False,
                 'message': 'No se pudo conectar al dispositivo'
             })
-            
+
     except ZKError as e:
         # Actualizar estado offline
         db.update('devices', {'status': 'offline'}, 'id = ?', (device_id,))
-        
+
         return jsonify({
             'success': False,
             'message': f'Error ZK: {str(e)}'
@@ -172,7 +184,7 @@ def test_device(device_id):
 def api_test_device():
     """API endpoint para test de conexión desde el form"""
     data = request.get_json()
-    
+
     try:
         zk = ZK(
             data.get('address', ''),
@@ -181,16 +193,16 @@ def api_test_device():
             password=data.get('password', 0),
             force_udp=(data.get('protocol') == 'udp')
         )
-        
+
         conn = zk.connect()
-        
+
         if conn:
             device_info = {
                 'firmware': zk.get_firmware_version(),
                 'serial': zk.get_serialnumber(),
             }
             zk.disconnect()
-            
+
             return jsonify({
                 'success': True,
                 'message': 'Conexión exitosa',
@@ -201,7 +213,7 @@ def api_test_device():
                 'success': False,
                 'message': 'No se pudo conectar'
             })
-            
+
     except Exception as e:
         return jsonify({
             'success': False,
@@ -213,10 +225,10 @@ def api_test_device():
 def toggle_device(device_id):
     """Activar/desactivar dispositivo"""
     db = current_app.db
-    
+
     device = db.fetch_one("SELECT is_enabled FROM devices WHERE id = ?", (device_id,))
     if device:
         new_status = 0 if device['is_enabled'] else 1
         db.update('devices', {'is_enabled': new_status}, 'id = ?', (device_id,))
-    
+
     return redirect(url_for('devices.list_devices'))
