@@ -152,23 +152,16 @@ class Application:
 
         required = ["platform.url", "platform.api_key", "platform.tenant_id", "devices"]
 
+        # Advertir (no fallar) si una sección está vacía:
+        # post-MYK-172 la fuente de verdad es la DB de WebGUI; el collector debe seguir vivo.
         for key in required:
             value = self.config.get(key)
             if value is None or (isinstance(value, str) and not value.strip()):
-                self.logger.error(f"Configuración requerida faltante: {key}")  # type: ignore[union-attr]
-                return False
+                self.logger.warning(f"Config no configurada (seguirá sync_local): {key}")  # type: ignore[union-attr]
 
-        # Validar dispositivos
         devices = self.config.get("devices", [])
         if not devices:
-            self.logger.error("No hay dispositivos configurados")  # type: ignore[union-attr]
-            return False
-
-        for i, device in enumerate(devices):
-            if "ip" not in device:
-                self.logger.error(f"Dispositivo {i + 1} no tiene IP configurada")  # type: ignore[union-attr]
-                return False
-
+            self.logger.warning("No hay dispositivos configurados — esperando WebGUI para poblarlos")
         return True
 
     def _setup_signals(self):
