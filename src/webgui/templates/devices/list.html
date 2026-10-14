@@ -82,7 +82,8 @@
                         {{ device.last_seen or 'Nunca' }}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <a href="/devices/{{ device.id }}/edit" class="text-blue-600 hover:text-blue-900 mr-3">Editar</a>
+                        <a href="/devices/{{ device.id }}/detail" class="text-blue-600 hover:text-blue-900 mr-3">Ver</a>
+                        <a href="/devices/{{ device.id }}/edit" class="text-gray-600 hover:text-gray-900 mr-3">Editar</a>
                         <a href="/devices/{{ device.id }}/test" class="text-green-600 hover:text-green-900 mr-3">Test</a>
                         <form action="/devices/{{ device.id }}/delete" method="POST" class="inline" onsubmit="return confirm('¿Eliminar dispositivo?')">
                             <button type="submit" class="text-red-600 hover:text-red-900">Eliminar</button>

@@ -14,11 +14,157 @@ from flask import (
     request,
     url_for,
 )
+from zk import ZK
 from zk.exception import ZKError
 
-from zk import ZK
-
 devices_bp = Blueprint('devices', __name__)
+
+
+@devices_bp.route('/<int:device_id>/sync-users', methods=['POST'])
+def sync_users(device_id):
+    """Sincronizar usuarios desde el dispositivo ZKTeco a la base de datos WebGUI"""
+    db = current_app.db
+    device = db.fetch_one("SELECT * FROM devices WHERE id = ?", (device_id,))
+
+    if not device:
+        return jsonify({'success': False, 'message': 'Dispositivo no encontrado'}), 404
+
+    try:
+        zk = ZK(
+            device['address'],
+            port=device['port'],
+            timeout=device['timeout'],
+            password=device['password'],
+            force_udp=(device['protocol'] == 'udp')
+        )
+
+        conn = zk.connect()
+
+        if not conn:
+            return jsonify({
+                'success': False,
+                'message': 'No se pudo conectar al dispositivo'
+            })
+
+        # Obtener usuarios del dispositivo
+        users = zk.get_users()
+        zk.disconnect()
+
+        if not users:
+            return jsonify({
+                'success': True,
+                'message': 'No hay usuarios en el dispositivo',
+                'synced_count': 0
+            })
+
+        # Upsert en device_users
+        synced_count = 0
+        for user in users:
+            user_id = str(user.user_id) if hasattr(user, 'user_id') else str(user.get('user_id', ''))
+            name = user.name if hasattr(user, 'name') else user.get('name', '')
+            privilege = user.privilege if hasattr(user, 'privilege') else user.get('privilege', 0)
+            password = user.password if hasattr(user, 'password') else user.get('password', '')
+            group_id = str(user.group_id) if hasattr(user, 'group_id') else str(user.get('group_id', ''))
+            user_role = user.user_role if hasattr(user, 'user_role') else user.get('user_role', 0)
+
+            # Verificar si existe
+            existing = db.fetch_one(
+                "SELECT id FROM device_users WHERE device_id = ? AND user_id = ?",
+                (device_id, user_id)
+            )
+
+            if existing:
+                db.update('device_users', {
+                    'name': name,
+                    'privilege': privilege,
+                    'password': password,
+                    'group_id': group_id,
+                    'user_role': user_role,
+                    'updated_at': datetime.now().isoformat(),
+                }, 'id = ?', (existing['id'],))
+            else:
+                db.insert('device_users', {
+                    'device_id': device_id,
+                    'user_id': user_id,
+                    'name': name,
+                    'privilege': privilege,
+                    'password': password,
+                    'group_id': group_id,
+                    'user_role': user_role,
+                })
+            synced_count += 1
+
+        return jsonify({
+            'success': True,
+            'message': f'Sincronizados {synced_count} usuarios',
+            'synced_count': synced_count
+        })
+
+    except ZKError as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error ZK: {str(e)}'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        })
+
+
+@devices_bp.route('/api/device-users')
+def api_device_users():
+    """API para obtener lista de usuarios de un dispositivo"""
+    db = current_app.db
+    device_ip = request.args.get('device_ip', '')
+
+    if not device_ip:
+        return jsonify({'success': False, 'message': 'device_ip es requerido'}), 400
+
+    # Obtener device_id por IP
+    device = db.fetch_one("SELECT id FROM devices WHERE address = ?", (device_ip,))
+    if not device:
+        return jsonify({'success': False, 'message': 'Dispositivo no encontrado'}), 404
+
+    users = db.fetch_all(
+        "SELECT user_id, name, privilege, group_id, user_role, synced_at FROM device_users WHERE device_id = ? ORDER BY user_id",
+        (device['id'],)
+    )
+
+    # Renombrar synced_at a updated_at para compatibilidad
+    for user in users:
+        user['synced_at'] = user.get('updated_at', user.get('synced_at'))
+
+    return jsonify({'users': users})
+
+
+@devices_bp.route('/api/device-users/stats')
+def api_device_users_stats():
+    """API para obtener estadísticas de usuarios de un dispositivo"""
+    db = current_app.db
+    device_ip = request.args.get('device_ip', '')
+
+    if not device_ip:
+        return jsonify({'success': False, 'message': 'device_ip es requerido'}), 400
+
+    device = db.fetch_one("SELECT id FROM devices WHERE address = ?", (device_ip,))
+    if not device:
+        return jsonify({'success': False, 'message': 'Dispositivo no encontrado'}), 404
+
+    total = db.fetch_one(
+        "SELECT COUNT(*) as count FROM device_users WHERE device_id = ?",
+        (device['id'],)
+    )
+
+    with_names = db.fetch_one(
+        "SELECT COUNT(*) as count FROM device_users WHERE device_id = ? AND name IS NOT NULL AND name != ''",
+        (device['id'],)
+    )
+
+    return jsonify({
+        'total': total['count'] if total else 0,
+        'with_names': with_names['count'] if with_names else 0
+    })
 
 
 @devices_bp.route('/')
@@ -219,6 +365,20 @@ def api_test_device():
             'success': False,
             'message': f'Error: {str(e)}'
         }), 500
+
+
+@devices_bp.route('/<int:device_id>/detail')
+def device_detail(device_id):
+    """Vista detallada del dispositivo con tabs"""
+    db = current_app.db
+
+    device = db.fetch_one("SELECT * FROM devices WHERE id = ?", (device_id,))
+
+    if not device:
+        flash('Dispositivo no encontrado', 'error')
+        return redirect(url_for('devices.list_devices'))
+
+    return render_template('devices/detail.html', device=device)
 
 
 @devices_bp.route('/<int:device_id>/toggle', methods=['POST'])
