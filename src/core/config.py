@@ -91,6 +91,28 @@ class Config:
         self._load()
         self._validate()
 
+    @classmethod
+    def default(cls) -> 'Config':
+        """Config mínima por defecto cuando collector.yaml no existe.
+
+        Post-MYK-172 los devices se leen desde la DB del WebGUI (una sola fuente
+        de verdad). Este default permite arrancar el collector con 0 devices sin
+        fallar mientras la fuente real es la DB.
+        """
+        cfg = cls.__new__(cls)
+        cfg.config_path = None
+        cfg.encryption_key = os.environ.get('ENCRYPTION_KEY')
+        cfg.config = {
+            'devices': [],
+            'platform': {'url': '', 'api_key': '', 'tenant_id': ''},
+            'poll_interval_seconds': 300,
+            'sync_interval_seconds': 60,
+            'sync_enabled': False,
+            'buffer': {'max_records': 10000, 'cleanup_days': 30},
+            'logging': {'level': 'INFO'},
+        }
+        return cfg
+
     def _load(self):
         """Cargar configuración desde archivo YAML"""
         try:

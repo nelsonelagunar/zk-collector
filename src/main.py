@@ -99,24 +99,28 @@ class Application:
 
             # Validar configuración
             if not self.config_path.exists():
-                self.logger.error(f"Archivo de configuración no encontrado: {self.config_path}")
-                self.logger.error(
-                    f"Copie configs/collector.yaml.example a {self.config_path} y edítelo"
+                self.logger.warning(
+                    f"collector.yaml no existe — arrancando con config mínima "
+                    "(devices vacíos; serán leídos desde WebGUI DB tras MYK-172)"
                 )
-                return False
-
-            # Cargar configuración
-            self.config = Config(self.config_path)
-            self.logger.info(f"Configuración cargada: {self.config_path}")
+                self.config = Config.default()
+            else:
+                # Cargar configuración
+                self.config = Config(self.config_path)
+                self.logger.info(f"Configuración cargada: {self.config_path}")
 
             # Validar configuración crítica
             if not self._validate_config():
                 return False
 
-            # Si solo validar, salir exitosamente
-            if self.validate_only:
-                self.logger.info("✓ Validación de configuración exitosa")
-                return True
+            # Inicializar colector
+            self.collector = AttendanceCollector(self.config)
+            self.logger.info("Colector inicializado correctamente")
+
+            # Configurar señales
+            self._setup_signals()
+
+            return True
 
             # Inicializar colector
             self.collector = AttendanceCollector(self.config)
