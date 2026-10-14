@@ -6,7 +6,6 @@ Rutas para visualización y exportación de registros de asistencia
 import csv
 import io
 from datetime import datetime
-from typing import Any
 
 from flask import (
     Blueprint,
