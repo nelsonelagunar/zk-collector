@@ -10,7 +10,7 @@ from src.buffer.repository import BufferRepository
 from src.core.config import Config
 from src.monitoring.health import HealthMonitor
 from src.sync.platform import PlatformSync
-from src.zk.client import ZKClient
+from src.zk_client.client import ZKClient
 
 logger = logging.getLogger(__name__)
 
