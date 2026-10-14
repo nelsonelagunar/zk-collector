@@ -42,9 +42,9 @@ def list_attendance():
 def api_devices():
     """API para obtener lista de dispositivos para el select de filtro"""
     db = get_webgui_db()
-    # Alias 'address' as 'ip' para compatibilidad con frontend
+    # Usar columnas reales: ip, enabled (no address, is_enabled)
     devices = db.fetch_all(
-        "SELECT id, name, address as ip, is_enabled FROM devices WHERE is_enabled = 1 ORDER BY name"
+        "SELECT id, name, ip, enabled FROM devices WHERE enabled = 1 ORDER BY name"
     )
     return jsonify({'devices': devices})
 
