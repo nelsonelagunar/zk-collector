@@ -7,9 +7,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.zk.attendance import AttendanceRecord
-from src.zk.client import ZKClient
-from src.zk.exceptions import ZKConnectionError
+from src.zk_client.attendance import AttendanceRecord
+from src.zk_client.client import ZKClient
+from src.zk_client.exceptions import ZKConnectionError
 
 
 class TestZKClient:
@@ -28,7 +28,7 @@ class TestZKClient:
         """Test de conexión exitosa"""
         client = ZKClient('192.168.1.101')
 
-        with patch('src.zk.client.ZK') as mock_zk:
+        with patch('src.zk_client.client.ZK') as mock_zk:
             mock_instance = Mock()
             mock_zk.return_value = mock_instance
 
@@ -43,7 +43,7 @@ class TestZKClient:
         """Test de fallo de conexión"""
         client = ZKClient('192.168.1.101')
 
-        with patch('src.zk.client.ZK') as mock_zk:
+        with patch('src.zk_client.client.ZK') as mock_zk:
             mock_zk.side_effect = Exception("Connection failed")
 
             with pytest.raises(ZKConnectionError):
