@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+
+{% block title %}Asistencia - Attendance Collector{% endblock %}
+
+{% block extra_head %}
+<!-- Flatpickr for date pickers -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="md:flex md:items-center md:justify-between mb-8">
+        <div class="flex-1 min-w-0">
+            <h2 class="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
+                Registro de Asistencia
+            </h2>
+            <p class="mt-1 text-sm text-gray-500">
+                Visualiza y filtra los registros de asistencia recolectados
+            </p>
+        </div>
+        <div class="mt-4 flex md:mt-0 md:ml-4">
+            <button id="export-csv" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 mr-2">
+                <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                </svg>
+                Exportar CSV
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <form id="filters-form" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div>
+                <label for="date_from" class="block text-sm font-medium text-gray-700 mb-1">Fecha Desde</label>
+                <input type="text" id="date_from" name="date_from" 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="YYYY-MM-DD">
+            </div>
+            <div>
+                <label for="date_to" class="block text-sm font-medium text-gray-700 mb-1">Fecha Hasta</label>
+                <input type="text" id="date_to" name="date_to" 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="YYYY-MM-DD">
+            </div>
+            <div>
+                <label for="user_id" class="block text-sm font-medium text-gray-700 mb-1">ID Usuario</label>
+                <input type="text" id="user_id" name="user_id" 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="ID del usuario">
+            </div>
+            <div>
+                <label for="device_ip" class="block text-sm font-medium text-gray-700 mb-1">Dispositivo</label>
+                <select id="device_ip" name="device_ip" 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    <option value="">Todos los dispositivos</option>
+                    {% for device in devices %}
+                    <option value="{{ device.address }}">{{ device.name }} ({{ device.address }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex items-end">
+                <button type="button" id="apply-filters" 
+                    class="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+                    Filtrar
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tabla de asistencia -->
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+        <div class="overflow-x-auto">
+            <table id="attendance-table" class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuario</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha/Hora</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dispositivo</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo Marca</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sincronizado</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200" id="attendance-tbody">
+                    <tr>
+                        <td colspan="7" class="px-6 py-8 text-center text-gray-500">
+                            <div class="flex justify-center items-center">
+                                <svg class="animate-spin h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span class="ml-3">Cargando registros...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Paginación -->
+        <div id="pagination" class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 hidden">
+            <div class="flex-1 flex justify-between sm:hidden">
+                <button id="prev-page" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50" disabled>
+                    Anterior
+                </button>
+                <button id="next-page" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50" disabled>
+                    Siguiente
+                </button>
+            </div>
+            <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-sm text-gray-700">
+                        Mostrando <span id="showing-start">0</span> a <span id="showing-end">0</span> de <span id="showing-total">0</span> resultados
+                    </p>
+                </div>
+                <div>
+                    <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                        <button id="prev-page-lg" class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:outline-offset-0" disabled>
+                            <span class="sr-only">Anterior</span>
+                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/></svg>
+                        </button>
+                        <div id="page-numbers" class="flex"></div>
+                        <button id="next-page-lg" class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:outline-offset-0" disabled>
+                            <span class="sr-only">Siguiente</span>
+                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"/></svg>
+                        </button>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Estado de paginación
+let currentPage = 1;
+const perPage = 25;
+
+// Inicializar date pickers
+document.addEventListener('DOMContentLoaded', function() {
+    flatpickr("#date_from", {
+        dateFormat: "Y-m-d",
+        locale: "es",
+        allowInput: true
+    });
+    flatpickr("#date_to", {
+        dateFormat: "Y-m-d",
+        locale: "es",
+        allowInput: true
+    });
+    
+    // Cargar primera página
+    loadAttendance();
+    
+    // Event listeners
+    document.getElementById('apply-filters').addEventListener('click', function() {
+        currentPage = 1;
+        loadAttendance();
+    });
+    
+    document.getElementById('export-csv').addEventListener('click', function() {
+        exportCSV();
+    });
+    
+    document.getElementById('prev-page').addEventListener('click', function() {
+        if (currentPage > 1) {
+            currentPage--;
+            loadAttendance();
+        }
+    });
+    
+    document.getElementById('next-page').addEventListener('click', function() {
+        currentPage++;
+        loadAttendance();
+    });
+    
+    document.getElementById('prev-page-lg').addEventListener('click', function() {
+        if (currentPage > 1) {
+            currentPage--;
+            loadAttendance();
+        }
+    });
+    
+    document.getElementById('next-page-lg').addEventListener('click', function() {
+        currentPage++;
+        loadAttendance();
+    });
+    
+    // Enter key en filtros
+    ['date_from', 'date_to', 'user_id', 'device_ip'].forEach(id => {
+        document.getElementById(id).addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                currentPage = 1;
+                loadAttendance();
+            }
+        });
+    });
+});
+
+async function loadAttendance() {
+    const tbody = document.getElementById('attendance-tbody');
+    const pagination = document.getElementById('pagination');
+    
+    // Mostrar loading
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="7" class="px-6 py-8 text-center text-gray-500">
+                <div class="flex justify-center items-center">
+                    <svg class="animate-spin h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="ml-3">Cargando registros...</span>
+                </div>
+            </td>
+        </tr>
+    `;
+    pagination.classList.add('hidden');
+    
+    // Construir query params
+    const params = new URLSearchParams({
+        page: currentPage,
+        per_page: perPage
+    });
+    
+    const dateFrom = document.getElementById('date_from').value;
+    const dateTo = document.getElementById('date_to').value;
+    const userId = document.getElementById('user_id').value;
+    const deviceIp = document.getElementById('device_ip').value;
+    
+    if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
+    if (userId) params.append('user_id', userId);
+    if (deviceIp) params.append('device_ip', deviceIp);
+    
+    try {
+        const response = await fetch(`/api/attendance?${params.toString()}`);
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Error cargando asistencia');
+        }
+        
+        renderTable(data.data);
+        renderPagination(data.pagination);
+        pagination.classList.remove('hidden');
+        
+    } catch (error) {
+        console.error('Error:', error);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="px-6 py-8 text-center text-red-500">
+                    Error cargando registros: ${error.message}
+                </td>
+            </tr>
+        `;
+    }
+}
+
+function renderTable(records) {
+    const tbody = document.getElementById('attendance-tbody');
+    const statusMap = {0: 'Entrada', 1: 'Salida', 2: 'Otro'};
+    const statusClass = {
+        0: 'bg-green-100 text-green-800',
+        1: 'bg-blue-100 text-blue-800',
+        2: 'bg-gray-100 text-gray-800'
+    };
+    
+    if (!records || records.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="px-6 py-8 text-center text-gray-500">
+                    No hay registros de asistencia con los filtros actuales
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = records.map(r => `
+        <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${r.id}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${r.user_name || r.user_id}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${formatDateTime(r.timestamp)}</td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClass[r.status] || 'bg-gray-100 text-gray-800'}">
+                    ${statusMap[r.status] || r.status}
+                </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                ${r.device_name || r.device_ip}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${r.punch_type || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                ${r.synced 
+                    ? '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Sí</span>'
+                    : '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">No</span>'
+                }
+            </td>
+        </tr>
+    `).join('');
+}
+
+function renderPagination(pagination) {
+    const { page, total_pages, total } = pagination;
+    const start = (page - 1) * perPage + 1;
+    const end = Math.min(page * perPage, total);
+    
+    document.getElementById('showing-start').textContent = total > 0 ? start : 0;
+    document.getElementById('showing-end').textContent = end;
+    document.getElementById('showing-total').textContent = total;
+    
+    // Botones prev/next
+    const prevButtons = [document.getElementById('prev-page'), document.getElementById('prev-page-lg')];
+    const nextButtons = [document.getElementById('next-page'), document.getElementById('next-page-lg')];
+    
+    prevButtons.forEach(btn => {
+        btn.disabled = page <= 1;
+        btn.classList.toggle('opacity-50', page <= 1);
+        btn.classList.toggle('cursor-not-allowed', page <= 1);
+    });
+    
+    nextButtons.forEach(btn => {
+        btn.disabled = page >= total_pages;
+        btn.classList.toggle('opacity-50', page >= total_pages);
+        btn.classList.toggle('cursor-not-allowed', page >= total_pages);
+    });
+    
+    // Números de página
+    const pageNumbers = document.getElementById('page-numbers');
+    let pagesHtml = '';
+    
+    const maxVisible = 5;
+    let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
+    let endPage = Math.min(total_pages, startPage + maxVisible - 1);
+    
+    if (endPage - startPage + 1 < maxVisible) {
+        startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        const isActive = i === page;
+        pagesHtml += `
+            <button 
+                onclick="goToPage(${i})" 
+                class="relative inline-flex items-center px-4 py-2 text-sm font-medium ${isActive 
+                    ? 'bg-blue-600 text-white ring-1 ring-blue-600' 
+                    : 'text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50'} 
+                ${isActive ? 'aria-current="page"' : ''}"
+            >
+                ${i}
+            </button>
+        `;
+    }
+    
+    pageNumbers.innerHTML = pagesHtml;
+}
+
+function goToPage(page) {
+    currentPage = page;
+    loadAttendance();
+}
+
+function formatDateTime(isoString) {
+    if (!isoString) return 'N/A';
+    const date = new Date(isoString);
+    return date.toLocaleString('es-ES', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+}
+
+function exportCSV() {
+    const params = new URLSearchParams({ format: 'csv' });
+    
+    const dateFrom = document.getElementById('date_from').value;
+    const dateTo = document.getElementById('date_to').value;
+    const userId = document.getElementById('user_id').value;
+    const deviceIp = document.getElementById('device_ip').value;
+    
+    if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
+    if (userId) params.append('user_id', userId);
+    if (deviceIp) params.append('device_ip', deviceIp);
+    
+    window.open(`/attendance/export?${params.toString()}`, '_blank');
+}
+</script>
+{% endblock %}
