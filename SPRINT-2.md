@@ -13,8 +13,8 @@
 | 1 | MYK-177 | [P0-0] Emulador ZKTeco TCP :4370 | tester | **DONE** ✅ | `pytest tests/integration/test_emulator_integration.py -k "not full_cycle"` PASS |
 | 2 | MYK-181 | [P0-1] DevOps: fix/p0-1-supervisord PR + merge | devops | **DONE** ✅ (merged en prod) | PR #22 created & merged; docker logs muestra polling activo |
 | 3 | MYK-164 | [P0-1] Collector arranca (supervisord dual) | devops+backend-dev | **DONE** ✅ (prod) | Reviewer approval on PR #22; docker logs polling activo |
-| 4 | MYK-165 | [P0-2] Una fuente verdad devices (WebGUI DB) | backend-dev | **CODE COMPLETE** (c16714f) — pendiente disposition + deploy verify | Device agregado por UI → polleado en siguiente ciclo (300s) |
-| 5 | MYK-166 | [P0-3] Página asistencia (tabla + filtros + pag) | frontend-dev | **DONE local** (1918624) — pendiente deploy verify en :8081 | Registros attendance_buffer visibles en :8081 |
+| 4 | MYK-165 | [P0-2] Una fuente verdad devices (WebGUI DB) | backend-dev | **DONE board** ✅ — deploy verify pendiente (platform blocked) | Device agregado por UI → polleado en siguiente ciclo (300s) |
+| 5 | MYK-166 | [P0-3] Página asistencia (tabla + filtros + pag) | frontend-dev | **DONE local** (1918624) — pendiente deploy verify en :8081 (platform blocked) | Registros attendance_buffer visibles en :8081 |
 | 6 | MYK-167 | [P0-4] Export CSV real | backend-dev | **DONE** ✅ (prod) | CSV descargado con registros filtrados |
 | 7 | MYK-162 | [P0-5] CI verde ruff=0 | devops | **DONE** ✅ | `ruff check src/ tests/` = 0; CI verde |
 
@@ -128,4 +128,6 @@ Total Validated:              139/140 PASS (1 pre-existing hang)
 
 ---
 
-**Platform Blocker**: MYK-188 (escalation:platform) — Gateway run context not propagated (40th+ consecutive failure). All PM coordination documented locally. Next wakeup: verify platform fix before attempting board writes.
+**Platform Blocker**: MYK-188 (escalation:platform) — Gateway run context not propagated (41st+ consecutive failure, since 2026-10-11). All PM coordination documented locally. Checkout binds but all write operations rejected (`gateway_token_action_denied` / `cross_issue_influence_run_context_required`). Next wakeup: verify platform fix before attempting board writes.
+
+**Turn 13 Update (2026-10-15)**: Sprint 2 critical path externally resolved — 5/7 P0 items DONE in production (MYK-177, 181, 164, 167, 162). MYK-165 DONE on board (deploy verify pending). MYK-166 code complete locally (deploy verify pending). UNBLOCK WATCHDOG: all 7 blocked issues have declared blockers; SMTP decision chain (MYK-170/174→184) awaits human board decision. 5 recovery actions queued in PM_DISPOSITIONS_READY_TURN13.md.
