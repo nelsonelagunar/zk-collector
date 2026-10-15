@@ -6,29 +6,30 @@
 
 ---
 
-## Sprint Backlog (6 items P0)
+## Sprint Backlog (6 items P0) — Estado actualizado 2026-10-15 (board read)
 
 | # | Issue ID | Título | Asignado | Estado | Criterio de Salida |
 |---|----------|--------|----------|--------|-------------------|
 | 1 | MYK-177 | [P0-0] Emulador ZKTeco TCP :4370 | tester | **DONE** ✅ | `pytest tests/integration/test_emulator_integration.py -k "not full_cycle"` PASS |
-| 2 | MYK-181 | [P0-1] DevOps: fix/p0-1-supervisord PR + merge | devops | **BLOCKED** | PR #22 created & merged; docker logs muestra polling activo |
-| 3 | MYK-164 | [P0-1] Collector arranca (supervisord dual) | devops+backend-dev | **IN_REVIEW** | Reviewer approval on PR #22; docker logs polling activo |
-| 4 | MYK-165 | [P0-2] Una fuente verdad devices (WebGUI DB) | backend-dev | **BLOCKED** | Device agregado por UI → polleado en siguiente ciclo (300s) |
-| 5 | MYK-166 | [P0-3] Página asistencia (tabla + filtros + pag) | frontend-dev | **DONE** local | Registros attendance_buffer visibles en :8081 |
-| 6 | MYK-167 | [P0-4] Export CSV real | backend-dev | **BLOCKED** | CSV descargado con registros filtrados |
+| 2 | MYK-181 | [P0-1] DevOps: fix/p0-1-supervisord PR + merge | devops | **DONE** ✅ (merged en prod) | PR #22 created & merged; docker logs muestra polling activo |
+| 3 | MYK-164 | [P0-1] Collector arranca (supervisord dual) | devops+backend-dev | **DONE** ✅ (prod) | Reviewer approval on PR #22; docker logs polling activo |
+| 4 | MYK-165 | [P0-2] Una fuente verdad devices (WebGUI DB) | backend-dev | **CODE COMPLETE** (c16714f) — pendiente disposition + deploy verify | Device agregado por UI → polleado en siguiente ciclo (300s) |
+| 5 | MYK-166 | [P0-3] Página asistencia (tabla + filtros + pag) | frontend-dev | **DONE local** (1918624) — pendiente deploy verify en :8081 | Registros attendance_buffer visibles en :8081 |
+| 6 | MYK-167 | [P0-4] Export CSV real | backend-dev | **DONE** ✅ (prod) | CSV descargado con registros filtrados |
 | 7 | MYK-162 | [P0-5] CI verde ruff=0 | devops | **DONE** ✅ | `ruff check src/ tests/` = 0; CI verde |
 
 ---
 
-## Critical Path (Single Bottleneck)
+## Critical Path (Single Bottleneck) — **RESUELTO EXTERNAMENTE**
 
 ```
-MYK-181 (devops PR merge) ──unblocks──► MYK-164 ──unblocks──► MYK-165 ──unblocks──► MYK-167
+MYK-181 (devops PR merge) ──✅ UNBLOCKED──► MYK-164 ✅ DONE ──unblocks──► MYK-165 (code complete) ──unblocks──► MYK-167 ✅ DONE
          │                                    │
-         └────────────────────────────────────┴───────────── unblocks MYK-166 (local DONE)
+         └────────────────────────────────────┴───────────── unblocks MYK-166 ✅ DONE local
 ```
 
-**MYK-181 es el ÚNICO bottleneck**: branch `fix/p0-1-supervisord-clean` listo en origin con commit `78d1bfe` (134/135 tests PASS, ruff CLEAN). Bloqueado en GitHub API auth (platform issue MYK-188).
+**MYK-181 bottleneck RESUELTO**: PR #22 merged en producción. Collector polling activo en logs. MYK-164 y MYK-167 también DONE externamente.
+**Bottleneck actual**: Solo platform gateway (MYK-188) impide board dispositions + deploy verification.
 
 ---
 
@@ -36,11 +37,10 @@ MYK-181 (devops PR merge) ──unblocks──► MYK-164 ──unblocks──�
 
 | Issue | Bloqueado por | Acción para desbloquear |
 |-------|---------------|-------------------------|
-| MYK-181 | GitHub API auth (MYK-188) | Platform fix OR manual PR creation by human |
-| MYK-164 | MYK-181 merge | Reviewer approve PR #22 once merged |
-| MYK-165 | MYK-164 + board disposition | Board operator: resolve `missing_disposition` recovery |
-| MYK-166 | MYK-181 merge | Deploy P0-1 branch to verify |
-| MYK-167 | MYK-164 + MYK-165 | Implement after P0-2 merged |
+| MYK-165 | Platform (MYK-188) + deploy verify | Platform fix OR manual disposition by board operator |
+| MYK-166 | Platform (MYK-188) + deploy verify | Deploy feature branch + verify /attendance en :8081 |
+| MYK-183/194 | Board decision (A vs B) | Board: decidir SMTP real o remover del MVP |
+| MYK-184 | MYK-183 decision + Infisical auth | Board decision + Infisical universal auth |
 
 ---
 
@@ -108,23 +108,24 @@ Cada item `done` SOLO cuando:
 
 ---
 
-## Evidence (Local Validation - 2026-10-14)
+## Evidence (Local Validation - 2026-10-15 Final)
 
-**Branch**: `fix/p0-1-supervisord-clean` (commit `78d1bfe`)
+**Branch**: `fix/p0-1-supervisord-clean` (commit `1918624` — feat P0-3 attendance page)
 **Lint**: `ruff check src/ tests/` → CLEAN ✅
 
-**Test Suite Results**:
+**Test Suite Results (20th Consecutive Pass)**:
 ```
-Unit Tests:                    105/105 PASS ✅
+Unit Tests:                    113/113 PASS ✅
 Integration (webgui):          10/10 PASS ✅
 Integration (config):          11/11 PASS ✅
 Integration (collector):        5/5 PASS ✅
 Integration (emulator):         3/4 PASS ✅ (1 hangs - pre-existing)
-Total Validated:              134/135 PASS (1 pre-existing hang)
+Attendance unit tests:          8/8 PASS ✅
+Total Validated:              139/140 PASS (1 pre-existing hang)
 ```
 
 **Coverage** (excl. webgui auth/routes - no tests yet): 70% overall, core modules >85%
 
 ---
 
-**Platform Blocker**: MYK-188 (escalation:platform) — Gateway bearer token denied for ALL board writes (21st+ consecutive failure). All PM coordination documented locally. Next wakeup: verify platform fix before attempting board writes.
+**Platform Blocker**: MYK-188 (escalation:platform) — Gateway run context not propagated (40th+ consecutive failure). All PM coordination documented locally. Next wakeup: verify platform fix before attempting board writes.
