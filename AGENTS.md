@@ -65,3 +65,9 @@ Tested models (add to this list as community reports come in):
 - `src/buffer/repository.py` — SQLite data access layer
 - `src/sync/platform.py` — Cloud sync HTTP client
 - `configs/devices.yaml` — Device configuration template
+
+## Hard-won lessons (deploy)
+- WebGUI DB schema has ONE truth: `migrations/001_initial_schema.sql` → devices use `address`/`is_enabled` (never `ip`/`enabled`). Any SQL touching `devices` must match it.
+- The Docker image MUST `COPY migrations/ migrations/`: `src/webgui/database.py` only logs a warning when the migrations dir is missing → webgui.db silently has NO tables → every `current_app.db` endpoint 500s while `/health` and buffer endpoints stay 200.
+- DB paths: everything reads `WEBGUI_DB_PATH` (default `/app/data/webgui.db`) — server.py, collector (`_load_devices_from_webgui_db`) and docker-entrypoint.sh. Don't reintroduce divergent env names.
+- Lint-only commits are dangerous here: 57cd695 (ruff pass) silently deleted `_load_devices_from_webgui_db` (MYK-172/210 feature) — review behavior diffs, not just style, on "lint" PRs.
