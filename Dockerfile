@@ -17,6 +17,10 @@ COPY pyproject.toml README.md LICENSE ./
 COPY src/ src/
 RUN pip install --no-cache-dir .
 
+# Migrations (WebGUI DB schema) — must exist at /app/migrations for
+# src/webgui/database.py to initialize the devices/users tables at boot
+COPY migrations/ migrations/
+
 # Copy entrypoint script
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh

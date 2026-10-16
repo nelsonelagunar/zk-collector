@@ -18,12 +18,14 @@ def create_app(config=None):
     app.config["SECRET_KEY"] = os.environ.get("WEBGUI_SECRET_KEY", os.urandom(32).hex())
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-    db_path = Path(os.environ.get("DB_PATH", "/opt/attendance/data/webgui.db"))
+    # Ruta única de verdad: WEBGUI_DB_PATH (la misma que usa el entrypoint y
+    # el collector). DB_PATH se mantiene solo por retrocompatibilidad.
+    db_path = Path(os.environ.get("WEBGUI_DB_PATH", os.environ.get("DB_PATH", "/app/data/webgui.db")))
     app.db = Database(db_path)
     app.db.initialize()
 
     # BufferRepository para attendance_buffer (SQLite local)
-    buffer_db_path = Path(os.environ.get("BUFFER_DB_PATH", "/opt/attendance/data/buffer.db"))
+    buffer_db_path = Path(os.environ.get("BUFFER_DB_PATH", str(db_path.parent / "buffer.db")))
     app.buffer_repo = BufferRepository(buffer_db_path)
 
     app.auth = Auth(app.config["SECRET_KEY"])

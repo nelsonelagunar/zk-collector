@@ -4,6 +4,7 @@ Manejo de base de datos SQLite
 """
 
 import logging
+import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -41,11 +42,32 @@ class Database:
         logger.info(f"Inicializando base de datos: {self.db_path}")
         self._run_migrations()
 
+    def _find_migrations_dir(self) -> Optional[Path]:
+        """Localizar el directorio de migraciones.
+
+        Orden: MIGRATIONS_DIR env > <db_path>/../../migrations (layout del
+        contenedor: /app/data/webgui.db -> /app/migrations) > raíz del repo.
+        """
+        env_dir = os.environ.get("MIGRATIONS_DIR")
+        if env_dir:
+            path = Path(env_dir)
+            if path.exists():
+                return path
+
+        candidates = [
+            self.db_path.parent.parent / "migrations",
+            Path(__file__).resolve().parents[2] / "migrations",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        return None
+
     def _run_migrations(self):
         """Ejecutar migraciones pendientes"""
-        migrations_dir = self.db_path.parent.parent / "migrations"
+        migrations_dir = self._find_migrations_dir()
 
-        if not migrations_dir.exists():
+        if not migrations_dir:
             logger.warning("Directorio de migraciones no encontrado")
             return
 
