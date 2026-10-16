@@ -20,7 +20,8 @@ def create_app(config=None):
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     # Ruta única de verdad: WEBGUI_DB_PATH (la misma que usa el entrypoint y
     # el collector). DB_PATH se mantiene solo por retrocompatibilidad.
-    db_path = Path(os.environ.get("WEBGUI_DB_PATH", os.environ.get("DB_PATH", "/app/data/webgui.db")))
+    default_db_path = os.environ.get("DB_PATH", "/app/data/webgui.db")
+    db_path = Path(os.environ.get("WEBGUI_DB_PATH", default_db_path))
     app.db = Database(db_path)
     app.db.initialize()
 

@@ -42,7 +42,7 @@ class Database:
         logger.info(f"Inicializando base de datos: {self.db_path}")
         self._run_migrations()
 
-    def _find_migrations_dir(self) -> Optional[Path]:
+    def _find_migrations_dir(self) -> Path | None:
         """Localizar el directorio de migraciones.
 
         Orden: MIGRATIONS_DIR env > <db_path>/../../migrations (layout del

@@ -9,7 +9,6 @@ Valida el contrato de esquema unificado (migrations/001_initial_schema.sql):
 - El empaquetado Docker copia migrations/ (root cause del 500 en deploy).
 """
 
-import os
 import shutil
 import sqlite3
 import sys
