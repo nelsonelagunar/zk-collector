@@ -62,6 +62,7 @@ Tested models (add to this list as community reports come in):
 - `src/zk/client.py` — ZKTeco device communication wrapper
 - `src/core/collector.py` — Main orchestrator (poll → buffer → sync)
 - `src/webgui/server.py` — Flask web dashboard
+- `src/webgui/employees.py` — EmployeeRepository (colaboradores, ver `docs/employees.md`)
 - `src/buffer/repository.py` — SQLite data access layer
 - `src/sync/platform.py` — Cloud sync HTTP client
 - `configs/devices.yaml` — Device configuration template
