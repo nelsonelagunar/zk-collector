@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: ZK-Collector API
   version: 1.0.0
-  description: >-
+  description: >
     REST API for ZK-Collector — the ZKTeco attendance collection appliance.
     The API is served by the embedded Flask WebGUI and is intended for
     LAN-local automation only. Device traffic on UDP/TCP 4370 is NOT part of
@@ -16,10 +16,8 @@ security:
   - sessionCookie: []
 tags:
   - name: auth
-  - name: devices
-  - name: attendance
-  - name: sync
   - name: health
+  - name: apidocs
 paths:
   /health:
     get:
@@ -34,8 +32,12 @@ paths:
               schema:
                 type: object
                 properties:
-                  status: { type: string, example: healthy }
-                  version: { type: string, example: 1.0.0 }
+                  status:
+                    type: string
+                    example: healthy
+                  version:
+                    type: string
+                    example: 1.0.0
   /auth/login:
     post:
       tags: [auth]
@@ -49,82 +51,100 @@ paths:
               type: object
               required: [username, password]
               properties:
-                username: { type: string }
-                password: { type: string, format: password }
+                username:
+                  type: string
+                password:
+                  type: string
+                  format: password
       responses:
-        '302': { description: Redirect to dashboard on success }
-        '401': { description: Invalid credentials }
+        '302':
+          description: Redirect to dashboard on success
+        '401':
+          description: Invalid credentials
   /auth/logout:
     get:
       tags: [auth]
       summary: End the current session
       responses:
-        '302': { description: Redirect to login page }
-  /devices/api/devices:
+        '302':
+          description: Redirect to login page
+  /auth/setup:
     get:
-      tags: [devices]
-      summary: List all configured devices
+      tags: [auth]
+      summary: Show initial setup wizard (first run only)
       responses:
         '200':
-          description: Array of devices
+          description: Setup form
           content:
-            application/json:
+            text/html:
               schema:
-                type: array
-                items: { $ref: '#/components/schemas/Device' }
+                type: string
     post:
-      tags: [devices]
-      summary: Register a new ZKTeco device
+      tags: [auth]
+      summary: Create initial admin user
       requestBody:
         required: true
         content:
-          application/json:
-            schema: { $ref: '#/components/schemas/DeviceInput' }
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [username, password, password_confirm]
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                password_confirm:
+                  type: string
+                  minLength: 8
       responses:
-        '201':
-          description: Device created
+        '302':
+          description: Redirect to login after successful setup
+        '200':
+          description: Show setup form with validation errors
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Device' }
-        '400': { description: Validation error }
-  /devices/api/devices/{id}:
+            text/html:
+              schema:
+                type: string
+  /auth/forgot-password:
     get:
-      tags: [devices]
-      summary: Get a device by id
-      parameters:
-        - { $ref: '#/components/parameters/deviceId' }
+      tags: [auth]
+      summary: Show password recovery form
       responses:
         '200':
-          description: Device detail
+          description: Password recovery form
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Device' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    put:
-      tags: [devices]
-      summary: Update device configuration
-      parameters:
-        - { $ref: '#/components/parameters/deviceId' }
+            text/html:
+              schema:
+                type: string
+    post:
+      tags: [auth]
+      summary: Request password recovery email
       requestBody:
         required: true
         content:
-          application/json:
-            schema: { $ref: '#/components/schemas/DeviceInput' }
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
       responses:
+        '302':
+          description: Redirect to login with info message
         '200':
-          description: Updated device
+          description: Show form with validation errors
           content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Device' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    delete:
-      tags: [devices]
-      summary: Remove a device
-      parameters:
-        - { $ref: '#/components/parameters/deviceId' }
-      responses:
-        '204': { description: Device deleted }
-        '404': { $ref: '#/components/responses/NotFound' }
+            text/html:
+              schema:
+                type: string
   /devices/api/devices/test:
     post:
       tags: [devices]
@@ -137,9 +157,22 @@ paths:
               type: object
               required: [ip]
               properties:
-                ip: { type: string, format: ipv4 }
-                port: { type: integer, default: 4370 }
-                password: { type: integer }
+                ip:
+                  type: string
+                  format: ipv4
+                port:
+                  type: integer
+                  default: 4370
+                password:
+                  type: integer
+                  default: 0
+                protocol:
+                  type: string
+                  enum: [tcp, udp]
+                  default: tcp
+                timeout:
+                  type: integer
+                  default: 5
       responses:
         '200':
           description: Reachable device
@@ -148,139 +181,80 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
-                  device_info: { type: object }
-        '502': { description: Device unreachable or protocol error }
-  /devices/api/devices/{id}/toggle:
-    post:
-      tags: [devices]
-      summary: Enable or disable polling for a device
-      parameters:
-        - { $ref: '#/components/parameters/deviceId' }
-      responses:
-        '200':
-          description: Toggled state
+                  success:
+                    type: boolean
+                  device_info:
+                    type: object
+                    properties:
+                      firmware:
+                        type: string
+                      serial:
+                        type: string
+                      platform:
+                        type: string
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/responses/BadRequest'
+        '502':
+          description: Device unreachable or protocol error
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  enabled: { type: boolean }
-        '404': { $ref: '#/components/responses/NotFound' }
-  /devices/api/devices/{id}/status:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+  /api/docs:
     get:
-      tags: [devices]
-      summary: Real-time device status
-      parameters:
-        - { $ref: '#/components/parameters/deviceId' }
+      tags: [apidocs]
+      summary: Interactive Swagger UI for API reference
       responses:
         '200':
-          description: Live status probe
+          description: Swagger UI interface
+          content:
+            text/html:
+              schema:
+                type: string
+  /api/openapi.yaml:
+    get:
+      tags: [apidocs]
+      summary: Machine-readable OpenAPI 3.1 spec (YAML)
+      responses:
+        '200':
+          description: OpenAPI specification
+          content:
+            application/yaml:
+              schema:
+                type: string
+  /api/openapi.json:
+    get:
+      tags: [apidocs]
+      summary: Machine-readable OpenAPI 3.1 spec (JSON)
+      responses:
+        '200':
+          description: OpenAPI specification
           content:
             application/json:
               schema:
                 type: object
-                properties:
-                  online: { type: boolean }
-                  users: { type: integer }
-                  records: { type: integer }
-                  firmware: { type: string }
-        '404': { $ref: '#/components/responses/NotFound' }
-  /devices/api/attendance:
-    get:
-      tags: [attendance]
-      summary: Query buffered attendance records
-      parameters:
-        - { name: device_id, in: query, schema: { type: integer } }
-        - { name: user_id, in: query, schema: { type: string } }
-        - { name: date_from, in: query, schema: { type: string, format: date } }
-        - { name: date_to, in: query, schema: { type: string, format: date } }
-        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 1000 } }
-        - { name: offset, in: query, schema: { type: integer, default: 0 } }
-      responses:
-        '200':
-          description: Filtered attendance records
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/AttendanceRecord' }
-  /devices/api/attendance/stats:
-    get:
-      tags: [attendance]
-      summary: Attendance summary statistics
-      parameters:
-        - { name: date_from, in: query, schema: { type: string, format: date } }
-        - { name: date_to, in: query, schema: { type: string, format: date } }
-      responses:
-        '200':
-          description: Aggregated counts
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  total_records: { type: integer }
-                  unique_users: { type: integer }
-                  check_ins: { type: integer }
-                  check_outs: { type: integer }
-  /devices/api/attendance/export:
-    get:
-      tags: [attendance]
-      summary: Export attendance as CSV
-      parameters:
-        - { name: date_from, in: query, schema: { type: string, format: date } }
-        - { name: date_to, in: query, schema: { type: string, format: date } }
-      responses:
-        '200':
-          description: CSV download
-          content:
-            text/csv:
-              schema: { type: string }
-  /devices/api/sync/status:
-    get:
-      tags: [sync]
-      summary: Cloud sync status
-      responses:
-        '200':
-          description: Sync state
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  last_sync: { type: string, format: date-time, nullable: true }
-                  pending_records: { type: integer }
-                  platform_reachable: { type: boolean }
-  /devices/api/sync/trigger:
-    post:
-      tags: [sync]
-      summary: Force an immediate sync to the platform
-      responses:
-        '200':
-          description: Sync result
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  synced: { type: integer }
-                  failed: { type: integer }
-        '503': { description: Platform unreachable }
 components:
-  securitySchemes:
-    sessionCookie:
-      type: apiKey
-      in: cookie
-      name: session
-      description: Session cookie issued by POST /auth/login. LAN-only deployments may additionally restrict API routes by source IP at the reverse proxy.
-  parameters:
-    deviceId:
-      name: id
-      in: path
-      required: true
-      schema: { type: integer }
   responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Validation error"
     NotFound:
       description: Resource not found
       content:
@@ -288,33 +262,22 @@ components:
           schema:
             type: object
             properties:
-              error: { type: string }
-  schemas:
-    Device:
-      type: object
-      properties:
-        id: { type: integer }
-        name: { type: string }
-        ip: { type: string }
-        port: { type: integer, default: 4370 }
-        enabled: { type: boolean }
-        status: { type: string, enum: [online, offline, error] }
-        last_seen: { type: string, format: date-time, nullable: true }
-    DeviceInput:
-      type: object
-      required: [name, ip]
-      properties:
-        name: { type: string }
-        ip: { type: string, format: ipv4 }
-        port: { type: integer, default: 4370 }
-        password: { type: integer, description: Device communication password (stored Fernet-encrypted) }
-        enabled: { type: boolean, default: true }
-    AttendanceRecord:
-      type: object
-      properties:
-        id: { type: integer }
-        device_id: { type: integer }
-        user_id: { type: string }
-        timestamp: { type: string, format: date-time }
-        punch_type: { type: string, enum: [check_in, check_out] }
-        synced: { type: boolean }
+              error:
+                type: string
+                example: "Resource not found"
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Internal server error"
+securitySchemes:
+  sessionCookie:
+    type: apiKey
+    in: cookie
+    name: session
+    description: Session cookie issued by POST /auth/login. LAN-only deployments may additionally restrict API routes by source IP at the reverse proxy.

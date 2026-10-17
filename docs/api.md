@@ -8,18 +8,6 @@ ZK-Collector exposes a REST API for device management, attendance data, and syst
 http://<collector-host>:8080
 ```
 
-## Interactive Documentation
-
-An OpenAPI 3.1 spec and interactive Swagger UI are served by the collector itself:
-
-| URL | Content |
-|-----|---------|
-| `/api/docs` | Interactive Swagger UI |
-| `/api/openapi.yaml` | OpenAPI 3.1 spec (YAML) |
-| `/api/openapi.json` | OpenAPI 3.1 spec (JSON) |
-
-The source spec lives in the repository at `docs/openapi.yaml` and is bundled into deployments.
-
 ## Authentication
 
 All API endpoints (except `/health`) require authentication via session cookie. Obtain a session by logging in through `/auth/login`.
@@ -71,19 +59,15 @@ curl -c cookies.txt -X POST http://localhost:8080/auth/login \
 
 **Response (200 OK):** Redirects to `/` with session cookie set.
 
----
-
 #### Logout
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/auth/logout` | Destroy session |
+| `GET` | `/auth/logout` | Destroy session |
 
 ```bash
 curl -b cookies.txt -X POST http://localhost:8080/auth/logout
 ```
-
----
 
 #### Initial Setup (First Run)
 
@@ -97,182 +81,28 @@ curl -c cookies.txt -X POST http://localhost:8080/auth/setup \
   -d "username=admin&password=secure-password&confirm=secure-password"
 ```
 
----
-
-### Devices
-
-#### List All Devices
+#### Password Recovery
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/devices/api/devices` | Get all configured devices |
+| `GET` | `/auth/forgot-password` | Show password recovery form |
+| `POST` | `/auth/forgot-password` | Request password recovery email |
 
 ```bash
-curl -b cookies.txt http://localhost:8080/devices/api/devices
-```
-
-**Response (200 OK):**
-```json
-{
-  "devices": [
-    {
-      "id": 1,
-      "name": "Entrada Principal",
-      "location": "Main Entrance",
-      "zone": "Zone A",
-      "address": "192.168.1.101",
-      "port": 4370,
-      "password": 0,
-      "timeout": 5,
-      "protocol": "tcp",
-      "status": "online",
-      "enabled": true,
-      "firmware_version": "1.2.3",
-      "serial_number": "ZK123456",
-      "last_seen": "2025-01-15T10:30:00",
-      "created_at": "2025-01-10T08:00:00",
-      "updated_at": "2025-01-15T10:30:00"
-    }
-  ]
-}
+curl -c cookies.txt -X POST http://localhost:8080/auth/forgot-password \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "email=user@example.com"
 ```
 
 ---
 
-#### Create Device
+### Device Connectivity Test
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/devices/api/devices` | Add a new ZKTeco device |
+| `POST` | `/devices/api/devices/test` | Test connection to a device by IP (no config saved) |
 
-```bash
-curl -b cookies.txt -X POST http://localhost:8080/devices/api/devices \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Entrada Principal",
-    "location": "Main Entrance",
-    "zone": "Zone A",
-    "address": "192.168.1.101",
-    "port": 4370,
-    "password": 0,
-    "timeout": 5,
-    "protocol": "tcp"
-  }'
-```
-
-**Request Schema:**
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `name` | string | ✅ | — | Human-readable name |
-| `location` | string | ❌ | "" | Physical location |
-| `zone` | string | ❌ | "" | Logical zone/group |
-| `address` | string | ✅ | — | Device IP address |
-| `port` | integer | ❌ | 4370 | TCP/UDP port |
-| `password` | integer | ❌ | 0 | Device comm password |
-| `timeout` | integer | ❌ | 5 | Connection timeout (seconds) |
-| `protocol` | string | ❌ | "tcp" | "tcp" or "udp" |
-
-**Response (201 Created):**
-```json
-{
-  "success": true,
-  "device_id": 1,
-  "message": "Device created successfully"
-}
-```
-
----
-
-#### Get Device by ID
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/devices/api/devices/{id}` | Get single device details |
-
-```bash
-curl -b cookies.txt http://localhost:8080/devices/api/devices/1
-```
-
-**Response (200 OK):**
-```json
-{
-  "id": 1,
-  "name": "Entrada Principal",
-  "location": "Main Entrance",
-  "zone": "Zone A",
-  "address": "192.168.1.101",
-  "port": 4370,
-  "password": 0,
-  "timeout": 5,
-  "protocol": "tcp",
-  "status": "online",
-  "enabled": true,
-  "firmware_version": "1.2.3",
-  "serial_number": "ZK123456",
-  "last_seen": "2025-01-15T10:30:00",
-  "created_at": "2025-01-10T08:00:00",
-  "updated_at": "2025-01-15T10:30:00"
-}
-```
-
----
-
-#### Update Device
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `PUT` | `/devices/api/devices/{id}` | Update device configuration |
-
-```bash
-curl -b cookies.txt -X PUT http://localhost:8080/devices/api/devices/1 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Entrada Principal Updated",
-    "location": "Main Entrance - Lobby",
-    "address": "192.168.1.101",
-    "port": 4370,
-    "password": 0,
-    "timeout": 10,
-    "protocol": "tcp"
-  }'
-```
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "Device updated successfully"
-}
-```
-
----
-
-#### Delete Device
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `DELETE` | `/devices/api/devices/{id}` | Remove a device |
-
-```bash
-curl -b cookies.txt -X DELETE http://localhost:8080/devices/api/devices/1
-```
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "Device deleted successfully"
-}
-```
-
----
-
-#### Test Device Connection
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/devices/api/devices/test` | Test connection to a device (by IP) |
-
+**Request:**
 ```bash
 curl -b cookies.txt -X POST http://localhost:8080/devices/api/devices/test \
   -H "Content-Type: application/json" \
@@ -280,8 +110,8 @@ curl -b cookies.txt -X POST http://localhost:8080/devices/api/devices/test \
     "address": "192.168.1.101",
     "port": 4370,
     "password": 0,
-    "timeout": 5,
-    "protocol": "tcp"
+    "protocol": "tcp",
+    "timeout": 5
   }'
 ```
 
@@ -298,7 +128,14 @@ curl -b cookies.txt -X POST http://localhost:8080/devices/api/devices/test \
 }
 ```
 
-**Response (400 Bad Request - Connection Failed):**
+**Response (400 Bad Request - Invalid input):**
+```json
+{
+  "error": "Validation error"
+}
+```
+
+**Response (502 Bad Gateway - Connection Failed):**
 ```json
 {
   "success": false,
@@ -308,214 +145,23 @@ curl -b cookies.txt -X POST http://localhost:8080/devices/api/devices/test \
 
 ---
 
-#### Toggle Device Enabled State
+### API Documentation
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/devices/api/devices/{id}/toggle` | Enable/disable device polling |
+| `GET` | `/api/docs` | Interactive Swagger UI |
+| `GET` | `/api/openapi.yaml` | OpenAPI 3.1 spec (YAML) |
+| `GET` | `/api/openapi.json` | OpenAPI 3.1 spec (JSON) |
 
 ```bash
-curl -b cookies.txt -X POST http://localhost:8080/devices/api/devices/1/toggle
+# Get OpenAPI spec as YAML
+curl http://localhost:8080/api/openapi.yaml -o openapi.yaml
+
+# Get OpenAPI spec as JSON
+curl http://localhost:8080/api/openapi.json -o openapi.json
 ```
 
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "enabled": false,
-  "message": "Device disabled"
-}
-```
-
----
-
-#### Get Device Status
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/devices/api/devices/{id}/status` | Get real-time device status |
-
-```bash
-curl -b cookies.txt http://localhost:8080/devices/api/devices/1/status
-```
-
-**Response (200 OK):**
-```json
-{
-  "id": 1,
-  "status": "online",
-  "last_seen": "2025-01-15T10:30:00",
-  "firmware_version": "1.2.3",
-  "serial_number": "ZK123456",
-  "record_count": 1250
-}
-```
-
----
-
-### Attendance Records
-
-#### List Attendance Records
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/devices/api/attendance` | Get attendance records with filters |
-
-```bash
-# Get recent records
-curl -b cookies.txt "http://localhost:8080/devices/api/attendance?limit=50&offset=0"
-
-# Filter by device
-curl -b cookies.txt "http://localhost:8080/devices/api/attendance?device_id=1&limit=100"
-
-# Filter by date range
-curl -b cookies.txt "http://localhost:8080/devices/api/attendance?date_from=2025-01-01&date_to=2025-01-31"
-
-# Filter by user
-curl -b cookies.txt "http://localhost:8080/devices/api/attendance?user_id=12345"
-```
-
-**Query Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `device_id` | integer | Filter by device ID |
-| `user_id` | string | Filter by user ID |
-| `date_from` | string | Start date (YYYY-MM-DD) |
-| `date_to` | string | End date (YYYY-MM-DD) |
-| `limit` | integer | Max records (default: 50, max: 1000) |
-| `offset` | integer | Pagination offset (default: 0) |
-| `synced` | boolean | Filter by sync status (true/false) |
-
-**Response (200 OK):**
-```json
-{
-  "records": [
-    {
-      "id": 1,
-      "device_id": 1,
-      "device_name": "Entrada Principal",
-      "user_id": "12345",
-      "timestamp": "2025-01-15T08:30:00",
-      "punch_type": "check_in",
-      "verified": true,
-      "synced": true,
-      "created_at": "2025-01-15T08:30:05"
-    }
-  ],
-  "total": 1250,
-  "limit": 50,
-  "offset": 0
-}
-```
-
-**Punch Types:**
-- `check_in` — Employee check-in
-- `check_out` — Employee check-out
-- `break_out` — Break start
-- `break_in` — Break end
-- `overtime_in` — Overtime start
-- `overtime_out` — Overtime end
-
----
-
-#### Get Attendance Statistics
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/devices/api/attendance/stats` | Get attendance summary statistics |
-
-```bash
-curl -b cookies.txt "http://localhost:8080/devices/api/attendance/stats?date_from=2025-01-01&date_to=2025-01-31"
-```
-
-**Response (200 OK):**
-```json
-{
-  "total_records": 1250,
-  "unique_users": 45,
-  "devices_active": 3,
-  "by_punch_type": {
-    "check_in": 620,
-    "check_out": 600,
-    "break_out": 15,
-    "break_in": 15
-  },
-  "by_device": [
-    {
-      "device_id": 1,
-      "device_name": "Entrada Principal",
-      "count": 500
-    }
-  ],
-  "date_range": {
-    "from": "2025-01-01",
-    "to": "2025-01-31"
-  }
-}
-```
-
----
-
-#### Export Attendance (CSV)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/devices/api/attendance/export` | Export attendance records as CSV |
-
-```bash
-curl -b cookies.txt "http://localhost:8080/devices/api/attendance/export?date_from=2025-01-01&date_to=2025-01-31" \
-  -o attendance-jan-2025.csv
-```
-
-**Response:** CSV file download with columns: `id, device_id, device_name, user_id, timestamp, punch_type, verified, synced, created_at`
-
----
-
-### Platform Sync
-
-#### Sync Status
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/devices/api/sync/status` | Get cloud sync status |
-
-```bash
-curl -b cookies.txt http://localhost:8080/devices/api/sync/status
-```
-
-**Response (200 OK):**
-```json
-{
-  "enabled": true,
-  "platform_url": "https://api.example.com",
-  "tenant_id": "tenant-123",
-  "last_sync": "2025-01-15T10:25:00",
-  "pending_records": 12,
-  "last_error": null,
-  "sync_interval_seconds": 60
-}
-```
-
----
-
-#### Trigger Manual Sync
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/devices/api/sync/trigger` | Force immediate sync to platform |
-
-```bash
-curl -b cookies.txt -X POST http://localhost:8080/devices/api/sync/trigger
-```
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "synced_count": 12,
-  "message": "Sync completed successfully"
-}
-```
+View in Swagger UI: `http://localhost:8080/api/docs`
 
 ---
 
@@ -525,9 +171,7 @@ All error responses follow this format:
 
 ```json
 {
-  "success": false,
-  "error": "ERROR_CODE",
-  "message": "Human-readable error description"
+  "error": "Human-readable error description"
 }
 ```
 
@@ -539,6 +183,8 @@ All error responses follow this format:
 | `403` | Forbidden - insufficient permissions |
 | `404` | Not Found |
 | `500` | Internal Server Error |
+| `502` | Bad Gateway - device unreachable |
+| `503` | Service Unavailable - platform unreachable |
 
 ---
 
@@ -546,18 +192,18 @@ All error responses follow this format:
 
 | Endpoint Category | Limit |
 |-------------------|-------|
-| Device CRUD | 60 requests/minute |
-| Attendance queries | 30 requests/minute |
-| Sync operations | 10 requests/minute |
+| Auth endpoints | 60 requests/minute |
+| Device test endpoint | 30 requests/minute |
+| API documentation | No limit |
 | Health check | No limit |
 
 ---
 
-## Complete Example: Add Device & Verify
+## Complete Example: Test Device Connection
 
 ```bash
 #!/bin/bash
-# Full workflow: login → add device → test → list
+# Full workflow: login → test device
 
 COLLECTOR="http://localhost:8080"
 COOKIES="cookies.txt"
@@ -567,44 +213,14 @@ curl -c "$COOKIES" -s -X POST "$COLLECTOR/auth/login" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "username=admin&password=changeme" > /dev/null
 
-# 2. Add device
-DEVICE_RESPONSE=$(curl -b "$COOKIES" -s -X POST "$COLLECTOR/devices/api/devices" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "K40 Reception",
-    "location": "Building A - Reception",
-    "address": "192.168.1.101",
-    "port": 4370,
-    "password": 0
-  }')
-
-DEVICE_ID=$(echo "$DEVICE_RESPONSE" | jq -r '.device_id')
-echo "Created device ID: $DEVICE_ID"
-
-# 3. Test connection
+# 2. Test device connection
 curl -b "$COOKIES" -s -X POST "$COLLECTOR/devices/api/devices/test" \
   -H "Content-Type: application/json" \
-  -d "{
-    \"address\": \"192.168.1.101\",
-    \"port\": 4370,
-    \"password\": 0
-  }" | jq .
-
-# 4. List devices
-curl -b "$COOKIES" -s "$COLLECTOR/devices/api/devices" | jq .
-
-# 5. Get attendance for last 7 days
-curl -b "$COOKIES" -s "$COLLECTOR/devices/api/attendance?date_from=$(date -d '7 days ago' +%F)&limit=100" | jq .
+  -d '{
+    "address": "192.168.1.101",
+    "port": 4370,
+    "password": 0,
+    "protocol": "tcp",
+    "timeout": 5
+  }' | jq .
 ```
-
----
-
-## OpenAPI / Swagger
-
-The API is documented in OpenAPI 3.1 format. Download the spec:
-
-```bash
-curl http://localhost:8080/api/openapi.json -o openapi.json
-```
-
-View in Swagger UI: `http://localhost:8080/api/docs`

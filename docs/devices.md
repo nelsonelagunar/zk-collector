@@ -2,6 +2,33 @@
 
 ZK-Collector uses the [pyzk](https://github.com/fananimi/pyzk) library to communicate with ZKTeco devices via their proprietary TCP/UDP protocol on port 4370.
 
+## Device Management
+
+ZKTeco devices are managed through the web dashboard interface, not through direct API calls. The device management functionality includes:
+
+### Adding Devices
+Devices are added via the web dashboard:
+1. Navigate to **Devices** → **New Device**
+2. Fill in the device details:
+   - **Name**: Human-readable name (e.g., "Main Entrance")
+   - **Address**: Device IP address (IPv4)
+   - **Port**: TCP/UDP port (default: 4370)
+   - **Password**: Device communication password (usually 0)
+   - **Protocol**: TCP or UDP (default: TCP)
+   - **Enabled**: Toggle to enable/disable polling
+3. Click **Create Device** to save
+
+### Testing Device Connection
+After adding a device, you can test the connection:
+1. Navigate to the device in the **Devices** list
+2. Click **Test Connection**
+3. The system will attempt to connect and display firmware/serial information
+
+### Device Status Indicators
+- **Online**: Device is reachable and responding
+- **Offline**: Device is unreachable or not responding
+- **Error**: Connection established but communication failed
+
 ## Compatibility Badges
 
 | Model | Status | Badges |
@@ -25,8 +52,8 @@ ZK-Collector uses the [pyzk](https://github.com/fananimi/pyzk) library to commun
 | Model | Fingerprint | Face | Palm | Card | Password | LAN | WiFi | USB | Notes |
 |-------|-------------|------|------|------|----------|-----|------|-----|-------|
 | ZKTeco K40 | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | Basic time attendance terminal |
-| ZKTeco U160 | ✅ | ❌ | � ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Network terminal with optional WiFi |
-| ZKTeco X628 | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | Wall-mounted fingerprint reader |
+| ZKTeco U160 | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Network terminal with optional WiFi |
+| ZKTeco X628 | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❢ | ✅ | Wall-mounted fingerprint reader |
 | ZKTeco iClock 3000 | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | Biometric time clock with USB backup |
 | ZKTeco SpeedFace V5L | ✅ | ⚠️ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | Face recognition data not extracted |
 | ZKTeco SpeedFace V5L [P] | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | Palm verification works, face not tested |
@@ -246,7 +273,6 @@ Device compatibility grows thanks to community reports. To contribute:
 4. We'll add it to this matrix with appropriate badges
 
 ---
-
-*Last updated: $(date +%Y-%m-%d)*
+*Last updated: 2026-10-17*
 *Total models tested: 5*
 *Community reports: 0 (be the first!)*
