@@ -1,0 +1,1 @@
+- [MYK-157 Password reset flow](memory/zk-157-password-reset.md) — implement full password reset email integration (SMTP + admin fallback + rate limiting + tests). DONE.
