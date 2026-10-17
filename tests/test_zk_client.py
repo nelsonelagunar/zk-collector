@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 from datetime import datetime
 
 from src.zk.client import ZKClient
+from src.zk.client import PyZKError as ZKError
 from src.zk.attendance import AttendanceRecord
 
 

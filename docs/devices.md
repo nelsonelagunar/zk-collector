@@ -53,7 +53,7 @@ After adding a device, you can test the connection:
 |-------|-------------|------|------|------|----------|-----|------|-----|-------|
 | ZKTeco K40 | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | Basic time attendance terminal |
 | ZKTeco U160 | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Network terminal with optional WiFi |
-| ZKTeco X628 | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❢ | ✅ | Wall-mounted fingerprint reader |
+| ZKTeco X628 | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | Wall-mounted fingerprint reader |
 | ZKTeco iClock 3000 | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ | Biometric time clock with USB backup |
 | ZKTeco SpeedFace V5L | ✅ | ⚠️ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | Face recognition data not extracted |
 | ZKTeco SpeedFace V5L [P] | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | Palm verification works, face not tested |

@@ -155,9 +155,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [ip]
+              required: [address]
               properties:
-                ip:
+                address:
                   type: string
                   format: ipv4
                 port:
@@ -275,9 +275,9 @@ components:
               error:
                 type: string
                 example: "Internal server error"
-securitySchemes:
-  sessionCookie:
-    type: apiKey
-    in: cookie
-    name: session
-    description: Session cookie issued by POST /auth/login. LAN-only deployments may additionally restrict API routes by source IP at the reverse proxy.
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Session cookie issued by POST /auth/login. LAN-only deployments may additionally restrict API routes by source IP at the reverse proxy.
