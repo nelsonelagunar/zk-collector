@@ -31,13 +31,15 @@ def create_app(config=None):
     def utility_processor():
         return {"now": datetime.now}
     from .routes.apidocs import apidocs_bp
+    from .routes.attendance import attendance_bp
     from .routes.auth import auth_bp
     from .routes.devices import devices_bp
-    from .routes.attendance import attendance_bp
+    from .routes.employees import employees_bp
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(devices_bp, url_prefix="/devices")
     app.register_blueprint(apidocs_bp, url_prefix="/api")
     app.register_blueprint(attendance_bp, url_prefix="/attendance")
+    app.register_blueprint(employees_bp, url_prefix="/api/employees")
     @app.route("/")
     def index():
         if "user_id" not in session:

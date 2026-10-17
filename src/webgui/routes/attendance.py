@@ -31,6 +31,52 @@ def get_webgui_db():
     return current_app.db
 
 
+def resolve_employee_names(db, rows) -> dict[tuple[str, str], str]:
+    """
+    Resuelve el nombre del colaborador vía employee_device_links.
+
+    Mapea (device_ip, user_id) -> 'nombre apellido' usando el enlace
+    device_serial (via devices.address) + device_user_id. Los registros sin
+    enlace quedan fuera del mapa (fallback a device_users en el caller).
+    """
+    pairs = {(row['device_ip'], row['user_id']) for row in rows if row['device_ip']}
+
+    device_serial_by_ip: dict[str, str] = {}
+    employee_by_link: dict[tuple[str, str], str] = {}
+
+    if pairs:
+        device_rows = db.fetch_all(
+            "SELECT address, serial_number FROM devices WHERE serial_number IS NOT NULL"
+        )
+        device_serial_by_ip = {d['address']: d['serial_number'] for d in device_rows}
+
+        serials = {device_serial_by_ip[ip] for ip, _ in pairs if ip in device_serial_by_ip}
+        if serials:
+            placeholders = ','.join('?' * len(serials))
+            links = db.fetch_all(
+                f"""
+                SELECT edl.device_serial, edl.device_user_id,
+                       e.first_name, e.last_name
+                FROM employee_device_links edl
+                JOIN employees e ON edl.employee_id = e.id
+                WHERE edl.device_serial IN ({placeholders})
+                """,
+                tuple(serials),
+            )
+            employee_by_link = {
+                (row['device_serial'], row['device_user_id']):
+                    f"{row['first_name']} {row['last_name']}".strip()
+                for row in links
+            }
+
+    result: dict[tuple[str, str], str] = {}
+    for device_ip, user_id in pairs:
+        serial = device_serial_by_ip.get(device_ip)
+        if serial and (serial, user_id) in employee_by_link:
+            result[(device_ip, user_id)] = employee_by_link[(serial, user_id)]
+    return result
+
+
 @attendance_bp.route('/')
 def list_attendance():
     """Página principal de asistencia - renderiza template"""
@@ -153,10 +199,17 @@ def api_attendance():
             user_rows = db.fetch_all(query, tuple(user_ids))
             user_names = {row['user_id']: row['name'] for row in user_rows}
 
+    # Nombre del colaborador vía employee_device_links (precedencia sobre device_users)
+    employee_names = resolve_employee_names(db, rows)
+
     records = []
     for row in rows:
         record = dict(row)
-        record['user_name'] = user_names.get(record['user_id'], record['user_id'])
+        collaborator = employee_names.get((record['device_ip'], record['user_id']))
+        if collaborator:
+            record['user_name'] = collaborator
+        else:
+            record['user_name'] = user_names.get(record['user_id'], record['user_id'])
         records.append(record)
 
     total_pages = (total + per_page - 1) // per_page
