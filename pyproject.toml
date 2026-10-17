@@ -43,6 +43,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
     "pytest-cov>=6.0.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
@@ -79,6 +80,7 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 python_functions = "test_*"
 addopts = "-v --tb=short --cov=src --cov-report=term-missing --cov-fail-under=80"
+asyncio_mode = "strict"
 
 [tool.coverage.run]
 source = ["src"]
