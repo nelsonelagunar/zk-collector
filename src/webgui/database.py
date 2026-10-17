@@ -6,6 +6,7 @@ Manejo de base de datos SQLite
 import logging
 import sqlite3
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ class Database:
     - Connection pooling básico
     - Migraciones automáticas
     - Context managers para transacciones
+    - Métodos específicos para tablas de empleados
     """
 
     def __init__(self, db_path: Path):
@@ -87,6 +89,7 @@ class Database:
 
             logger.info(f"Migraciones completadas: {len(migration_files)} archivos")
 
+    # Métodos genéricos
     def execute(self, query: str, params: tuple = ()) -> Any:
         """Ejecutar query simple"""
         with self.get_connection() as conn:
@@ -141,3 +144,105 @@ class Database:
             cursor = conn.cursor()
             cursor.execute(query, where_params)
             return cursor.rowcount if cursor.rowcount is not None else 0
+
+    # Métodos específicos para empleados
+    def get_employee_by_code(self, employee_code: str) -> dict | None:
+        """Obtener empleado por código"""
+        return self.fetch_one(
+            "SELECT * FROM employees WHERE employee_code = ?",
+            (employee_code,)
+        )
+
+    def get_employee_by_id(self, employee_id: int) -> dict | None:
+        """Obtener empleado por ID"""
+        return self.fetch_one(
+            "SELECT * FROM employees WHERE id = ?",
+            (employee_id,)
+        )
+
+    def get_employees(self, status: str | None = None, department: str | None = None) -> list[dict]:
+        """Obtener lista de empleados con filtros opcionales"""
+        query = "SELECT * FROM employees"
+        params = []
+
+        conditions = []
+        if status:
+            conditions.append("status = ?")
+            params.append(status)
+        if department:
+            conditions.append("department = ?")
+            params.append(department)
+
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+
+        query += " ORDER BY last_name, first_name"
+
+        return self.fetch_all(query, tuple(params))
+
+    def create_employee(self, employee_data: dict) -> int:
+        """Crear nuevo empleado. created_at/updated_at usan DEFAULT CURRENT_TIMESTAMP."""
+        return self.insert("employees", employee_data)
+
+    def update_employee(self, employee_id: int, employee_data: dict) -> int:
+        """Actualizar empleado existente; refresca updated_at."""
+        employee_data = dict(employee_data)
+        employee_data["updated_at"] = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        return self.update(
+            "employees",
+            employee_data,
+            "id = ?",
+            (employee_id,)
+        )
+
+    def delete_employee(self, employee_id: int) -> int:
+        """Eliminar empleado (soft delete mediante status)"""
+        return self.update(
+            "employees",
+            {
+                "status": "inactive",
+                "updated_at": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S"),
+            },
+            "id = ?",
+            (employee_id,)
+        )
+
+    # Métodos específicos para enlaces empleado-dispositivo
+    def link_employee_to_device(
+        self, employee_id: int, device_serial: str, device_user_id: str
+    ) -> int:
+        """Vincular empleado con dispositivo"""
+        link_data = {
+            "employee_id": employee_id,
+            "device_serial": device_serial,
+            "device_user_id": device_user_id
+        }
+        return self.insert("employee_device_links", link_data)
+
+    def unlink_employee_from_device(
+        self, employee_id: int, device_serial: str, device_user_id: str
+    ) -> int:
+        """Desvincular empleado de dispositivo"""
+        return self.delete(
+            "employee_device_links",
+            "employee_id = ? AND device_serial = ? AND device_user_id = ?",
+            (employee_id, device_serial, device_user_id)
+        )
+
+    def get_devices_for_employee(self, employee_id: int) -> list[dict]:
+        """Obtener dispositivos vinculados a un empleado"""
+        return self.fetch_all("""
+            SELECT edl.*, d.name as device_name, d.location, d.address
+            FROM employee_device_links edl
+            JOIN devices d ON edl.device_serial = d.serial_number
+            WHERE edl.employee_id = ?
+        """, (employee_id,))
+
+    def get_employees_for_device(self, device_serial: str, device_user_id: str) -> list[dict]:
+        """Obtener empleados vinculados a un dispositivo"""
+        return self.fetch_all("""
+            SELECT e.*, edl.device_serial, edl.device_user_id
+            FROM employee_device_links edl
+            JOIN employees e ON edl.employee_id = e.id
+            WHERE edl.device_serial = ? AND edl.device_user_id = ?
+        """, (device_serial, device_user_id))
