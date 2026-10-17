@@ -66,6 +66,12 @@ class TestWebguiDbSchemaContract:
         dockerfile = (REPO_ROOT / "Dockerfile").read_text()
         assert "COPY migrations/ migrations/" in dockerfile
 
+    def test_entrypoint_applies_migrations(self):
+        """El entrypoint debe correr las migraciones sobre el WebGUI DB al arrancar"""
+        entrypoint = (REPO_ROOT / "docker-entrypoint.sh").read_text()
+        assert "apply_schema_migrations" in entrypoint
+        assert 'sqlite3 "$WEBGUI_DB_PATH" < "$migration"' in entrypoint
+
 
 class TestApiDevicesEndpoint:
     def test_api_devices_200_with_schema_columns(self, webgui_env):
@@ -100,3 +106,19 @@ class TestApiDevicesEndpoint:
         resp = client.get("/devices/")
         assert resp.status_code == 200, f"esperado 200, got {resp.status_code}"
         assert b"Reloj Puerta" in resp.data
+
+
+class TestForgotPassword:
+    def test_forgot_password_renders_200(self, webgui_env):
+        """MYK-250: /auth/forgot-password daba 500 por template faltante"""
+        _initialize_db(webgui_env)
+
+        from src.webgui.server import create_app
+
+        app = create_app()
+        app.config["TESTING"] = True
+        client = app.test_client()
+
+        resp = client.get("/auth/forgot-password")
+        assert resp.status_code == 200, f"esperado 200, got {resp.status_code}"
+        assert b"Recuperar" in resp.data

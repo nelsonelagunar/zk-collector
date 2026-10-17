@@ -7,6 +7,7 @@ set -e
 
 WEBGUI_DB_PATH="${WEBGUI_DB_PATH:-/app/data/webgui.db}"
 COLLECTOR_CONFIG_PATH="${COLLECTOR_CONFIG_PATH:-/app/configs/collector.yaml}"
+MIGRATIONS_DIR="${MIGRATIONS_DIR:-/app/migrations}"
 
 echo "=== ZK-Collector Startup ==="
 echo "Validating environment variables..."
@@ -56,6 +57,29 @@ for var in $OPTIONAL_VARS; do
         echo "  ✓ $var is set"
     fi
 done
+
+apply_schema_migrations() {
+    echo "Applying WebGUI DB schema migrations from $MIGRATIONS_DIR..."
+    if [ ! -d "$MIGRATIONS_DIR" ]; then
+        echo "  ERROR: migrations dir not found: $MIGRATIONS_DIR"
+        echo "  The WebGUI DB will have no tables and every current_app.db endpoint will 500."
+        exit 1
+    fi
+
+    mkdir -p "$(dirname "$WEBGUI_DB_PATH")"
+
+    for migration in "$MIGRATIONS_DIR"/*.sql; do
+        [ -f "$migration" ] || continue
+        echo "  Applying $(basename "$migration") to $WEBGUI_DB_PATH"
+        sqlite3 "$WEBGUI_DB_PATH" < "$migration" || {
+            echo "  ERROR: failed to apply $migration"
+            exit 1
+        }
+    done
+    echo "  Migrations applied."
+}
+
+apply_schema_migrations
 
 # Check SMTP configuration
 echo "Checking SMTP configuration..."
