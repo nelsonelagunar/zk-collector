@@ -2,9 +2,26 @@
 Fixtures y configuración común para tests
 """
 
-import pytest
-from pathlib import Path
 from unittest.mock import Mock
+
+import pytest
+from flask import Flask
+
+
+@pytest.fixture
+def app():
+    """Flask app para tests que requieren contexto de aplicación"""
+    app = Flask(__name__)
+    app.config['TESTING'] = True
+    app.config['SECRET_KEY'] = 'test-secret-key'
+    with app.app_context():
+        yield app
+
+
+@pytest.fixture
+def client(app):
+    """Test client for Flask app"""
+    return app.test_client()
 
 
 @pytest.fixture

@@ -4,7 +4,6 @@ Modelos de datos para el buffer SQLite
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 
 @dataclass
@@ -17,12 +16,14 @@ class AttendanceRecordDB:
     punch_type: str
     synced: bool = False
     sync_attempts: int = 0
-    
+
     def to_dict(self) -> dict:
         """Convertir a diccionario"""
+        ts = self.timestamp
+        ts_str = ts.isoformat() if hasattr(ts, 'isoformat') else str(ts)
         return {
             'user_id': self.user_id,
-            'timestamp': self.timestamp.isoformat() if hasattr(self.timestamp, 'isoformat') else str(self.timestamp),
+            'timestamp': ts_str,
             'status': self.status,
             'device_ip': self.device_ip,
             'punch_type': self.punch_type,
