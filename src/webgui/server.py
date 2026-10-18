@@ -23,6 +23,7 @@ def create_app(config=None):
         return {"now": datetime.now}
     from .routes.auth import auth_bp
     from .routes.devices import devices_bp
+from .routes.employees import employees_bp
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(devices_bp, url_prefix="/devices")
     @app.route("/")
