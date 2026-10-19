@@ -38,12 +38,14 @@ def create_app(config=None):
     from .routes.auth import auth_bp
     from .routes.devices import devices_bp
     from .routes.employees import employees_bp
+    from .routes.medical_leaves import medical_leaves_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(devices_bp, url_prefix="/devices")
     app.register_blueprint(apidocs_bp, url_prefix="/api")
     app.register_blueprint(attendance_bp, url_prefix="/attendance")
     app.register_blueprint(employees_bp, url_prefix="/api/employees")
+    app.register_blueprint(medical_leaves_bp, url_prefix="/api/medical-leaves")
 
     @app.route("/")
     def index():
