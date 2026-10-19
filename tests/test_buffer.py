@@ -48,6 +48,31 @@ class TestBufferRepository:
 
         assert count == 2
 
+    def test_add_records_deduplicates(self, temp_db):
+        """El log completo del device en polls repetidos no debe duplicar filas"""
+        ts = datetime(2026, 10, 13, 8, 0, 0)
+        records = [
+            AttendanceRecordDB(
+                user_id="1",
+                timestamp=ts,
+                status=0,
+                device_ip="10.0.0.12",
+                punch_type="entrada"
+            ),
+            AttendanceRecordDB(
+                user_id="2",
+                timestamp=ts,
+                status=1,
+                device_ip="10.0.0.12",
+                punch_type="salida"
+            ),
+        ]
+
+        assert temp_db.add_records(records) == 2
+        # Un segundo poll devuelve el mismo log -> 0 registros nuevos
+        assert temp_db.add_records(records) == 0
+        assert temp_db.get_stats()['total_records'] == 2
+
     def test_get_unsynced_records(self, temp_db):
         """Test de obtención de registros sin sincronizar"""
         # Agregar registro
