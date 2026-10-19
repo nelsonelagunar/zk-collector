@@ -38,6 +38,7 @@ def create_app(config=None):
     from .routes.auth import auth_bp
     from .routes.devices import devices_bp
     from .routes.employees import employees_bp
+    from .routes.employees_ui import employees_ui_bp
     from .routes.medical_leaves import medical_leaves_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
@@ -45,6 +46,7 @@ def create_app(config=None):
     app.register_blueprint(apidocs_bp, url_prefix="/api")
     app.register_blueprint(attendance_bp, url_prefix="/attendance")
     app.register_blueprint(employees_bp, url_prefix="/api/employees")
+    app.register_blueprint(employees_ui_bp, url_prefix="/colaboradores")
     app.register_blueprint(medical_leaves_bp, url_prefix="/api/medical-leaves")
 
     @app.route("/")
