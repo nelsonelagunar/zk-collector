@@ -27,6 +27,7 @@ CMD_OPTIONS_RRQ = 11
 CMD_PREPARE_DATA = 1500
 CMD_DATA = 1501
 CMD_FREE_DATA = 1502
+CMD_READ_BUFFER = 1503
 CMD_AUTH = 1102
 CMD_REFRESHDATA = 20  # Refresh data command
 CMD_ACK_OK = 2000
@@ -181,27 +182,16 @@ class ZKEmulator:
         top = struct.pack('<HHI', MACHINE_PREPARE_DATA_1, MACHINE_PREPARE_DATA_2, length)
         return top + packet
 
-    def _create_response(self, command: int, status: bool, command_string: bytes = b'', session_id: int = 0, reply_id: int = USHRT_MAX - 1) -> bytes:
-        """Create response packet"""
-        if status:
-            code = CMD_ACK_OK
-        else:
-            code = CMD_ACK_ERROR
-
-        # For some commands, we return specific codes
-        if command == CMD_CONNECT and not self.connected and status:
-            code = CMD_ACK_OK
-        elif command == CMD_CONNECT and not status:
-            code = CMD_ACK_UNAUTH
-
-        buf = struct.pack('<4H', command, 0, session_id, reply_id) + command_string
-        buf = struct.unpack('8B' + '%sB' % len(command_string), buf)
+    def _create_response(self, command: int, response_data: bytes = b'', session_id: int = 0, reply_id: int = USHRT_MAX - 1) -> bytes:
+        """Create response packet using the given command code (ACK_OK / ACK_ERROR / ACK_UNAUTH / DATA)."""
+        buf = struct.pack('<4H', command, 0, session_id, reply_id) + response_data
+        buf = struct.unpack('8B' + '%sB' % len(response_data), buf)
         checksum = calculate_checksum(bytes(buf))
         reply_id += 1
         if reply_id >= USHRT_MAX:
             reply_id -= USHRT_MAX
         buf = struct.pack('<4H', command, checksum, session_id, reply_id)
-        return buf + command_string
+        return buf + response_data
 
     def _get_time_response(self) -> bytes:
         """Generate get_time response"""
@@ -321,6 +311,31 @@ class ZKEmulator:
         value = options_map.get(option, "")
         return value.encode('utf-8')
 
+    def _handle_read_buffer(self, command_string: bytes) -> tuple[int, bytes]:
+        """Handle CMD_READ_BUFFER (1503): pyzk ZK6 buffered read.
+
+        command_string = pack('<bhii', 1, command, fct, ext)
+        Respond with CMD_DATA carrying the same payload the legacy commands returned
+        (a 4-byte total size header followed by the raw records).
+        """
+        inner_cmd = None
+        fct = 0
+        if len(command_string) >= 11:
+            try:
+                _unk, inner_cmd, fct, _ext = struct.unpack('<bhii', command_string[:11])
+            except struct.error:
+                inner_cmd = None
+        if inner_cmd is None and len(command_string) >= 2:
+            inner_cmd = struct.unpack('<b', command_string[:1])[0]
+
+        if inner_cmd == CMD_ATTLOG_RRQ:
+            return CMD_DATA, self._get_attendance_response()
+        if inner_cmd == CMD_USERTEMP_RRQ:
+            return CMD_DATA, self._get_users_response()
+        if inner_cmd == CMD_GET_FREE_SIZES:
+            return CMD_DATA, self._get_free_sizes_response()
+        return CMD_DATA, struct.pack('I', 0)
+
     def _handle_command(self, command: int, command_string: bytes) -> tuple[int, bytes]:
         """Handle incoming command, return (response_code, response_data)"""
         if command == CMD_CONNECT:
@@ -367,6 +382,10 @@ class ZKEmulator:
 
         elif command == CMD_ATTLOG_RRQ:
             return CMD_ACK_OK, self._get_attendance_response()
+
+        elif command == CMD_READ_BUFFER:
+            # pyzk ZK6 buffered read (used by get_attendance/get_users)
+            return self._handle_read_buffer(command_string)
 
         elif command == CMD_OPTIONS_RRQ:
             option = command_string.decode('utf-8', errors='ignore').strip('\x00')
@@ -433,7 +452,7 @@ class ZKEmulator:
         response_code, response_data = self._handle_command(command, command_string)
 
         # Create response
-        response = self._create_response(response_code, response_code == CMD_ACK_OK, response_data, session_id, reply_id)
+        response = self._create_response(response_code, response_data, session_id, reply_id)
 
         # Add TCP header if needed
         if self.tcp_mode:

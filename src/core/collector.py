@@ -3,6 +3,7 @@ Attendance Collector - Orquestador principal
 """
 
 import logging
+import os
 import time
 from datetime import datetime
 
@@ -32,7 +33,10 @@ class AttendanceCollector:
 
         # Inicializar componentes
         self.buffer = BufferRepository(
-            db_path=self.config.get('buffer.db_path', '/opt/attendance/data/buffer.db'),
+            db_path=self.config.get(
+                'buffer.db_path',
+                os.environ.get('BUFFER_DB_PATH', '/opt/attendance/data/buffer.db'),
+            ),
             max_records=self.config.get('buffer.max_records', 10000)
         )
 
@@ -76,7 +80,8 @@ class AttendanceCollector:
                 ip=ip,
                 port=device.get('port', 4370),
                 timeout=device.get('timeout', 5),
-                password=device.get('password', 0)
+                password=device.get('password', 0),
+                ommit_ping=device.get('ommit_ping', False)
             )
             self.zk_clients[ip] = client
             logger.info(f"Dispositivo configurado: {ip}")
@@ -196,8 +201,8 @@ class AttendanceCollector:
                     self.poll_devices()
                     self.last_poll = datetime.now()
 
-                # Sincronización con plataforma
-                if self._should_run(self.last_sync, self.sync_interval):
+                # Sincronización con plataforma (sync_local si está deshabilitada)
+                if self.config.get('sync_enabled', True) and self._should_run(self.last_sync, self.sync_interval):
                     self.sync_to_platform()
                     self.last_sync = datetime.now()
 
