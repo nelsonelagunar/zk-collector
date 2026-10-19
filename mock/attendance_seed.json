@@ -1,0 +1,74 @@
+[
+  {
+    "user_id": "1",
+    "timestamp": "2026-10-13T08:00:00",
+    "status": 0,
+    "punch_type": "check_in"
+  },
+  {
+    "user_id": "2",
+    "timestamp": "2026-10-13T08:15:00",
+    "status": 0,
+    "punch_type": "check_in"
+  },
+  {
+    "user_id": "1",
+    "timestamp": "2026-10-13T12:00:00",
+    "status": 1,
+    "punch_type": "check_out"
+  },
+  {
+    "user_id": "3",
+    "timestamp": "2026-10-13T12:30:00",
+    "status": 0,
+    "punch_type": "check_in"
+  },
+  {
+    "user_id": "2",
+    "timestamp": "2026-10-13T17:00:00",
+    "status": 1,
+    "punch_type": "check_out"
+  },
+  {
+    "user_id": "3",
+    "timestamp": "2026-10-13T17:30:00",
+    "status": 1,
+    "punch_type": "check_out"
+  },
+  {
+    "user_id": "1",
+    "timestamp": "2026-10-14T08:00:00",
+    "status": 0,
+    "punch_type": "check_in"
+  },
+  {
+    "user_id": "2",
+    "timestamp": "2026-10-14T08:10:00",
+    "status": 0,
+    "punch_type": "check_in"
+  },
+  {
+    "user_id": "1",
+    "timestamp": "2026-10-14T12:00:00",
+    "status": 1,
+    "punch_type": "check_out"
+  },
+  {
+    "user_id": "3",
+    "timestamp": "2026-10-14T12:15:00",
+    "status": 0,
+    "punch_type": "check_in"
+  },
+  {
+    "user_id": "2",
+    "timestamp": "2026-10-14T17:00:00",
+    "status": 1,
+    "punch_type": "check_out"
+  },
+  {
+    "user_id": "3",
+    "timestamp": "2026-10-14T17:30:00",
+    "status": 1,
+    "punch_type": "check_out"
+  }
+]

@@ -84,6 +84,22 @@ class BufferRepository:
                 ON attendance_records(user_id)
             ''')
 
+            # Deduplicar registros existentes (polls repetidos insertaban el
+            # mismo log del dispositivo cada vez) y garantizar idempotencia con
+            # un índice único. Clave natural: (user_id, timestamp, device_ip).
+            cursor.execute('''
+                DELETE FROM attendance_records
+                WHERE id NOT IN (
+                    SELECT MIN(id) FROM attendance_records
+                    GROUP BY user_id, timestamp, device_ip
+                )
+            ''')
+
+            cursor.execute('''
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_attendance
+                ON attendance_records(user_id, timestamp, device_ip)
+            ''')
+
             # Tabla de log de sincronización
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS sync_log (
@@ -115,9 +131,11 @@ class BufferRepository:
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            # Insertar en batch
+            # INSERT OR IGNORE: el dispositivo devuelve su log completo en cada
+            # poll; el índice único (user_id, timestamp, device_ip) descarta los
+            # duplicados y hace el polling idempotente.
             cursor.executemany('''
-                INSERT INTO attendance_records
+                INSERT OR IGNORE INTO attendance_records
                 (user_id, timestamp, status, device_ip, punch_type)
                 VALUES (?, ?, ?, ?, ?)
             ''', [
@@ -133,11 +151,16 @@ class BufferRepository:
                 for r in records
             ])
 
+            inserted = cursor.rowcount
+
             # Limpiar registros antiguos si excedemos el máximo
             self._cleanup_old_records(conn)
 
-            logger.info(f"Agregados {len(records)} registros al buffer")
-            return len(records)
+            logger.info(
+                f"Agregados {inserted} registros al buffer "
+                f"({len(records) - inserted} duplicados ignorados)"
+            )
+            return inserted
 
     def get_unsynced_records(self, limit: int = 1000) -> list[dict]:
         """

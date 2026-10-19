@@ -232,6 +232,37 @@ For best compatibility, update devices to latest firmware:
    - Port 4370 open
    - Comm key unchanged (usually reset to 0)
 
+## Mock Emulator (no hardware required)
+
+For local development, CI or demos you can run a pure-Python ZKTeco TCP
+emulator (`mock/zk_emulator.py`) instead of a physical device. It speaks the
+ZK protocol (including the ZK6 buffered read used by `pyzk.get_attendance()`)
+and serves synthetic records from `mock/attendance_seed.json`.
+
+```bash
+# Terminal 1 — start the emulator (listens on 0.0.0.0:4370)
+python3 mock/zk_emulator.py
+
+# Terminal 2 — point the collector at it
+# configs/collector.yaml
+devices:
+  - ip: "127.0.0.1"
+    port: 4370
+    name: "Emulador ZK (mock)"
+    enabled: true
+    ommit_ping: true   # emulator implements TCP only, no ICMP ping
+```
+
+> **Note:** `ommit_ping: true` is required because the emulator does not
+> answer `pyzk`'s reachability ping. Real devices normally keep the default
+> (`false`).
+
+The emulator is also exercised by the automated tests:
+
+```bash
+pytest tests/unit/test_zk_emulator.py tests/integration/test_emulator_integration.py -v
+```
+
 ## Community Contributions
 
 Device compatibility grows thanks to community reports. To contribute:

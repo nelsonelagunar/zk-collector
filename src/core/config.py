@@ -49,6 +49,9 @@ class Config:
                 'password': {'type': 'integer', 'default': 0},
                 'name': {'type': 'string', 'default': ''},
                 'enabled': {'type': 'boolean', 'default': True},
+                # Skip pyzk ICMP/TCP ping. Required for the mock ZK emulator
+                # (mock/zk_emulator.py) which only implements the ZK TCP protocol.
+                'ommit_ping': {'type': 'boolean', 'default': False},
             }
         },
         'poll_interval_seconds': {
