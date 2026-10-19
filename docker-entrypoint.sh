@@ -165,7 +165,7 @@ for device in enabled_devices:
         continue
     
     cursor.execute('''
-        INSERT INTO devices (name, ip, port, password, timeout, enabled, status)
+        INSERT INTO devices (name, address, port, password, timeout, is_enabled, status)
         VALUES (?, ?, ?, ?, ?, 1, 'unknown')
     ''', (name, ip, port, password, timeout))
     migrated += 1

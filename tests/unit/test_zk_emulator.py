@@ -15,12 +15,14 @@ from mock.zk_emulator import (
     CMD_ACK_OK,
     CMD_ATTLOG_RRQ,
     CMD_CONNECT,
+    CMD_DATA,
     CMD_DISABLEDEVICE,
     CMD_ENABLEDEVICE,
     CMD_EXIT,
     CMD_GET_FREE_SIZES,
     CMD_GET_TIME,
     CMD_OPTIONS_RRQ,
+    CMD_READ_BUFFER,
     CMD_USERTEMP_RRQ,
     MACHINE_PREPARE_DATA_1,
     MACHINE_PREPARE_DATA_2,
@@ -179,6 +181,55 @@ class TestEmulatorResponses:
         code, data = emu._handle_command(CMD_OPTIONS_RRQ, b"~SerialNumber")
         assert code == CMD_ACK_OK
         assert b"EMU" in data
+
+
+class TestEmulatorReadBuffer:
+    """pyzk ZK6 buffered read (command 1503) used by get_attendance/get_users."""
+
+    @staticmethod
+    def _read_buffer_payload(inner_cmd, fct=0, ext=0):
+        return struct.pack("<bhii", 1, inner_cmd, fct, ext)
+
+    def test_read_buffer_attendance_returns_data_code(self):
+        emu = ZKEmulator()
+        payload = self._read_buffer_payload(CMD_ATTLOG_RRQ)
+        code, data = emu._handle_command(CMD_READ_BUFFER, payload)
+        assert code == CMD_DATA
+        # 4-byte size header + 8 bytes per record
+        assert len(data) == 4 + len(emu.attendance_records) * 8
+
+    def test_read_buffer_users_returns_data_code(self):
+        emu = ZKEmulator()
+        payload = self._read_buffer_payload(CMD_USERTEMP_RRQ, fct=5)
+        code, data = emu._handle_command(CMD_READ_BUFFER, payload)
+        assert code == CMD_DATA
+        assert len(data) == 4 + len(emu.users) * 28
+
+    def test_read_buffer_free_sizes(self):
+        emu = ZKEmulator()
+        payload = self._read_buffer_payload(CMD_GET_FREE_SIZES)
+        code, data = emu._handle_command(CMD_READ_BUFFER, payload)
+        assert code == CMD_DATA
+        assert len(data) == struct.calcsize("<20i")
+
+    def test_read_buffer_unknown_inner_returns_empty(self):
+        emu = ZKEmulator()
+        payload = self._read_buffer_payload(42)
+        code, data = emu._handle_command(CMD_READ_BUFFER, payload)
+        assert code == CMD_DATA
+        assert data == struct.pack("I", 0)
+
+    def test_process_packet_read_buffer_emits_data_code(self):
+        emu = ZKEmulator()
+        payload = self._read_buffer_payload(CMD_ATTLOG_RRQ)
+        packet = make_packet(CMD_READ_BUFFER, payload)
+        response = emu._process_packet(packet)
+        assert response is not None
+        inner = parse_tcp_packet(response)
+        code, data = parse_response(inner)
+        assert code == CMD_DATA
+        assert len(data) == 4 + len(emu.attendance_records) * 8
+
 
 
 class TestEmulatorPacketProcessing:

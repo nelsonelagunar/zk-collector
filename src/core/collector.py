@@ -76,7 +76,8 @@ class AttendanceCollector:
                 ip=ip,
                 port=device.get('port', 4370),
                 timeout=device.get('timeout', 5),
-                password=device.get('password', 0)
+                password=device.get('password', 0),
+                ommit_ping=device.get('ommit_ping', False)
             )
             self.zk_clients[ip] = client
             logger.info(f"Dispositivo configurado: {ip}")

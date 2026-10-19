@@ -17,6 +17,13 @@ COPY pyproject.toml README.md LICENSE ./
 COPY src/ src/
 RUN pip install --no-cache-dir .
 
+# SQL migrations for the WebGUI SQLite schema.
+# The server resolves migrations as `<db_path.parent.parent>/migrations`
+# (default DB_PATH=/opt/attendance/data/webgui.db) so they must live in
+# /opt/attendance/migrations. Without this the WebGUI DB has no tables
+# ("no such table: devices").
+COPY migrations/ /opt/attendance/migrations/
+
 # Copy entrypoint script
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
