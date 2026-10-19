@@ -82,3 +82,12 @@ N:M bridge: one collaborador can hold N badges across devices.
 - Indexes on `device_serial` and `device_user_id` (reverse lookup: device user → employee)
 
 Migration 002 uses `IF NOT EXISTS` (idempotent, safe for re-run). CRUD helpers live in `src/webgui/database.py` (get_employee_by_code/id, get_employees, create/update/delete_employee, link/unlink employee↔device, device/employee lookups).
+
+## Attendance Stats API (MYK-241)
+
+- `GET /api/attendance/stats` (JSON) y `GET /api/attendance/stats/export` (CSV/XLSX) — Bearer auth.
+- Filtros: `start_date`/`end_date` (YYYY-MM-DD), `employee_id`, `department`, `group_by=employee|department|company`; export añade `format=csv|xlsx`.
+- KPIs sobre días hábiles (Lun–Vie): presentes, ausentes, retardos (primer entrada vs `ATTENDANCE_WORK_START`, default 09:00:00 — computo simple, el motor de reglas completo es MYK-224), incapacidades (`medical_leaves` activas), vacaciones (siempre 0 hasta que exista módulo de vacaciones), puntualidad % y ausentismo %.
+- Reglas completas y response shape en `docs/attendance_stats.md`; contrato OpenAPI en `docs/openapi.yaml`.
+- El buffer escribe timestamps ISO con `T` (`isoformat()`); el filtrado por fecha usa `substr(timestamp,1,10)` para soportar ambos formatos.
+- Servicio puro en `src/webgui/attendance_stats.py` + rutas en `src/webgui/routes/attendance_stats.py`; tests `tests/test_attendance_stats*.py`.
