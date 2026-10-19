@@ -267,6 +267,116 @@ paths:
                   synced: { type: integer }
                   failed: { type: integer }
         '503': { description: Platform unreachable }
+  /api/attendance/stats:
+    get:
+      tags: [attendance]
+      summary: Attendance KPI report by period (MYK-241)
+      description: >-
+        Presentes, ausentes, retardos, incapacidades, vacaciones, puntualidad %
+        y ausentismo % sobre dias habiles (Lun-Vie), agrupado por colaborador,
+        departamento o empresa. Reglas completas en docs/attendance_stats.md.
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: start_date, in: query, schema: { type: string, format: date } }
+        - { name: end_date, in: query, schema: { type: string, format: date } }
+        - { name: employee_id, in: query, schema: { type: integer } }
+        - { name: department, in: query, schema: { type: string } }
+        - {
+            name: group_by,
+            in: query,
+            schema: { type: string, enum: [employee, department, company], default: employee },
+          }
+      responses:
+        '200':
+          description: KPI report with rows, totals and meta
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  period:
+                    type: object
+                    properties:
+                      start_date: { type: string, format: date }
+                      end_date: { type: string, format: date }
+                  group_by: { type: string }
+                  work_start: { type: string }
+                  rows:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        employee_id: { type: integer }
+                        employee_code: { type: string }
+                        employee_name: { type: string }
+                        department: { type: string }
+                        days_expected: { type: integer }
+                        days_present: { type: integer }
+                        days_absent: { type: integer }
+                        days_incapacity: { type: integer }
+                        days_vacation: { type: integer }
+                        late_arrivals: { type: integer }
+                        punctuality_pct: { type: [number, 'null'] }
+                        absenteeism_pct: { type: [number, 'null'] }
+                  totals:
+                    type: object
+                    properties:
+                      days_expected: { type: integer }
+                      days_present: { type: integer }
+                      days_absent: { type: integer }
+                      days_incapacity: { type: integer }
+                      days_vacation: { type: integer }
+                      late_arrivals: { type: integer }
+                      punctuality_pct: { type: [number, 'null'] }
+                      absenteeism_pct: { type: [number, 'null'] }
+                  meta:
+                    type: object
+                    properties:
+                      employees_total: { type: integer }
+                      unlinked_records: { type: integer }
+        '400':
+          description: Invalid filters (bad date, group_by or employee_id)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+  /api/attendance/stats/export:
+    get:
+      tags: [attendance]
+      summary: Export the attendance KPI report as CSV or Excel (MYK-241)
+      description: Same filters as /api/attendance/stats. Adds a TOTAL row.
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: start_date, in: query, schema: { type: string, format: date } }
+        - { name: end_date, in: query, schema: { type: string, format: date } }
+        - { name: employee_id, in: query, schema: { type: integer } }
+        - { name: department, in: query, schema: { type: string } }
+        - {
+            name: group_by,
+            in: query,
+            schema: { type: string, enum: [employee, department, company], default: employee },
+          }
+        - { name: format, in: query, schema: { type: string, enum: [csv, xlsx], default: csv } }
+      responses:
+        '200':
+          description: CSV (utf-8-sig BOM) or XLSX download
+          content:
+            text/csv:
+              schema: { type: string }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string }
+        '400':
+          description: Invalid filters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
 components:
   securitySchemes:
     sessionCookie:
@@ -274,6 +384,10 @@ components:
       in: cookie
       name: session
       description: Session cookie issued by POST /auth/login. LAN-only deployments may additionally restrict API routes by source IP at the reverse proxy.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Bearer token (Authorization header), same scheme as /api/medical-leaves.
   parameters:
     deviceId:
       name: id
