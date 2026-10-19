@@ -66,3 +66,19 @@ Tested models (add to this list as community reports come in):
 - `src/buffer/repository.py` — SQLite data access layer
 - `src/sync/platform.py` — Cloud sync HTTP client
 - `configs/devices.yaml` — Device configuration template
+
+## HR Data Model (Sprint 3, migration 002)
+
+### `employees` (migration 002_employees.sql, MYK-220)
+Real collaborator registry — ABC (altas/bajas/cambios) base table.
+- `id` PK, `employee_code` UNIQUE NOT NULL, `first_name`/`last_name` NOT NULL
+- `email`, `phone`, `department`, `position`, `hire_date`, `notes`
+- `status` CHECK IN ('active','inactive') DEFAULT 'active' — soft delete via status
+- Indexes: `idx_employees_code(employee_code)`, `idx_employees_status(status)`
+
+### `employee_device_links` (migration 002)
+N:M bridge: one collaborador can hold N badges across devices.
+- PK (employee_id, device_serial, device_user_id), FK employee_id → employees(id) ON DELETE CASCADE
+- Indexes on `device_serial` and `device_user_id` (reverse lookup: device user → employee)
+
+Migration 002 uses `IF NOT EXISTS` (idempotent, safe for re-run). CRUD helpers live in `src/webgui/database.py` (get_employee_by_code/id, get_employees, create/update/delete_employee, link/unlink employee↔device, device/employee lookups).
