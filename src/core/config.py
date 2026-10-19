@@ -79,7 +79,7 @@ class Config:
     }
 
     def __init__(self, config_path: Path, encryption_key: str | None = None):
-        self.config_path = config_path
+        self.config_path: Path | None = config_path
         self.encryption_key = encryption_key or os.environ.get("ENCRYPTION_KEY")
         self.config: dict = {}
         self._load()
@@ -109,6 +109,9 @@ class Config:
 
     def _load(self):
         """Cargar configuración desde archivo YAML"""
+        if self.config_path is None:
+            # Config en memoria (p.ej. Config.default()): no hay archivo que cargar.
+            return
         try:
             with open(self.config_path, encoding="utf-8") as f:
                 raw_config = yaml.safe_load(f)
@@ -214,6 +217,8 @@ class Config:
     def save(self, output_path: Path | None = None):
         """Guardar configuración a archivo"""
         path = output_path or self.config_path
+        if path is None:
+            raise ConfigError("No hay ruta de configuración (config_path es None)")
 
         with open(path, "w", encoding="utf-8") as f:
             yaml.dump(self.config, f, default_flow_style=False, allow_unicode=True)

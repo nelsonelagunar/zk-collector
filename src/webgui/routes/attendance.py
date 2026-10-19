@@ -9,6 +9,7 @@ from datetime import datetime
 
 from flask import (
     Blueprint,
+    Response,
     current_app,
     jsonify,
     render_template,
@@ -388,7 +389,7 @@ def export_attendance():
         return _export_csv(export_data)
 
 
-def _export_csv(data: list[dict]) -> send_file:
+def _export_csv(data: list[dict]) -> Response:
     """Exportar a CSV"""
     output = io.StringIO()
 
@@ -435,7 +436,7 @@ def _export_csv(data: list[dict]) -> send_file:
     )
 
 
-def _export_xlsx(data: list[dict]) -> send_file:
+def _export_xlsx(data: list[dict]) -> Response:
     """Exportar a Excel (XLSX)"""
     wb = Workbook()
     ws = wb.active

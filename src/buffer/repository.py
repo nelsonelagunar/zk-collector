@@ -154,7 +154,7 @@ class BufferRepository:
                 ],
             )
 
-            inserted = cursor.rowcount
+            inserted = int(cursor.rowcount)
 
             # Limpiar registros antiguos si excedemos el máximo
             self._cleanup_old_records(conn)
