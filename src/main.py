@@ -100,7 +100,7 @@ class Application:
             # Validar configuración
             if not self.config_path.exists():
                 self.logger.warning(
-                    f"collector.yaml no existe — arrancando con config mínima "
+                    "collector.yaml no existe — arrancando con config mínima "
                     "(devices vacíos; serán leídos desde WebGUI DB tras MYK-172)"
                 )
                 self.config = Config.default()
@@ -161,7 +161,9 @@ class Application:
 
         devices = self.config.get("devices", [])
         if not devices:
-            self.logger.warning("No hay dispositivos configurados — esperando WebGUI para poblarlos")
+            self.logger.warning(
+                "No hay dispositivos configurados — esperando WebGUI para poblarlos"
+            )
         return True
 
     def _setup_signals(self):

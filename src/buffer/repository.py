@@ -52,7 +52,7 @@ class BufferRepository:
             cursor = conn.cursor()
 
             # Tabla de registros de asistencia
-            cursor.execute('''
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS attendance_records (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id TEXT NOT NULL,
@@ -66,42 +66,42 @@ class BufferRepository:
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
-            ''')
+            """)
 
             # Índices para rendimiento
-            cursor.execute('''
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_synced
                 ON attendance_records(synced, timestamp)
-            ''')
+            """)
 
-            cursor.execute('''
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_timestamp
                 ON attendance_records(timestamp)
-            ''')
+            """)
 
-            cursor.execute('''
+            cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_user_id
                 ON attendance_records(user_id)
-            ''')
+            """)
 
             # Deduplicar registros existentes (polls repetidos insertaban el
             # mismo log del dispositivo cada vez) y garantizar idempotencia con
             # un índice único. Clave natural: (user_id, timestamp, device_ip).
-            cursor.execute('''
+            cursor.execute("""
                 DELETE FROM attendance_records
                 WHERE id NOT IN (
                     SELECT MIN(id) FROM attendance_records
                     GROUP BY user_id, timestamp, device_ip
                 )
-            ''')
+            """)
 
-            cursor.execute('''
+            cursor.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_attendance
                 ON attendance_records(user_id, timestamp, device_ip)
-            ''')
+            """)
 
             # Tabla de log de sincronización
-            cursor.execute('''
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS sync_log (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -111,7 +111,7 @@ class BufferRepository:
                     error_message TEXT,
                     duration_seconds REAL
                 )
-            ''')
+            """)
 
             logger.info(f"Base de datos inicializada: {self.db_path}")
 
@@ -134,24 +134,27 @@ class BufferRepository:
             # INSERT OR IGNORE: el dispositivo devuelve su log completo en cada
             # poll; el índice único (user_id, timestamp, device_ip) descarta los
             # duplicados y hace el polling idempotente.
-            cursor.executemany('''
+            cursor.executemany(
+                """
                 INSERT OR IGNORE INTO attendance_records
                 (user_id, timestamp, status, device_ip, punch_type)
                 VALUES (?, ?, ?, ?, ?)
-            ''', [
-                (
-                    r.user_id,
-                    r.timestamp.isoformat()
-                    if hasattr(r.timestamp, 'isoformat')
-                    else str(r.timestamp),
-                    r.status,
-                    r.device_ip,
-                    r.punch_type
-                )
-                for r in records
-            ])
+            """,
+                [
+                    (
+                        r.user_id,
+                        r.timestamp.isoformat()
+                        if hasattr(r.timestamp, "isoformat")
+                        else str(r.timestamp),
+                        r.status,
+                        r.device_ip,
+                        r.punch_type,
+                    )
+                    for r in records
+                ],
+            )
 
-            inserted = cursor.rowcount
+            inserted = int(cursor.rowcount)
 
             # Limpiar registros antiguos si excedemos el máximo
             self._cleanup_old_records(conn)
@@ -175,24 +178,27 @@ class BufferRepository:
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            cursor.execute('''
+            cursor.execute(
+                """
                 SELECT id, user_id, timestamp, status, device_ip, punch_type
                 FROM attendance_records
                 WHERE synced = 0
                 ORDER BY timestamp ASC, id ASC
                 LIMIT ?
-            ''', (limit,))
+            """,
+                (limit,),
+            )
 
             rows = cursor.fetchall()
 
             return [
                 {
-                    'id': row['id'],
-                    'user_id': row['user_id'],
-                    'timestamp': row['timestamp'],
-                    'status': row['status'],
-                    'device_ip': row['device_ip'],
-                    'punch_type': row['punch_type'],
+                    "id": row["id"],
+                    "user_id": row["user_id"],
+                    "timestamp": row["timestamp"],
+                    "status": row["status"],
+                    "device_ip": row["device_ip"],
+                    "punch_type": row["punch_type"],
                 }
                 for row in rows
             ]
@@ -213,13 +219,16 @@ class BufferRepository:
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            placeholders = ','.join('?' * len(record_ids))
-            cursor.execute(f'''
+            placeholders = ",".join("?" * len(record_ids))
+            cursor.execute(
+                f"""
                 UPDATE attendance_records
                 SET synced = 1,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id IN ({placeholders})
-            ''', record_ids)
+            """,
+                record_ids,
+            )
 
             updated = cursor.rowcount
             logger.debug(f"Marcados {updated} registros como sincronizados")
@@ -239,8 +248,9 @@ class BufferRepository:
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            placeholders = ','.join('?' * len(record_ids))
-            cursor.execute(f'''
+            placeholders = ",".join("?" * len(record_ids))
+            cursor.execute(
+                f"""
                 UPDATE attendance_records
                 SET sync_attempts = sync_attempts + 1,
                     last_sync_attempt = CURRENT_TIMESTAMP,
@@ -249,7 +259,9 @@ class BufferRepository:
                         ELSE 0
                     END
                 WHERE id IN ({placeholders})
-            ''', [max_attempts] + record_ids)
+            """,
+                [max_attempts] + record_ids,
+            )
 
     def _cleanup_old_records(self, conn, days: int = 30):
         """
@@ -264,27 +276,33 @@ class BufferRepository:
         # Eliminar registros sincronizados mayores a N días
         cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
 
-        cursor.execute('''
+        cursor.execute(
+            """
             DELETE FROM attendance_records
             WHERE synced = 1 AND timestamp < ?
-        ''', (cutoff_date,))
+        """,
+            (cutoff_date,),
+        )
 
         deleted = cursor.rowcount
 
         # Si aún excedemos el máximo, eliminar los más antiguos
-        cursor.execute('SELECT COUNT(*) FROM attendance_records')
+        cursor.execute("SELECT COUNT(*) FROM attendance_records")
         count = cursor.fetchone()[0]
 
         if count > self.max_records:
             excess = count - self.max_records
-            cursor.execute('''
+            cursor.execute(
+                """
                 DELETE FROM attendance_records
                 WHERE id IN (
                     SELECT id FROM attendance_records
                     ORDER BY timestamp ASC
                     LIMIT ?
                 )
-            ''', (excess,))
+            """,
+                (excess,),
+            )
             deleted += cursor.rowcount
 
         if deleted > 0:
@@ -301,46 +319,55 @@ class BufferRepository:
             cursor = conn.cursor()
 
             # Total registros
-            cursor.execute('SELECT COUNT(*) FROM attendance_records')
+            cursor.execute("SELECT COUNT(*) FROM attendance_records")
             total = cursor.fetchone()[0]
 
             # Pendientes de sync
-            cursor.execute('SELECT COUNT(*) FROM attendance_records WHERE synced = 0')
+            cursor.execute("SELECT COUNT(*) FROM attendance_records WHERE synced = 0")
             pending = cursor.fetchone()[0]
 
             # Más antiguo pendiente
-            cursor.execute('''
+            cursor.execute("""
                 SELECT MIN(timestamp) FROM attendance_records WHERE synced = 0
-            ''')
+            """)
             oldest_pending = cursor.fetchone()[0]
 
             # Más reciente
-            cursor.execute('SELECT MAX(timestamp) FROM attendance_records')
+            cursor.execute("SELECT MAX(timestamp) FROM attendance_records")
             newest = cursor.fetchone()[0]
 
             return {
-                'total_records': total,
-                'pending_sync': pending,
-                'synced': total - pending,
-                'oldest_pending': oldest_pending,
-                'newest_record': newest,
-                'max_records': self.max_records,
-                'usage_percent': (total / self.max_records * 100) if self.max_records > 0 else 0
+                "total_records": total,
+                "pending_sync": pending,
+                "synced": total - pending,
+                "oldest_pending": oldest_pending,
+                "newest_record": newest,
+                "max_records": self.max_records,
+                "usage_percent": (total / self.max_records * 100) if self.max_records > 0 else 0,
             }
 
-    def log_sync(self, records_synced: int, records_failed: int, status: str,
-                 error_message: str | None = None, duration_seconds: float = 0):
+    def log_sync(
+        self,
+        records_synced: int,
+        records_failed: int,
+        status: str,
+        error_message: str | None = None,
+        duration_seconds: float = 0,
+    ):
         """
         Log de operación de sincronización
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            cursor.execute('''
+            cursor.execute(
+                """
                 INSERT INTO sync_log
                 (records_synced, records_failed, status, error_message, duration_seconds)
                 VALUES (?, ?, ?, ?, ?)
-            ''', (records_synced, records_failed, status, error_message, duration_seconds))
+            """,
+                (records_synced, records_failed, status, error_message, duration_seconds),
+            )
 
     def get_sync_history(self, limit: int = 50) -> list[dict]:
         """
@@ -349,11 +376,14 @@ class BufferRepository:
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            cursor.execute('''
+            cursor.execute(
+                """
                 SELECT * FROM sync_log
                 ORDER BY timestamp DESC
                 LIMIT ?
-            ''', (limit,))
+            """,
+                (limit,),
+            )
 
             return [dict(row) for row in cursor.fetchall()]
 
@@ -361,6 +391,6 @@ class BufferRepository:
         """Limpiar todos los registros (usar con precaución)"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('DELETE FROM attendance_records')
-            cursor.execute('DELETE FROM sync_log')
+            cursor.execute("DELETE FROM attendance_records")
+            cursor.execute("DELETE FROM sync_log")
             logger.warning("Todos los registros del buffer han sido eliminados")

@@ -33,15 +33,15 @@ class TestBufferRepository:
                 timestamp=datetime.now(),
                 status=0,
                 device_ip="192.168.1.101",
-                punch_type="entrada"
+                punch_type="entrada",
             ),
             AttendanceRecordDB(
                 user_id="2",
                 timestamp=datetime.now(),
                 status=1,
                 device_ip="192.168.1.101",
-                punch_type="salida"
-            )
+                punch_type="salida",
+            ),
         ]
 
         count = temp_db.add_records(records)
@@ -53,25 +53,17 @@ class TestBufferRepository:
         ts = datetime(2026, 10, 13, 8, 0, 0)
         records = [
             AttendanceRecordDB(
-                user_id="1",
-                timestamp=ts,
-                status=0,
-                device_ip="10.0.0.12",
-                punch_type="entrada"
+                user_id="1", timestamp=ts, status=0, device_ip="10.0.0.12", punch_type="entrada"
             ),
             AttendanceRecordDB(
-                user_id="2",
-                timestamp=ts,
-                status=1,
-                device_ip="10.0.0.12",
-                punch_type="salida"
+                user_id="2", timestamp=ts, status=1, device_ip="10.0.0.12", punch_type="salida"
             ),
         ]
 
         assert temp_db.add_records(records) == 2
         # Un segundo poll devuelve el mismo log -> 0 registros nuevos
         assert temp_db.add_records(records) == 0
-        assert temp_db.get_stats()['total_records'] == 2
+        assert temp_db.get_stats()["total_records"] == 2
 
     def test_get_unsynced_records(self, temp_db):
         """Test de obtención de registros sin sincronizar"""
@@ -82,7 +74,7 @@ class TestBufferRepository:
                 timestamp=datetime.now(),
                 status=0,
                 device_ip="192.168.1.101",
-                punch_type="entrada"
+                punch_type="entrada",
             )
         ]
         temp_db.add_records(records)
@@ -91,7 +83,7 @@ class TestBufferRepository:
         unsynced = temp_db.get_unsynced_records()
 
         assert len(unsynced) == 1
-        assert unsynced[0]['user_id'] == "1"
+        assert unsynced[0]["user_id"] == "1"
 
     def test_mark_as_synced(self, temp_db):
         """Test de marcar registros como sincronizados"""
@@ -102,14 +94,14 @@ class TestBufferRepository:
                 timestamp=datetime.now(),
                 status=0,
                 device_ip="192.168.1.101",
-                punch_type="entrada"
+                punch_type="entrada",
             )
         ]
         temp_db.add_records(records)
 
         # Obtener ID
         unsynced = temp_db.get_unsynced_records()
-        record_id = unsynced[0]['id']
+        record_id = unsynced[0]["id"]
 
         # Marcar como sincronizado
         updated = temp_db.mark_as_synced([record_id])
@@ -129,16 +121,16 @@ class TestBufferRepository:
                 timestamp=datetime.now(),
                 status=0,
                 device_ip="192.168.1.101",
-                punch_type="entrada"
+                punch_type="entrada",
             )
         ]
         temp_db.add_records(records)
 
         stats = temp_db.get_stats()
 
-        assert stats['total_records'] == 1
-        assert stats['pending_sync'] == 1
-        assert stats['synced'] == 0
+        assert stats["total_records"] == 1
+        assert stats["pending_sync"] == 1
+        assert stats["synced"] == 0
 
     def test_cleanup_old_records(self, temp_db):
         """Test de limpieza de registros antiguos"""
@@ -151,26 +143,23 @@ class TestBufferRepository:
                     timestamp=datetime.now(),
                     status=0,
                     device_ip="192.168.1.101",
-                    punch_type="entrada"
+                    punch_type="entrada",
                 )
             )
 
         temp_db.add_records(records)
 
         stats = temp_db.get_stats()
-        assert stats['total_records'] <= temp_db.max_records
+        assert stats["total_records"] <= temp_db.max_records
 
     def test_log_sync(self, temp_db):
         """Test de log de sincronización"""
         temp_db.log_sync(
-            records_synced=10,
-            records_failed=0,
-            status='success',
-            duration_seconds=1.5
+            records_synced=10, records_failed=0, status="success", duration_seconds=1.5
         )
 
         history = temp_db.get_sync_history()
 
         assert len(history) == 1
-        assert history[0]['records_synced'] == 10
-        assert history[0]['status'] == 'success'
+        assert history[0]["records_synced"] == 10
+        assert history[0]["status"] == "success"

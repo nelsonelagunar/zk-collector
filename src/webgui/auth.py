@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class AuthError(Exception):
     """Excepción para errores de autenticación"""
+
     pass
 
 
@@ -29,13 +30,8 @@ class Auth:
     """
 
     def __init__(self, secret_key: str | None = None):
-        self.secret_key = secret_key or os.environ.get('WEBGUI_SECRET_KEY', secrets.token_hex(32))
-        self.ph = PasswordHasher(
-            time_cost=3,
-            memory_cost=65536,
-            parallelism=4,
-            hash_len=32
-        )
+        self.secret_key = secret_key or os.environ.get("WEBGUI_SECRET_KEY", secrets.token_hex(32))
+        self.ph = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4, hash_len=32)
         self.token_expiry_minutes = 30
         self.refresh_token_days = 7
 
@@ -57,36 +53,36 @@ class Auth:
 
         # Access token (corta duración)
         access_payload = {
-            'user_id': user_id,
-            'username': username,
-            'role': role,
-            'exp': now + timedelta(minutes=self.token_expiry_minutes),
-            'iat': now,
-            'type': 'access'
+            "user_id": user_id,
+            "username": username,
+            "role": role,
+            "exp": now + timedelta(minutes=self.token_expiry_minutes),
+            "iat": now,
+            "type": "access",
         }
-        access_token = jwt.encode(access_payload, self.secret_key, algorithm='HS256')
+        access_token = jwt.encode(access_payload, self.secret_key, algorithm="HS256")
 
         # Refresh token (larga duración)
         refresh_payload = {
-            'user_id': user_id,
-            'exp': now + timedelta(days=self.refresh_token_days),
-            'iat': now,
-            'type': 'refresh',
-            'jti': secrets.token_hex(16)  # Unique ID para el token
+            "user_id": user_id,
+            "exp": now + timedelta(days=self.refresh_token_days),
+            "iat": now,
+            "type": "refresh",
+            "jti": secrets.token_hex(16),  # Unique ID para el token
         }
-        refresh_token = jwt.encode(refresh_payload, self.secret_key, algorithm='HS256')
+        refresh_token = jwt.encode(refresh_payload, self.secret_key, algorithm="HS256")
 
         return {
-            'access_token': access_token,
-            'refresh_token': refresh_token,
-            'expires_in': str(self.token_expiry_minutes * 60)
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_in": str(self.token_expiry_minutes * 60),
         }
 
     def verify_access_token(self, token: str) -> dict | None:
         """Verificar access token"""
         try:
-            payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
-            if payload.get('type') != 'access':
+            payload = jwt.decode(token, self.secret_key, algorithms=["HS256"])
+            if payload.get("type") != "access":
                 return None
             return payload
         except jwt.ExpiredSignatureError:
@@ -99,8 +95,8 @@ class Auth:
     def verify_refresh_token(self, token: str) -> dict | None:
         """Verificar refresh token"""
         try:
-            payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
-            if payload.get('type') != 'refresh':
+            payload = jwt.decode(token, self.secret_key, algorithms=["HS256"])
+            if payload.get("type") != "refresh":
                 return None
             return payload
         except jwt.ExpiredSignatureError:

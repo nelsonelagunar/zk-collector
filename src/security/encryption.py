@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class EncryptionError(Exception):
     """Excepción para errores de encriptación"""
+
     pass
 
 
@@ -101,7 +102,7 @@ def encrypt_config_value(value: str) -> str:
     Returns:
         str: Valor encriptado
     """
-    key = os.environ.get('ENCRYPTION_KEY')
+    key = os.environ.get("ENCRYPTION_KEY")
     if not key:
         logger.warning("ENCRYPTION_KEY no configurada, valor no encriptado")
         return value
@@ -119,7 +120,7 @@ def decrypt_config_value(encrypted_value: str) -> str:
     Returns:
         str: Valor desencriptado
     """
-    key = os.environ.get('ENCRYPTION_KEY')
+    key = os.environ.get("ENCRYPTION_KEY")
     if not key:
         logger.warning("ENCRYPTION_KEY no configurada, valor no desencriptado")
         return encrypted_value

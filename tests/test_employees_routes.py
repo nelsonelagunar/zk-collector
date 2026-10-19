@@ -100,7 +100,7 @@ class TestGetUpdateDelete:
         assert client.get("/api/employees/999").status_code == 404
 
     def test_update_ok(self, client):
-        emp_id = _create(client, "E300") .get_json()["employee"]["id"]
+        emp_id = _create(client, "E300").get_json()["employee"]["id"]
         resp = client.put(f"/api/employees/{emp_id}", json={"first_name": "Anabel"})
         assert resp.status_code == 200
         assert resp.get_json()["employee"]["first_name"] == "Anabel"

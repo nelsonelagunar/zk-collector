@@ -26,11 +26,7 @@ class HealthMonitor:
     - Detectar condiciones anormales
     """
 
-    def __init__(
-        self,
-        platform_sync: PlatformSync,
-        interval: int = 300
-    ):
+    def __init__(self, platform_sync: PlatformSync, interval: int = 300):
         self.platform_sync = platform_sync
         self.interval = interval
         self.running = False
@@ -78,8 +74,7 @@ class HealthMonitor:
 
                 # Enviar heartbeat
                 success = self.platform_sync.send_heartbeat(
-                    metrics=metrics,
-                    devices_status=self.devices_status
+                    metrics=metrics, devices_status=self.devices_status
                 )
 
                 if success:
@@ -109,16 +104,16 @@ class HealthMonitor:
             memory = psutil.virtual_memory()
 
             # Disco
-            disk = psutil.disk_usage('/')
+            disk = psutil.disk_usage("/")
 
             # Temperatura (si está disponible)
             temperature = None
             try:
                 sensors = psutil.sensors_temperatures()
-                if 'cpu_thermal' in sensors:
-                    temperature = sensors['cpu_thermal'][0].current
-                elif 'bcm2835_thermal' in sensors:  # Raspberry Pi
-                    temperature = sensors['bcm2835_thermal'][0].current
+                if "cpu_thermal" in sensors:
+                    temperature = sensors["cpu_thermal"][0].current
+                elif "bcm2835_thermal" in sensors:  # Raspberry Pi
+                    temperature = sensors["bcm2835_thermal"][0].current
             except Exception:
                 pass
 
@@ -126,34 +121,31 @@ class HealthMonitor:
             uptime = time.time() - psutil.boot_time()
 
             metrics = {
-                'timestamp': datetime.now().isoformat(),
-                'cpu': {
-                    'percent': cpu_percent,
-                    'count': cpu_count,
+                "timestamp": datetime.now().isoformat(),
+                "cpu": {
+                    "percent": cpu_percent,
+                    "count": cpu_count,
                 },
-                'memory': {
-                    'total': memory.total,
-                    'available': memory.available,
-                    'percent': memory.percent,
+                "memory": {
+                    "total": memory.total,
+                    "available": memory.available,
+                    "percent": memory.percent,
                 },
-                'disk': {
-                    'total': disk.total,
-                    'used': disk.used,
-                    'free': disk.free,
-                    'percent': disk.percent,
+                "disk": {
+                    "total": disk.total,
+                    "used": disk.used,
+                    "free": disk.free,
+                    "percent": disk.percent,
                 },
-                'temperature': temperature,
-                'uptime_seconds': uptime,
+                "temperature": temperature,
+                "uptime_seconds": uptime,
             }
 
             return metrics
 
         except Exception as e:
             logger.error(f"Error recopilando métricas: {e}")
-            return {
-                'timestamp': datetime.now().isoformat(),
-                'error': str(e)
-            }
+            return {"timestamp": datetime.now().isoformat(), "error": str(e)}
 
     def update_device_status(self, devices: list[dict[str, Any]]):
         """
@@ -183,37 +175,37 @@ class HealthMonitor:
         metrics = self.last_metrics
 
         # Determinar estado general
-        status = 'healthy'
+        status = "healthy"
         issues = []
 
         # Verificar CPU
-        if metrics.get('cpu', {}).get('percent', 0) > 90:
-            status = 'warning'
-            issues.append('CPU usage high')
+        if metrics.get("cpu", {}).get("percent", 0) > 90:
+            status = "warning"
+            issues.append("CPU usage high")
 
         # Verificar memoria
-        if metrics.get('memory', {}).get('percent', 0) > 90:
-            status = 'warning'
-            issues.append('Memory usage high')
+        if metrics.get("memory", {}).get("percent", 0) > 90:
+            status = "warning"
+            issues.append("Memory usage high")
 
         # Verificar disco
-        if metrics.get('disk', {}).get('percent', 0) > 90:
-            status = 'critical'
-            issues.append('Disk usage critical')
+        if metrics.get("disk", {}).get("percent", 0) > 90:
+            status = "critical"
+            issues.append("Disk usage critical")
 
         # Verificar temperatura
-        temp = metrics.get('temperature')
+        temp = metrics.get("temperature")
         if temp and temp > 80:
-            status = 'critical'
-            issues.append('Temperature critical')
+            status = "critical"
+            issues.append("Temperature critical")
         elif temp and temp > 70:
-            status = 'warning'
-            issues.append('Temperature high')
+            status = "warning"
+            issues.append("Temperature high")
 
         return {
-            'status': status,
-            'issues': issues,
-            'metrics': metrics,
-            'devices_count': len(self.devices_status),
-            'devices_online': sum(1 for d in self.devices_status if d.get('connected', False))
+            "status": status,
+            "issues": issues,
+            "metrics": metrics,
+            "devices_count": len(self.devices_status),
+            "devices_online": sum(1 for d in self.devices_status if d.get("connected", False)),
         }

@@ -1,7 +1,9 @@
 """
 Unit tests for encryption module
 """
+
 import os
+
 import pytest
 
 from src.security.encryption import (
@@ -25,6 +27,7 @@ class TestEncryption:
         assert len(key) > 0
         # Should be valid Fernet key
         from cryptography.fernet import Fernet
+
         f = Fernet(key.encode())
         assert f is not None
 
@@ -109,7 +112,7 @@ class TestConfigEncryption:
     def test_encrypt_config_value_with_env_key(self):
         """Test encrypt_config_value uses ENCRYPTION_KEY from env"""
         key = generate_key()
-        os.environ['ENCRYPTION_KEY'] = key
+        os.environ["ENCRYPTION_KEY"] = key
         try:
             original = "api-secret-key"
             encrypted = encrypt_config_value(original)
@@ -118,24 +121,24 @@ class TestConfigEncryption:
             decrypted = decrypt_value(encrypted, key)
             assert decrypted == original
         finally:
-            del os.environ['ENCRYPTION_KEY']
+            del os.environ["ENCRYPTION_KEY"]
 
     def test_decrypt_config_value_with_env_key(self):
         """Test decrypt_config_value uses ENCRYPTION_KEY from env"""
         key = generate_key()
-        os.environ['ENCRYPTION_KEY'] = key
+        os.environ["ENCRYPTION_KEY"] = key
         try:
             original = "api-secret-key"
             encrypted = encrypt_value(original, key)
             decrypted = decrypt_config_value(encrypted)
             assert decrypted == original
         finally:
-            del os.environ['ENCRYPTION_KEY']
+            del os.environ["ENCRYPTION_KEY"]
 
     def test_encrypt_config_value_no_env_key(self, caplog):
         """Test encrypt_config_value without ENCRYPTION_KEY returns original"""
-        if 'ENCRYPTION_KEY' in os.environ:
-            del os.environ['ENCRYPTION_KEY']
+        if "ENCRYPTION_KEY" in os.environ:
+            del os.environ["ENCRYPTION_KEY"]
         original = "plain-text"
         result = encrypt_config_value(original)
         assert result == original
@@ -143,8 +146,8 @@ class TestConfigEncryption:
 
     def test_decrypt_config_value_no_env_key(self, caplog):
         """Test decrypt_config_value without ENCRYPTION_KEY returns original"""
-        if 'ENCRYPTION_KEY' in os.environ:
-            del os.environ['ENCRYPTION_KEY']
+        if "ENCRYPTION_KEY" in os.environ:
+            del os.environ["ENCRYPTION_KEY"]
         encrypted = "encrypted-value"
         result = decrypt_config_value(encrypted)
         assert result == encrypted
@@ -153,11 +156,11 @@ class TestConfigEncryption:
     def test_config_roundtrip_with_env(self):
         """Test full encrypt/decrypt cycle using env key"""
         key = generate_key()
-        os.environ['ENCRYPTION_KEY'] = key
+        os.environ["ENCRYPTION_KEY"] = key
         try:
             original = "super-secret-api-key"
             encrypted = encrypt_config_value(original)
             decrypted = decrypt_config_value(encrypted)
             assert decrypted == original
         finally:
-            del os.environ['ENCRYPTION_KEY']
+            del os.environ["ENCRYPTION_KEY"]

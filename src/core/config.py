@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class ConfigError(Exception):
     """Excepción para errores de configuración"""
+
     pass
 
 
@@ -29,73 +30,63 @@ class Config:
     """
 
     SCHEMA = {
-        'platform': {
-            'required': True,
-            'fields': {
-                'url': {'type': 'string', 'required': True},
-                'api_key': {'type': 'string', 'required': True, 'sensitive': True},
-                'tenant_id': {'type': 'string', 'required': True},
-                'timeout': {'type': 'integer', 'default': 30},
-                'retry_attempts': {'type': 'integer', 'default': 3},
-            }
+        "platform": {
+            "required": True,
+            "fields": {
+                "url": {"type": "string", "required": True},
+                "api_key": {"type": "string", "required": True, "sensitive": True},
+                "tenant_id": {"type": "string", "required": True},
+                "timeout": {"type": "integer", "default": 30},
+                "retry_attempts": {"type": "integer", "default": 3},
+            },
         },
-        'devices': {
-            'required': True,
-            'type': 'list',
-            'item_schema': {
-                'ip': {'type': 'string', 'required': True},
-                'port': {'type': 'integer', 'default': 4370},
-                'timeout': {'type': 'integer', 'default': 5},
-                'password': {'type': 'integer', 'default': 0},
-                'name': {'type': 'string', 'default': ''},
-                'enabled': {'type': 'boolean', 'default': True},
+        "devices": {
+            "required": True,
+            "type": "list",
+            "item_schema": {
+                "ip": {"type": "string", "required": True},
+                "port": {"type": "integer", "default": 4370},
+                "timeout": {"type": "integer", "default": 5},
+                "password": {"type": "integer", "default": 0},
+                "name": {"type": "string", "default": ""},
+                "enabled": {"type": "boolean", "default": True},
                 # Skip pyzk ICMP/TCP ping. Required for the mock ZK emulator
                 # (mock/zk_emulator.py) which only implements the ZK TCP protocol.
-                'ommit_ping': {'type': 'boolean', 'default': False},
-            }
+                "ommit_ping": {"type": "boolean", "default": False},
+            },
         },
-        'poll_interval_seconds': {
-            'type': 'integer',
-            'default': 300,
-            'min': 60,
-            'max': 3600
+        "poll_interval_seconds": {"type": "integer", "default": 300, "min": 60, "max": 3600},
+        "sync_interval_seconds": {"type": "integer", "default": 60, "min": 10, "max": 600},
+        "buffer": {
+            "required": False,
+            "fields": {
+                "max_records": {"type": "integer", "default": 10000},
+                "cleanup_days": {"type": "integer", "default": 30},
+            },
         },
-        'sync_interval_seconds': {
-            'type': 'integer',
-            'default': 60,
-            'min': 10,
-            'max': 600
-        },
-        'buffer': {
-            'required': False,
-            'fields': {
-                'max_records': {'type': 'integer', 'default': 10000},
-                'cleanup_days': {'type': 'integer', 'default': 30},
-            }
-        },
-        'logging': {
-            'required': False,
-            'fields': {
-                'level': {
-                    'type': 'string',
-                    'default': 'INFO',
-                    'allowed': ['DEBUG', 'INFO', 'WARNING', 'ERROR']
+        "logging": {
+            "required": False,
+            "fields": {
+                "level": {
+                    "type": "string",
+                    "default": "INFO",
+                    "allowed": ["DEBUG", "INFO", "WARNING", "ERROR"],
                 },
-                'max_size_mb': {'type': 'integer', 'default': 10},
-                'backup_count': {'type': 'integer', 'default': 5},
-            }
-        }
+                "max_size_mb": {"type": "integer", "default": 10},
+                "backup_count": {"type": "integer", "default": 5},
+            },
+        },
     }
 
     def __init__(self, config_path: Path, encryption_key: str | None = None):
-        self.config_path = config_path
-        self.encryption_key = encryption_key or os.environ.get('ENCRYPTION_KEY')
+        self.config_path: Path | None = config_path
+        self.encryption_key = encryption_key or os.environ.get("ENCRYPTION_KEY")
         self.config: dict = {}
         self._load()
         self._validate()
 
     @classmethod
-    def default(cls) -> 'Config':
+    def default(cls) -> "Config":
         """Config mínima por defecto cuando collector.yaml no existe.
 
         Post-MYK-172 los devices se leen desde la DB del WebGUI (una sola fuente
@@ -104,22 +95,25 @@ class Config:
         """
         cfg = cls.__new__(cls)
         cfg.config_path = None
-        cfg.encryption_key = os.environ.get('ENCRYPTION_KEY')
+        cfg.encryption_key = os.environ.get("ENCRYPTION_KEY")
         cfg.config = {
-            'devices': [],
-            'platform': {'url': '', 'api_key': '', 'tenant_id': ''},
-            'poll_interval_seconds': 300,
-            'sync_interval_seconds': 60,
-            'sync_enabled': False,
-            'buffer': {'max_records': 10000, 'cleanup_days': 30},
-            'logging': {'level': 'INFO'},
+            "devices": [],
+            "platform": {"url": "", "api_key": "", "tenant_id": ""},
+            "poll_interval_seconds": 300,
+            "sync_interval_seconds": 60,
+            "sync_enabled": False,
+            "buffer": {"max_records": 10000, "cleanup_days": 30},
+            "logging": {"level": "INFO"},
         }
         return cfg
 
     def _load(self):
         """Cargar configuración desde archivo YAML"""
+        if self.config_path is None:
+            # Config en memoria (p.ej. Config.default()): no hay archivo que cargar.
+            return
         try:
-            with open(self.config_path, encoding='utf-8') as f:
+            with open(self.config_path, encoding="utf-8") as f:
                 raw_config = yaml.safe_load(f)
 
             self.config = raw_config
@@ -143,11 +137,11 @@ class Config:
         fernet = Fernet(self.encryption_key.encode())
 
         # Platform API Key
-        if 'platform' in self.config and 'api_key' in self.config['platform']:
+        if "platform" in self.config and "api_key" in self.config["platform"]:
             try:
-                encrypted = self.config['platform']['api_key']
+                encrypted = self.config["platform"]["api_key"]
                 decrypted = fernet.decrypt(encrypted.encode()).decode()
-                self.config['platform']['api_key'] = decrypted
+                self.config["platform"]["api_key"] = decrypted
             except Exception as e:
                 logger.warning(f"No se pudo desencriptar api_key: {e}")
 
@@ -155,38 +149,39 @@ class Config:
         """Aplicar valores por defecto del schema"""
         for section, schema in self.SCHEMA.items():
             if section not in self.config:
-                if schema.get('required', False):
+                if schema.get("required", False):
                     raise ConfigError(f"Sección requerida faltante: {section}")
                 continue
 
-            if 'fields' in schema:
-                for field, field_schema in schema['fields'].items():
-                    if field not in self.config[section] and 'default' in field_schema:
-                        self.config[section][field] = field_schema['default']
+            if "fields" in schema:
+                for field, field_schema in schema["fields"].items():
+                    if field not in self.config[section] and "default" in field_schema:
+                        self.config[section][field] = field_schema["default"]
 
     def _validate(self):
         """Validar configuración contra schema"""
         # Validaciones básicas
-        if 'platform' not in self.config:
+        if "platform" not in self.config:
             raise ConfigError("Sección 'platform' es requerida")
 
-        if 'devices' not in self.config:
+        if "devices" not in self.config:
             raise ConfigError("Sección 'devices' es requerida")
 
-        if not self.config['devices']:
+        if not self.config["devices"]:
             raise ConfigError("Al menos un dispositivo debe estar configurado")
 
         # Validar URLs
-        platform_url = self.config['platform'].get('url', '')
-        if not platform_url.startswith(('http://', 'https://')):
+        platform_url = self.config["platform"].get("url", "")
+        if not platform_url.startswith(("http://", "https://")):
             raise ConfigError("platform.url debe ser una URL válida")
 
         # Validar IPs de dispositivos
         import re
-        ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
-        for i, device in enumerate(self.config['devices']):
-            if not ip_pattern.match(device.get('ip', '')):
-                raise ConfigError(f"Dispositivo {i+1}: IP inválida")
+
+        ip_pattern = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
+        for i, device in enumerate(self.config["devices"]):
+            if not ip_pattern.match(device.get("ip", "")):
+                raise ConfigError(f"Dispositivo {i + 1}: IP inválida")
 
     def get(self, key: str, default: Any = None) -> Any:
         """
@@ -196,7 +191,7 @@ class Config:
             config.get('platform.url')
             config.get('devices.0.ip')
         """
-        keys = key.split('.')
+        keys = key.split(".")
         value: Any = self.config
 
         for k in keys:
@@ -222,8 +217,10 @@ class Config:
     def save(self, output_path: Path | None = None):
         """Guardar configuración a archivo"""
         path = output_path or self.config_path
+        if path is None:
+            raise ConfigError("No hay ruta de configuración (config_path es None)")
 
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(path, "w", encoding="utf-8") as f:
             yaml.dump(self.config, f, default_flow_style=False, allow_unicode=True)
 
         logger.info(f"Configuración guardada: {path}")

@@ -34,31 +34,31 @@ class AttendanceCollector:
         # Inicializar componentes
         self.buffer = BufferRepository(
             db_path=self.config.get(
-                'buffer.db_path',
-                os.environ.get('BUFFER_DB_PATH', '/opt/attendance/data/buffer.db'),
+                "buffer.db_path",
+                os.environ.get("BUFFER_DB_PATH", "/opt/attendance/data/buffer.db"),
             ),
-            max_records=self.config.get('buffer.max_records', 10000)
+            max_records=self.config.get("buffer.max_records", 10000),
         )
 
         self.platform_sync = PlatformSync(
-            platform_url=self.config.get('platform.url'),
-            api_key=self.config.get('platform.api_key'),
-            tenant_id=self.config.get('platform.tenant_id'),
-            timeout=self.config.get('platform.timeout', 30),
-            retry_attempts=self.config.get('platform.retry_attempts', 3)
+            platform_url=self.config.get("platform.url"),
+            api_key=self.config.get("platform.api_key"),
+            tenant_id=self.config.get("platform.tenant_id"),
+            timeout=self.config.get("platform.timeout", 30),
+            retry_attempts=self.config.get("platform.retry_attempts", 3),
         )
 
         self.health_monitor = HealthMonitor(
             platform_sync=self.platform_sync,
-            interval=self.config.get('health.heartbeat_interval', 300)
+            interval=self.config.get("health.heartbeat_interval", 300),
         )
 
         # Configuración de intervalos
-        self.poll_interval = self.config.get('poll_interval_seconds', 300)
-        self.sync_interval = self.config.get('sync_interval_seconds', 60)
+        self.poll_interval = self.config.get("poll_interval_seconds", 300)
+        self.sync_interval = self.config.get("sync_interval_seconds", 60)
 
         # Dispositivos
-        self.devices_config = self.config.get('devices', [])
+        self.devices_config = self.config.get("devices", [])
         self.zk_clients: dict[str, ZKClient] = {}
 
         # Estado
@@ -71,17 +71,17 @@ class AttendanceCollector:
     def _initialize_devices(self):
         """Inicializar clientes para cada dispositivo"""
         for device in self.devices_config:
-            if not device.get('enabled', True):
+            if not device.get("enabled", True):
                 logger.info(f"Dispositivo deshabilitado: {device.get('ip')}")
                 continue
 
-            ip = device.get('ip')
+            ip = device.get("ip")
             client = ZKClient(
                 ip=ip,
-                port=device.get('port', 4370),
-                timeout=device.get('timeout', 5),
-                password=device.get('password', 0),
-                ommit_ping=device.get('ommit_ping', False)
+                port=device.get("port", 4370),
+                timeout=device.get("timeout", 5),
+                password=device.get("password", 0),
+                ommit_ping=device.get("ommit_ping", False),
             )
             self.zk_clients[ip] = client
             logger.info(f"Dispositivo configurado: {ip}")
@@ -104,10 +104,7 @@ class AttendanceCollector:
                     continue
 
                 # Obtener registros
-                attendances = client.get_attendance(
-                    clear_after_read=False,
-                    disable_device=True
-                )
+                attendances = client.get_attendance(clear_after_read=False, disable_device=True)
 
                 if attendances:
                     # Guardar en buffer
@@ -140,7 +137,7 @@ class AttendanceCollector:
 
         if not unsynced:
             logger.info("No hay registros pendientes de sincronizar")
-            self.buffer.log_sync(0, 0, 'success', duration_seconds=0)
+            self.buffer.log_sync(0, 0, "success", duration_seconds=0)
             return
 
         # Sincronizar
@@ -150,25 +147,25 @@ class AttendanceCollector:
 
         if success:
             # Marcar como sincronizados
-            record_ids = [r['id'] for r in unsynced]
+            record_ids = [r["id"] for r in unsynced]
             self.buffer.mark_as_synced(record_ids)
             self.buffer.log_sync(
                 records_synced=len(unsynced),
                 records_failed=0,
-                status='success',
-                duration_seconds=duration
+                status="success",
+                duration_seconds=duration,
             )
             logger.info(f"Sincronización completada: {len(unsynced)} registros en {duration:.2f}s")
         else:
             # Marcar como fallido
-            record_ids = [r['id'] for r in unsynced]
+            record_ids = [r["id"] for r in unsynced]
             self.buffer.mark_sync_failed(record_ids)
             self.buffer.log_sync(
                 records_synced=0,
                 records_failed=len(unsynced),
-                status='failed',
-                error_message='Platform error',
-                duration_seconds=duration
+                status="failed",
+                error_message="Platform error",
+                duration_seconds=duration,
             )
             logger.error("Sincronización fallida")
 
@@ -202,7 +199,9 @@ class AttendanceCollector:
                     self.last_poll = datetime.now()
 
                 # Sincronización con plataforma (sync_local si está deshabilitada)
-                if self.config.get('sync_enabled', True) and self._should_run(self.last_sync, self.sync_interval):
+                if self.config.get("sync_enabled", True) and self._should_run(
+                    self.last_sync, self.sync_interval
+                ):
                     self.sync_to_platform()
                     self.last_sync = datetime.now()
 

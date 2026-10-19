@@ -2,6 +2,7 @@
 Mock ZK Device fixture for unit/integration tests.
 Provides a controllable mock of the pyzk ZK class for testing AttendanceCollector.
 """
+
 from datetime import datetime
 from typing import Any
 from unittest.mock import MagicMock
@@ -181,11 +182,13 @@ def mock_zk_device():
 def mock_zk_device_with_data():
     """Provides a MockZKDevice pre-populated with test data"""
     device = MockZKDevice()
-    device.set_attendance_records([
-        create_mock_zk_attendance("1", datetime(2026, 10, 13, 8, 0, 0), 0),
-        create_mock_zk_attendance("2", datetime(2026, 10, 13, 12, 0, 0), 1),
-        create_mock_zk_attendance("3", datetime(2026, 10, 13, 17, 0, 0), 0),
-    ])
+    device.set_attendance_records(
+        [
+            create_mock_zk_attendance("1", datetime(2026, 10, 13, 8, 0, 0), 0),
+            create_mock_zk_attendance("2", datetime(2026, 10, 13, 12, 0, 0), 1),
+            create_mock_zk_attendance("3", datetime(2026, 10, 13, 17, 0, 0), 0),
+        ]
+    )
     return device
 
 

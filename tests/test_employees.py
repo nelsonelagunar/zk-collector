@@ -54,21 +54,15 @@ def test_migration_indexes(db):
 def test_employee_code_unique_enforced(db):
     conn = sqlite3.connect(str(db.db_path))
     with pytest.raises(sqlite3.IntegrityError):
-        conn.execute(
-            "INSERT INTO employees (employee_code) VALUES ('E-001')"
-        )
-        conn.execute(
-            "INSERT INTO employees (employee_code) VALUES ('E-001')"
-        )
+        conn.execute("INSERT INTO employees (employee_code) VALUES ('E-001')")
+        conn.execute("INSERT INTO employees (employee_code) VALUES ('E-001')")
     conn.close()
 
 
 def test_status_check_constraint(db):
     conn = sqlite3.connect(str(db.db_path))
     with pytest.raises(sqlite3.IntegrityError):
-        conn.execute(
-            "INSERT INTO employees (employee_code, status) VALUES ('E-002', 'fired')"
-        )
+        conn.execute("INSERT INTO employees (employee_code, status) VALUES ('E-002', 'fired')")
     conn.close()
 
 
@@ -76,9 +70,9 @@ def test_fk_cascade_on_delete(db):
     conn = sqlite3.connect(str(db.db_path))
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("INSERT INTO employees (employee_code) VALUES ('E-003')")
-    employee_id = conn.execute(
-        "SELECT id FROM employees WHERE employee_code = 'E-003'"
-    ).fetchone()[0]
+    employee_id = conn.execute("SELECT id FROM employees WHERE employee_code = 'E-003'").fetchone()[
+        0
+    ]
     conn.execute(
         "INSERT INTO employee_device_links (employee_id, device_serial, device_user_id) "
         "VALUES (?, 'SERIAL1', '100')",

@@ -62,8 +62,7 @@ class EmployeeRepository:
             params.append(status)
         if search:
             where.append(
-                "(first_name LIKE ? OR last_name LIKE ? "
-                "OR employee_code LIKE ? OR email LIKE ?)"
+                "(first_name LIKE ? OR last_name LIKE ? OR employee_code LIKE ? OR email LIKE ?)"
             )
             like = f"%{search}%"
             params.extend([like, like, like, like])
@@ -77,9 +76,7 @@ class EmployeeRepository:
         """Actualizar campos editables. `employee_code` y `created_at` no se modifican."""
         self._validate_status(data.get("status"))
 
-        payload = {
-            k: v for k, v in data.items() if k not in ("id", "employee_code", "created_at")
-        }
+        payload = {k: v for k, v in data.items() if k not in ("id", "employee_code", "created_at")}
         payload["updated_at"] = datetime.now().isoformat()
         return self.db.update("employees", payload, "id = ?", (employee_id,))
 
@@ -96,9 +93,7 @@ class EmployeeRepository:
     def delete(self, employee_id: int) -> int:
         """Borrado fisico; limpia los links antes (cascade explicito, FK off-safe)."""
         with self.db.get_connection() as conn:
-            conn.execute(
-                "DELETE FROM employee_device_links WHERE employee_id = ?", (employee_id,)
-            )
+            conn.execute("DELETE FROM employee_device_links WHERE employee_id = ?", (employee_id,))
             cursor = conn.execute("DELETE FROM employees WHERE id = ?", (employee_id,))
             return cursor.rowcount if cursor.rowcount is not None else 0
 

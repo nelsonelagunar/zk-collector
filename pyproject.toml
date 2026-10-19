@@ -68,6 +68,8 @@ where = ["."]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
 
 [tool.mypy]
@@ -100,3 +102,6 @@ omit = [
 fail_under = 80
 show_missing = true
 precision = 2
+
+[tool.ruff.lint.isort]
+known-third-party = ["zk"]
