@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}Expediente - {{ employee.first_name }} {{ employee.last_name }} - Attendance Collector{% endblock %}
+{% block extra_head %}<style>[x-cloak]{display:none!important}</style>{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" x-data="expedienteApp({{ employee.id }})">
+    <div class="mb-6">
+        <a href="/colaboradores" class="text-sm text-blue-600 hover:text-blue-900">&larr; Volver a colaboradores</a>
+        <h2 class="text-2xl font-bold text-gray-900 mt-2">Expediente — {{ employee.first_name }} {{ employee.last_name }}</h2>
+        <p class="mt-1 text-sm text-gray-500">Datos del colaborador, dispositivos vinculados e incapacidades</p>
+    </div>
+    <div x-show="errorMessage" x-cloak class="mb-4 rounded-md bg-red-50 border border-red-200 p-4" role="alert"><p class="text-sm text-red-800" x-text="errorMessage"></p></div>
+    <div class="bg-white shadow sm:rounded-lg mb-6">
+        <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-900">Datos del colaborador</h3>
+            {% if employee['status'] == 'active' %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Activo</span>
+            {% else %}
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Inactivo</span>
+            {% endif %}
+        </div>
+        <dl class="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div><dt class="text-xs font-medium text-gray-500 uppercase tracking-wider">Código</dt><dd class="mt-1 text-sm font-mono text-gray-900">{{ employee.employee_code }}</dd></div>
+            <div><dt class="text-xs font-medium text-gray-500 uppercase tracking-wider">Email</dt><dd class="mt-1 text-sm text-gray-600">{{ employee.email or '—' }}</dd></div>
+            <div><dt class="text-xs font-medium text-gray-500 uppercase tracking-wider">Departamento</dt><dd class="mt-1 text-sm text-gray-600">{{ employee.department or '—' }}</dd></div>
+            <div><dt class="text-xs font-medium text-gray-500 uppercase tracking-wider">Puesto</dt><dd class="mt-1 text-sm text-gray-600">{{ employee.position or '—' }}</dd></div>
+            <div><dt class="text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha de ingreso</dt><dd class="mt-1 text-sm text-gray-600">{{ employee.hire_date or '—' }}</dd></div>
+            <div><dt class="text-xs font-medium text-gray-500 uppercase tracking-wider">Notas</dt><dd class="mt-1 text-sm text-gray-600">{{ employee.notes or '—' }}</dd></div>
+        </dl>
+    </div>
+    <div class="bg-white shadow sm:rounded-lg mb-6">
+        <div class="px-4 py-3 border-b border-gray-200"><h3 class="text-sm font-semibold text-gray-900">Dispositivos vinculados</h3></div>
+        <ul class="p-4 divide-y divide-gray-200">
+            <template x-for="link in deviceLinks" :key="link.device_serial + '-' + link.device_user_id">
+                <li class="py-2 flex items-center justify-between"><span class="text-sm font-mono text-gray-900" x-text="link.device_serial"></span><span class="text-sm text-gray-600">Usuario del reloj: <span class="font-mono" x-text="link.device_user_id"></span></span></li>
+            </template>
+            <li x-show="deviceLinks.length === 0" class="py-2 text-sm text-gray-500">Sin dispositivos vinculados.</li>
+        </ul>
+    </div>
+    <div class="bg-white shadow sm:rounded-lg mb-6">
+        <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-900">Incapacidades</h3>
+            <button type="button" @click="toggleForm()" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700" x-text="showForm ? 'Cerrar' : 'Alta de incapacidad'"></button>
+        </div>
+        <form x-show="showForm" x-cloak @submit.prevent="saveLeave()" class="p-4 border-b border-gray-200 bg-gray-50" novalidate>
+            <div x-show="formError" x-cloak class="mb-4 rounded-md bg-red-50 border border-red-200 p-3" role="alert"><p class="text-sm text-red-800" x-text="formError"></p></div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="leave_type" class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                    <select id="leave_type" x-model="form.leave_type" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        <option value="">Selecciona un tipo</option>
+                        <option value="enfermedad">Enfermedad</option>
+                        <option value="maternidad">Maternidad</option>
+                        <option value="accidente">Accidente</option>
+                        <option value="otro">Otro</option>
+                    </select>
+                </div>
+                <div><label for="start_date" class="block text-sm font-medium text-gray-700 mb-1">Fecha de inicio</label><input type="date" id="start_date" x-model="form.start_date" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></div>
+                <div><label for="end_date" class="block text-sm font-medium text-gray-700 mb-1">Fecha de fin</label><input type="date" id="end_date" x-model="form.end_date" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></div>
+                <div><label for="doctor_name" class="block text-sm font-medium text-gray-700 mb-1">Doctor</label><input type="text" id="doctor_name" x-model="form.doctor_name" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></div>
+                <div><label for="document_ref" class="block text-sm font-medium text-gray-700 mb-1">Referencia de documento</label><input type="text" id="document_ref" x-model="form.document_ref" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="submit" :disabled="saving" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"><span x-show="!saving">Registrar incapacidad</span><span x-show="saving" x-cloak>Guardando...</span></button>
+            </div>
+        </form>
+        <div x-show="warnings.length > 0" x-cloak class="m-4 rounded-md bg-amber-50 border border-amber-200 p-4" role="status">
+            <p class="text-sm font-medium text-amber-900 mb-1">Advertencias de traslape</p>
+            <template x-for="warning in warnings" :key="warning"><p class="text-sm text-amber-800" x-text="warning"></p></template>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50"><tr>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fechas</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Días</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Doctor</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ref. documento</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                    <th scope="col" class="relative px-6 py-3"><span class="sr-only">Acciones</span></th>
+                </tr></thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <template x-for="leave in leaves" :key="leave.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 capitalize" x-text="leave.leave_type"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="leave.start_date + ' – ' + leave.end_date"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" x-text="leave.days"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="leave.doctor_name || '—'"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="leave.document_ref || '—'"></td>
+                            <td class="px-6 py-4 whitespace-nowrap"><span x-show="leave.status === 'active'" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Activa</span><span x-show="leave.status === 'cancelled'" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Cancelada</span></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><button type="button" x-show="leave.status === 'active'" @click="cancelLeave(leave)" class="text-red-600 hover:text-red-900">Cancelar</button></td>
+                        </tr>
+                    </template>
+                    <tr x-show="leaves.length === 0"><td colspan="7" class="px-6 py-10 text-center text-sm text-gray-500">Sin incapacidades registradas.</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="bg-white px-4 py-3 border-t border-gray-200 flex items-center justify-between" x-show="pagination.total_pages > 1">
+            <span class="text-sm text-gray-600" x-text="'Página ' + pagination.page + ' de ' + pagination.total_pages + ' (' + pagination.total + ' incapacidades)'"></span>
+            <div class="flex items-center space-x-2"><button type="button" @click="prevPage()" :disabled="!pagination.has_prev" class="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40">Anterior</button><button type="button" @click="nextPage()" :disabled="!pagination.has_next" class="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40">Siguiente</button></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+function expedienteApp(employeeId) {
+    return {
+        employeeId: employeeId,
+        deviceLinks: [],
+        leaves: [],
+        pagination: { page: 1, per_page: 20, total: 0, total_pages: 1, has_next: false, has_prev: false },
+        errorMessage: '',
+        formError: '',
+        warnings: [],
+        showForm: false,
+        saving: false,
+        form: { leave_type: '', start_date: '', end_date: '', doctor_name: '', document_ref: '' },
+
+        init() { this.loadDeviceLinks(); this.loadLeaves(); },
+
+        async loadDeviceLinks() {
+            try {
+                const response = await fetch('/api/employees/' + this.employeeId + '/device-links');
+                const data = await response.json();
+                this.deviceLinks = data.device_links || [];
+            } catch (e) { console.error('Error loading device links:', e); }
+        },
+
+        async loadLeaves() {
+            this.errorMessage = '';
+            const params = new URLSearchParams({
+                employee_id: this.employeeId,
+                page: this.pagination.page,
+                per_page: this.pagination.per_page
+            });
+            try {
+                const response = await fetch('/api/medical-leaves/?' + params.toString(), {
+                    headers: { 'Authorization': 'Bearer webgui' }
+                });
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const data = await response.json();
+                this.leaves = data.leaves || [];
+                this.pagination = data.pagination || this.pagination;
+            } catch (e) { this.errorMessage = 'Error al cargar incapacidades: ' + e.message; }
+        },
+
+        prevPage() { if (this.pagination.has_prev) { this.pagination.page--; this.loadLeaves(); } },
+        nextPage() { if (this.pagination.has_next) { this.pagination.page++; this.loadLeaves(); } },
+
+        toggleForm() {
+            this.showForm = !this.showForm;
+            this.formError = '';
+        },
+
+        validateForm() {
+            if (!this.form.leave_type) return 'El tipo de incapacidad es requerido.';
+            if (!this.form.start_date || !this.form.end_date) return 'Las fechas de inicio y fin son requeridas.';
+            if (this.form.end_date < this.form.start_date) return 'end_date debe ser >= start_date.';
+            return '';
+        },
+
+        async saveLeave() {
+            this.formError = this.validateForm();
+            if (this.formError) return;
+            this.saving = true;
+            try {
+                const response = await fetch('/api/medical-leaves/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer webgui' },
+                    body: JSON.stringify({
+                        employee_id: this.employeeId,
+                        leave_type: this.form.leave_type,
+                        start_date: this.form.start_date,
+                        end_date: this.form.end_date,
+                        doctor_name: this.form.doctor_name || null,
+                        document_ref: this.form.document_ref || null
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'HTTP ' + response.status);
+                this.warnings = data.warnings || [];
+                this.showForm = false;
+                this.form = { leave_type: '', start_date: '', end_date: '', doctor_name: '', document_ref: '' };
+                this.formError = '';
+                this.pagination.page = 1;
+                this.loadLeaves();
+            } catch (e) { this.formError = 'Error al registrar incapacidad: ' + e.message; }
+            finally { this.saving = false; }
+        },
+
+        async cancelLeave(leave) {
+            if (!confirm('¿Cancelar la incapacidad del ' + leave.start_date + ' al ' + leave.end_date + '?')) return;
+            try {
+                const response = await fetch('/api/medical-leaves/' + leave.id, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer webgui' }
+                });
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.error || 'HTTP ' + response.status);
+                }
+                this.loadLeaves();
+            } catch (e) { this.errorMessage = 'Error al cancelar incapacidad: ' + e.message; }
+        }
+    };
+}
+</script>
+{% endblock %}

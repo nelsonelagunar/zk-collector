@@ -7,7 +7,11 @@ blueprint solo expone la vista y dos endpoints de soporte para el selector
 de dispositivos y usuarios del reloj.
 """
 
-from flask import Blueprint, current_app, jsonify, render_template
+from typing import cast
+
+from flask import Blueprint, abort, current_app, jsonify, render_template
+
+from ..database import Database
 
 employees_ui_bp = Blueprint("employees_ui", __name__)
 
@@ -16,6 +20,16 @@ employees_ui_bp = Blueprint("employees_ui", __name__)
 def list_employees_ui():
     """Página principal de colaboradores."""
     return render_template("employees/list.html")
+
+
+@employees_ui_bp.route("/expediente/<int:employee_id>")
+def employee_expediente_ui(employee_id: int):
+    """Expediente del colaborador con sección de incapacidades (MYK-240)."""
+    db = cast(Database, current_app.db)  # type: ignore[attr-defined]
+    employee = db.get_employee_by_id(employee_id)
+    if not employee:
+        abort(404)
+    return render_template("employees/detail.html", employee=employee)
 
 
 @employees_ui_bp.route("/api/devices")
