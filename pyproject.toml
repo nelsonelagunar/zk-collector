@@ -102,3 +102,6 @@ omit = [
 fail_under = 80
 show_missing = true
 precision = 2
+
+[tool.ruff.lint.isort]
+known-third-party = ["zk"]

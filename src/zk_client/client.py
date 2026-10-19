@@ -8,9 +8,8 @@ import time
 from datetime import datetime
 from typing import Any
 
-from zk.exception import ZKError as PyZKError
-
 from zk import ZK
+from zk.exception import ZKError as PyZKError
 
 from .attendance import AttendanceRecord
 from .exceptions import ZKAttendanceError, ZKConnectionError

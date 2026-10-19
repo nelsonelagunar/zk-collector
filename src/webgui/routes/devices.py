@@ -14,9 +14,8 @@ from flask import (
     request,
     url_for,
 )
-from zk.exception import ZKError
-
 from zk import ZK
+from zk.exception import ZKError
 
 devices_bp = Blueprint("devices", __name__)
 
