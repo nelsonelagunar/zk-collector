@@ -84,3 +84,37 @@ def test_device_users_endpoint(client):
 
 def test_device_users_unknown_device_404(client):
     assert client.get("/colaboradores/api/devices/999/users").status_code == 404
+
+
+def _seed_employee(db, **extra):
+    return db.insert(
+        "employees",
+        {"employee_code": "E001", "first_name": "Ana", "last_name": "Lopez", **extra},
+    )
+
+
+def test_expediente_page_renders(client):
+    employee_id = _seed_employee(client.application.db)
+    resp = client.get(f"/colaboradores/expediente/{employee_id}")
+    assert resp.status_code == 200
+    assert b"Expediente" in resp.data
+    assert b"Incapacidades" in resp.data
+    assert b"/api/medical-leaves/" in resp.data
+
+
+def test_expediente_page_lists_employee_data(client):
+    employee_id = _seed_employee(client.application.db, department="Operaciones")
+    resp = client.get(f"/colaboradores/expediente/{employee_id}")
+    assert b"Ana Lopez" in resp.data
+    assert b"Operaciones" in resp.data
+
+
+def test_expediente_unknown_employee_404(client):
+    assert client.get("/colaboradores/expediente/999").status_code == 404
+
+
+def test_colaboradores_list_links_expediente(client):
+    _seed_employee(client.application.db)
+    resp = client.get("/colaboradores/")
+    assert resp.status_code == 200
+    assert b"/colaboradores/expediente/" in resp.data
