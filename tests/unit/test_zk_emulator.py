@@ -9,7 +9,7 @@ from datetime import datetime
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from mock.zk_emulator import (
     CMD_ACK_ERROR,
     CMD_ACK_OK,
@@ -229,7 +229,6 @@ class TestEmulatorReadBuffer:
         code, data = parse_response(inner)
         assert code == CMD_DATA
         assert len(data) == 4 + len(emu.attendance_records) * 8
-
 
 
 class TestEmulatorPacketProcessing:

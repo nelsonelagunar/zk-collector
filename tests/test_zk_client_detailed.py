@@ -1,16 +1,17 @@
 """
 Detailed unit tests for ZKClient module to improve coverage
 """
+
 import logging
 from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import pytest
 from zk.exception import ZKError as PyZKError
 
-from src.zk_client.client import ZKClient
-from src.zk_client.exceptions import ZKConnectionError, ZKAttendanceError
 from src.zk_client.attendance import AttendanceRecord
+from src.zk_client.client import ZKClient
+from src.zk_client.exceptions import ZKAttendanceError, ZKConnectionError
 
 
 class TestZKClientDetailed:
@@ -19,9 +20,9 @@ class TestZKClientDetailed:
     @pytest.fixture
     def zk_client(self):
         """Create ZKClient instance"""
-        return ZKClient('192.168.1.100', port=4370, timeout=5, password=0)
+        return ZKClient("192.168.1.100", port=4370, timeout=5, password=0)
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_connect_success(self, mock_zk_class, zk_client):
         """Test successful connection"""
         mock_instance = Mock()
@@ -36,17 +37,17 @@ class TestZKClientDetailed:
         assert zk_client.last_successful_connection is not None
         assert zk_client.connection_attempts == 0  # reset on success
         mock_zk_class.assert_called_once_with(
-            '192.168.1.100',
+            "192.168.1.100",
             port=4370,
             timeout=5,
             password=0,
             force_udp=False,
             ommit_ping=False,
-            encoding='utf-8'
+            encoding="utf-8",
         )
         mock_instance.connect.assert_called_once()
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_connect_pyzkerror_retry(self, mock_zk_class, zk_client):
         """Test PyZKError triggers retry"""
         mock_instance = Mock()
@@ -60,7 +61,7 @@ class TestZKClientDetailed:
         # connection_attempts is reset to 0 on success (line 86 in client.py)
         assert zk_client.connection_attempts == 0
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_connect_timeout_retry(self, mock_zk_class, zk_client):
         """Test TimeoutError triggers retry"""
         mock_instance = Mock()
@@ -72,7 +73,7 @@ class TestZKClientDetailed:
         assert result is True
         assert mock_zk_class.call_count == 2
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_connect_connection_refused_raises(self, mock_zk_class, zk_client):
         """Test ConnectionRefusedError raises ZKConnectionError immediately"""
         mock_zk_class.side_effect = ConnectionRefusedError("refused")
@@ -81,7 +82,7 @@ class TestZKClientDetailed:
             zk_client.connect(max_retries=3)
         assert mock_zk_class.call_count == 1
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_connect_generic_exception_raises(self, mock_zk_class, zk_client):
         """Test generic Exception raises ZKConnectionError immediately"""
         mock_zk_class.side_effect = Exception("unexpected error")
@@ -90,7 +91,7 @@ class TestZKClientDetailed:
             zk_client.connect(max_retries=3)
         assert mock_zk_class.call_count == 1
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_connect_max_retries_exhausted(self, mock_zk_class, zk_client):
         """Test max retries exhausted returns False"""
         mock_zk_class.side_effect = PyZKError("persistent error")
@@ -101,7 +102,7 @@ class TestZKClientDetailed:
         assert zk_client.connected is False
         assert mock_zk_class.call_count == 3
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_connect_with_password(self, mock_zk_class, zk_client):
         """Test connect with password parameter"""
         zk_client.password = 12345
@@ -112,13 +113,13 @@ class TestZKClientDetailed:
         zk_client.connect()
 
         mock_zk_class.assert_called_once_with(
-            '192.168.1.100',
+            "192.168.1.100",
             port=4370,
             timeout=5,
             password=12345,
             force_udp=False,
             ommit_ping=False,
-            encoding='utf-8'
+            encoding="utf-8",
         )
 
     def test_disconnect_when_connected(self, zk_client):
@@ -153,13 +154,13 @@ class TestZKClientDetailed:
         assert "Error cerrando conexión" in caplog.text
         assert zk_client.connected is False
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_get_attendance_success(self, mock_zk_class, zk_client):
         """Test successful attendance retrieval"""
         mock_zk = Mock()
         mock_zk.get_attendance.return_value = [
-            Mock(user_id='1', timestamp='2026-01-01 08:00:00', status=0),
-            Mock(user_id='2', timestamp='2026-01-01 09:00:00', status=1),
+            Mock(user_id="1", timestamp="2026-01-01 08:00:00", status=0),
+            Mock(user_id="2", timestamp="2026-01-01 09:00:00", status=1),
         ]
         zk_client.zk = mock_zk
         zk_client.connected = True
@@ -168,13 +169,13 @@ class TestZKClientDetailed:
 
         assert len(records) == 2
         assert isinstance(records[0], AttendanceRecord)
-        assert records[0].user_id == '1'
-        assert records[1].user_id == '2'
+        assert records[0].user_id == "1"
+        assert records[1].user_id == "2"
         mock_zk.disable_device.assert_called_once()
         mock_zk.get_attendance.assert_called_once()
         mock_zk.enable_device.assert_called_once()
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_get_attendance_empty(self, mock_zk_class, zk_client):
         """Test attendance retrieval with no records"""
         mock_zk = Mock()
@@ -197,7 +198,7 @@ class TestZKClientDetailed:
         assert records is None
         assert "No hay conexión activa" in caplog.text
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_get_attendance_pyzkerror(self, mock_zk_class, zk_client):
         """Test get_attendance handles PyZKError"""
         mock_zk = Mock()
@@ -209,7 +210,7 @@ class TestZKClientDetailed:
             zk_client.get_attendance()
         mock_zk.enable_device.assert_called_once()  # Called in finally
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_get_attendance_generic_exception(self, mock_zk_class, zk_client):
         """Test get_attendance handles generic Exception"""
         mock_zk = Mock()
@@ -221,11 +222,13 @@ class TestZKClientDetailed:
             zk_client.get_attendance()
         mock_zk.enable_device.assert_called_once()
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_get_attendance_clear_after_read(self, mock_zk_class, zk_client):
         """Test get_attendance with clear_after_read=True"""
         mock_zk = Mock()
-        mock_zk.get_attendance.return_value = [Mock(user_id='1', timestamp='2026-01-01 08:00:00', status=0)]
+        mock_zk.get_attendance.return_value = [
+            Mock(user_id="1", timestamp="2026-01-01 08:00:00", status=0)
+        ]
         zk_client.zk = mock_zk
         zk_client.connected = True
 
@@ -233,11 +236,13 @@ class TestZKClientDetailed:
 
         mock_zk.clear_attendance.assert_called_once()
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_get_attendance_disable_device_false(self, mock_zk_class, zk_client):
         """Test get_attendance with disable_device=False"""
         mock_zk = Mock()
-        mock_zk.get_attendance.return_value = [Mock(user_id='1', timestamp='2026-01-01 08:00:00', status=0)]
+        mock_zk.get_attendance.return_value = [
+            Mock(user_id="1", timestamp="2026-01-01 08:00:00", status=0)
+        ]
         zk_client.zk = mock_zk
         zk_client.connected = True
 
@@ -246,7 +251,7 @@ class TestZKClientDetailed:
         mock_zk.disable_device.assert_not_called()
         mock_zk.enable_device.assert_not_called()
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_get_device_info_success(self, mock_zk_class, zk_client):
         """Test successful device info retrieval"""
         mock_zk = Mock()
@@ -260,11 +265,11 @@ class TestZKClientDetailed:
 
         info = zk_client.get_device_info()
 
-        assert info['firmware_version'] == "6.60"
-        assert info['serial_number'] == "SN123456"
-        assert info['platform'] == "ZKPlatform"
-        assert info['device_name'] == "Device1"
-        assert info['mac_address'] == "AA:BB:CC:DD:EE:FF"
+        assert info["firmware_version"] == "6.60"
+        assert info["serial_number"] == "SN123456"
+        assert info["platform"] == "ZKPlatform"
+        assert info["device_name"] == "Device1"
+        assert info["mac_address"] == "AA:BB:CC:DD:EE:FF"
         assert zk_client._device_info_cache == info
 
     def test_get_device_info_not_connected(self, zk_client):
@@ -272,7 +277,7 @@ class TestZKClientDetailed:
         zk_client.connected = False
         assert zk_client.get_device_info() is None
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_get_device_info_exception(self, mock_zk_class, zk_client, caplog):
         """Test get_device_info handles exception"""
         mock_zk = Mock()
@@ -285,13 +290,13 @@ class TestZKClientDetailed:
         assert info is None
         assert "Error obteniendo información del dispositivo" in caplog.text
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_get_users_success(self, mock_zk_class, zk_client):
         """Test successful users retrieval"""
         mock_zk = Mock()
         mock_zk.get_users.return_value = [
-            {'uid': 1, 'name': 'User1', 'privilege': 0},
-            {'uid': 2, 'name': 'User2', 'privilege': 1},
+            {"uid": 1, "name": "User1", "privilege": 0},
+            {"uid": 2, "name": "User2", "privilege": 1},
         ]
         zk_client.zk = mock_zk
         zk_client.connected = True
@@ -299,14 +304,14 @@ class TestZKClientDetailed:
         users = zk_client.get_users()
 
         assert len(users) == 2
-        assert users[0]['name'] == 'User1'
+        assert users[0]["name"] == "User1"
 
     def test_get_users_not_connected(self, zk_client):
         """Test get_users when not connected"""
         zk_client.connected = False
         assert zk_client.get_users() is None
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_get_users_exception(self, mock_zk_class, zk_client, caplog):
         """Test get_users handles exception"""
         mock_zk = Mock()
@@ -319,7 +324,7 @@ class TestZKClientDetailed:
         assert users is None
         assert "Error obteniendo usuarios" in caplog.text
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_get_time_success(self, mock_zk_class, zk_client):
         """Test successful time retrieval"""
         mock_zk = Mock()
@@ -337,7 +342,7 @@ class TestZKClientDetailed:
         zk_client.connected = False
         assert zk_client.get_time() is None
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_get_time_not_datetime(self, mock_zk_class, zk_client):
         """Test get_time when return is not datetime"""
         mock_zk = Mock()
@@ -349,7 +354,7 @@ class TestZKClientDetailed:
 
         assert result is None
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_set_time_success(self, mock_zk_class, zk_client):
         """Test successful time setting"""
         mock_zk = Mock()
@@ -367,7 +372,7 @@ class TestZKClientDetailed:
         zk_client.connected = False
         assert zk_client.set_time(datetime.now()) is False
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_set_time_exception(self, mock_zk_class, zk_client, caplog):
         """Test set_time handles exception"""
         mock_zk = Mock()
@@ -380,7 +385,7 @@ class TestZKClientDetailed:
         assert result is False
         assert "Error estableciendo hora" in caplog.text
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_restart_success(self, mock_zk_class, zk_client):
         """Test successful device restart"""
         mock_zk = Mock()
@@ -397,7 +402,7 @@ class TestZKClientDetailed:
         zk_client.connected = False
         assert zk_client.restart() is False
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_restart_exception(self, mock_zk_class, zk_client, caplog):
         """Test restart handles exception"""
         mock_zk = Mock()
@@ -410,7 +415,7 @@ class TestZKClientDetailed:
         assert result is False
         assert "Error reiniciando dispositivo" in caplog.text
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_is_online_true(self, mock_zk_class, zk_client):
         """Test is_online returns True when device responds"""
         mock_zk = Mock()
@@ -422,7 +427,7 @@ class TestZKClientDetailed:
 
         assert result is True
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_is_online_false_on_exception(self, mock_zk_class, zk_client):
         """Test is_online returns False on exception"""
         mock_zk = Mock()
@@ -440,7 +445,7 @@ class TestZKClientDetailed:
         zk_client.connected = False
         assert zk_client.is_online() is False
 
-    @patch('src.zk_client.client.ZK')
+    @patch("src.zk_client.client.ZK")
     def test_get_connection_status(self, mock_zk_class, zk_client):
         """Test get_connection_status"""
         zk_client.connected = True
@@ -450,17 +455,17 @@ class TestZKClientDetailed:
 
         status = zk_client.get_connection_status()
 
-        assert status['ip'] == '192.168.1.100'
-        assert status['port'] == 4370
-        assert status['connected'] is True
-        assert status['last_attempt'] == '2026-01-01T10:00:00'
-        assert status['last_success'] == '2026-01-01T10:00:05'
-        assert status['failed_attempts'] == 0
+        assert status["ip"] == "192.168.1.100"
+        assert status["port"] == 4370
+        assert status["connected"] is True
+        assert status["last_attempt"] == "2026-01-01T10:00:00"
+        assert status["last_success"] == "2026-01-01T10:00:05"
+        assert status["failed_attempts"] == 0
 
     def test_get_connection_status_no_attempts(self, zk_client):
         """Test get_connection_status with no attempts"""
         status = zk_client.get_connection_status()
 
-        assert status['last_attempt'] is None
-        assert status['last_success'] is None
-        assert status['failed_attempts'] == 0
+        assert status["last_attempt"] is None
+        assert status["last_success"] is None
+        assert status["failed_attempts"] == 0

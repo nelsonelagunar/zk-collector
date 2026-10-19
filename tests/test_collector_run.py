@@ -1,9 +1,10 @@
 """
 Unit tests for AttendanceCollector run loop
 """
+
 import logging
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -16,19 +17,26 @@ def mock_config(tmp_path):
     """Create a mock config"""
     config = Mock(spec=Config)
     config.get.side_effect = lambda key, default=None: {
-        'buffer.db_path': str(tmp_path / 'buffer.db'),
-        'buffer.max_records': 1000,
-        'platform.url': 'https://api.example.com',
-        'platform.api_key': 'test-key',
-        'platform.tenant_id': 'test-tenant',
-        'platform.timeout': 30,
-        'platform.retry_attempts': 3,
-        'health.heartbeat_interval': 300,
-        'poll_interval_seconds': 1,
-        'sync_interval_seconds': 1,
-        'devices': [
-            {'ip': '192.168.1.100', 'port': 4370, 'timeout': 5, 'password': 0, 'enabled': True, 'name': 'Device1'},
-        ]
+        "buffer.db_path": str(tmp_path / "buffer.db"),
+        "buffer.max_records": 1000,
+        "platform.url": "https://api.example.com",
+        "platform.api_key": "test-key",
+        "platform.tenant_id": "test-tenant",
+        "platform.timeout": 30,
+        "platform.retry_attempts": 3,
+        "health.heartbeat_interval": 300,
+        "poll_interval_seconds": 1,
+        "sync_interval_seconds": 1,
+        "devices": [
+            {
+                "ip": "192.168.1.100",
+                "port": 4370,
+                "timeout": 5,
+                "password": 0,
+                "enabled": True,
+                "name": "Device1",
+            },
+        ],
     }.get(key, default)
     return config
 
@@ -36,10 +44,12 @@ def mock_config(tmp_path):
 @pytest.fixture
 def collector_with_mocks(mock_config):
     """Create collector with mocked dependencies"""
-    with patch('src.core.collector.BufferRepository'), \
-         patch('src.core.collector.PlatformSync'), \
-         patch('src.core.collector.HealthMonitor'), \
-         patch('src.core.collector.ZKClient'):
+    with (
+        patch("src.core.collector.BufferRepository"),
+        patch("src.core.collector.PlatformSync"),
+        patch("src.core.collector.HealthMonitor"),
+        patch("src.core.collector.ZKClient"),
+    ):
         collector = AttendanceCollector(mock_config)
         collector.buffer = Mock()
         collector.platform_sync = Mock()
@@ -50,11 +60,13 @@ def collector_with_mocks(mock_config):
 class TestCollectorRunLoop:
     """Tests for AttendanceCollector run method logic"""
 
-    @patch('src.core.collector.BufferRepository')
-    @patch('src.core.collector.PlatformSync')
-    @patch('src.core.collector.HealthMonitor')
-    @patch('src.core.collector.ZKClient')
-    def test_should_run_logic(self, mock_zk_client, mock_health, mock_platform, mock_buffer, mock_config):
+    @patch("src.core.collector.BufferRepository")
+    @patch("src.core.collector.PlatformSync")
+    @patch("src.core.collector.HealthMonitor")
+    @patch("src.core.collector.ZKClient")
+    def test_should_run_logic(
+        self, mock_zk_client, mock_health, mock_platform, mock_buffer, mock_config
+    ):
         """Test _should_run method logic"""
         collector = AttendanceCollector(mock_config)
 
@@ -69,11 +81,13 @@ class TestCollectorRunLoop:
         last_run = datetime.now() - timedelta(seconds=400)
         assert collector._should_run(last_run, 300) is True
 
-    @patch('src.core.collector.BufferRepository')
-    @patch('src.core.collector.PlatformSync')
-    @patch('src.core.collector.HealthMonitor')
-    @patch('src.core.collector.ZKClient')
-    def test_poll_and_sync_called_when_due(self, mock_zk_client, mock_health, mock_platform, mock_buffer, mock_config):
+    @patch("src.core.collector.BufferRepository")
+    @patch("src.core.collector.PlatformSync")
+    @patch("src.core.collector.HealthMonitor")
+    @patch("src.core.collector.ZKClient")
+    def test_poll_and_sync_called_when_due(
+        self, mock_zk_client, mock_health, mock_platform, mock_buffer, mock_config
+    ):
         """Test poll and sync are called when intervals elapsed"""
         collector = AttendanceCollector(mock_config)
 
@@ -81,7 +95,7 @@ class TestCollectorRunLoop:
         mock_client.connect.return_value = True
         mock_client.get_attendance.return_value = []
         mock_client.disconnect.return_value = None
-        collector.zk_clients = {'192.168.1.100': mock_client}
+        collector.zk_clients = {"192.168.1.100": mock_client}
         collector.buffer = Mock()
         collector.buffer.get_unsynced_records.return_value = []
         collector.platform_sync = Mock()
@@ -108,18 +122,20 @@ class TestCollectorRunLoop:
         # Let's verify it was called with empty list (or not called at all)
         # The code returns early if no records, so let's check that
         collector.buffer.get_unsynced_records.assert_called_once_with(limit=1000)
-        collector.buffer.log_sync.assert_called_once_with(0, 0, 'success', duration_seconds=0)
+        collector.buffer.log_sync.assert_called_once_with(0, 0, "success", duration_seconds=0)
 
-    @patch('src.core.collector.BufferRepository')
-    @patch('src.core.collector.PlatformSync')
-    @patch('src.core.collector.HealthMonitor')
-    @patch('src.core.collector.ZKClient')
-    def test_poll_not_called_when_not_due(self, mock_zk_client, mock_health, mock_platform, mock_buffer, mock_config):
+    @patch("src.core.collector.BufferRepository")
+    @patch("src.core.collector.PlatformSync")
+    @patch("src.core.collector.HealthMonitor")
+    @patch("src.core.collector.ZKClient")
+    def test_poll_not_called_when_not_due(
+        self, mock_zk_client, mock_health, mock_platform, mock_buffer, mock_config
+    ):
         """Test poll is not called when interval not elapsed"""
         collector = AttendanceCollector(mock_config)
 
         mock_client = Mock()
-        collector.zk_clients = {'192.168.1.100': mock_client}
+        collector.zk_clients = {"192.168.1.100": mock_client}
         collector.buffer = Mock()
         collector.health_monitor = Mock()
 
@@ -132,11 +148,13 @@ class TestCollectorRunLoop:
 
         mock_client.connect.assert_not_called()
 
-    @patch('src.core.collector.BufferRepository')
-    @patch('src.core.collector.PlatformSync')
-    @patch('src.core.collector.HealthMonitor')
-    @patch('src.core.collector.ZKClient')
-    def test_run_stop_flag(self, mock_zk_client, mock_health, mock_platform, mock_buffer, mock_config):
+    @patch("src.core.collector.BufferRepository")
+    @patch("src.core.collector.PlatformSync")
+    @patch("src.core.collector.HealthMonitor")
+    @patch("src.core.collector.ZKClient")
+    def test_run_stop_flag(
+        self, mock_zk_client, mock_health, mock_platform, mock_buffer, mock_config
+    ):
         """Test running flag controls loop"""
         collector = AttendanceCollector(mock_config)
         collector.running = True
@@ -145,11 +163,13 @@ class TestCollectorRunLoop:
 
         assert collector.running is False
 
-    @patch('src.core.collector.BufferRepository')
-    @patch('src.core.collector.PlatformSync')
-    @patch('src.core.collector.HealthMonitor')
-    @patch('src.core.collector.ZKClient')
-    def test_run_initializes_and_starts_health(self, mock_zk_client, mock_health, mock_platform, mock_buffer, mock_config):
+    @patch("src.core.collector.BufferRepository")
+    @patch("src.core.collector.PlatformSync")
+    @patch("src.core.collector.HealthMonitor")
+    @patch("src.core.collector.ZKClient")
+    def test_run_initializes_and_starts_health(
+        self, mock_zk_client, mock_health, mock_platform, mock_buffer, mock_config
+    ):
         """Test initialization sequence"""
         collector = AttendanceCollector(mock_config)
 
@@ -186,10 +206,7 @@ class TestCollectorEdgeCases:
         mock_client2.get_attendance.return_value = []
         mock_client2.disconnect.return_value = None
 
-        collector.zk_clients = {
-            '192.168.1.100': mock_client1,
-            '192.168.1.101': mock_client2
-        }
+        collector.zk_clients = {"192.168.1.100": mock_client1, "192.168.1.101": mock_client2}
 
         with caplog.at_level(logging.ERROR):
             collector.poll_devices()
@@ -203,7 +220,13 @@ class TestCollectorEdgeCases:
         collector = collector_with_mocks
 
         collector.buffer.get_unsynced_records.return_value = [
-            {'id': 1, 'user_id': '1', 'timestamp': '2026-01-01 08:00:00', 'status': 0, 'device_ip': '192.168.1.100'}
+            {
+                "id": 1,
+                "user_id": "1",
+                "timestamp": "2026-01-01 08:00:00",
+                "status": 0,
+                "device_ip": "192.168.1.100",
+            }
         ]
         # Return False instead of raising to test the error path
         collector.platform_sync.sync_attendance.return_value = False
@@ -225,12 +248,24 @@ class TestCollectorLogMessages:
         mock_client = Mock()
         mock_client.connect.return_value = True
         mock_client.get_attendance.return_value = [
-            {'id': 1, 'user_id': '1', 'timestamp': '2026-01-01 08:00:00', 'status': 0, 'device_ip': '192.168.1.100'},
-            {'id': 2, 'user_id': '2', 'timestamp': '2026-01-01 09:00:00', 'status': 1, 'device_ip': '192.168.1.100'},
+            {
+                "id": 1,
+                "user_id": "1",
+                "timestamp": "2026-01-01 08:00:00",
+                "status": 0,
+                "device_ip": "192.168.1.100",
+            },
+            {
+                "id": 2,
+                "user_id": "2",
+                "timestamp": "2026-01-01 09:00:00",
+                "status": 1,
+                "device_ip": "192.168.1.100",
+            },
         ]
         mock_client.disconnect.return_value = None
 
-        collector.zk_clients = {'192.168.1.100': mock_client}
+        collector.zk_clients = {"192.168.1.100": mock_client}
 
         with caplog.at_level(logging.INFO):
             collector.poll_devices()
@@ -243,7 +278,13 @@ class TestCollectorLogMessages:
         collector = collector_with_mocks
 
         collector.buffer.get_unsynced_records.return_value = [
-            {'id': 1, 'user_id': '1', 'timestamp': '2026-01-01 08:00:00', 'status': 0, 'device_ip': '192.168.1.100'},
+            {
+                "id": 1,
+                "user_id": "1",
+                "timestamp": "2026-01-01 08:00:00",
+                "status": 0,
+                "device_ip": "192.168.1.100",
+            },
         ]
         collector.platform_sync.sync_attendance.return_value = True
 
@@ -258,7 +299,13 @@ class TestCollectorLogMessages:
         collector = collector_with_mocks
 
         collector.buffer.get_unsynced_records.return_value = [
-            {'id': 1, 'user_id': '1', 'timestamp': '2026-01-01 08:00:00', 'status': 0, 'device_ip': '192.168.1.100'},
+            {
+                "id": 1,
+                "user_id": "1",
+                "timestamp": "2026-01-01 08:00:00",
+                "status": 0,
+                "device_ip": "192.168.1.100",
+            },
         ]
         collector.platform_sync.sync_attendance.return_value = False
 
@@ -279,10 +326,7 @@ class TestCollectorLogMessages:
         mock_client2 = Mock()
         mock_client2.connected = False
 
-        collector.zk_clients = {
-            '192.168.1.100': mock_client1,
-            '192.168.1.101': mock_client2
-        }
+        collector.zk_clients = {"192.168.1.100": mock_client1, "192.168.1.101": mock_client2}
 
         collector.stop()
 

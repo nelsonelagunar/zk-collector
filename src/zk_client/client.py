@@ -8,8 +8,9 @@ import time
 from datetime import datetime
 from typing import Any
 
-from zk import ZK
 from zk.exception import ZKError as PyZKError
+
+from zk import ZK
 
 from .attendance import AttendanceRecord
 from .exceptions import ZKAttendanceError, ZKConnectionError
@@ -34,7 +35,7 @@ class ZKClient:
         password: int = 0,
         force_udp: bool = False,
         ommit_ping: bool = False,
-        encoding: str = 'utf-8'
+        encoding: str = "utf-8",
     ):
         self.ip = ip
         self.port = port
@@ -76,7 +77,7 @@ class ZKClient:
                     password=self.password,
                     force_udp=self.force_udp,
                     ommit_ping=self.ommit_ping,
-                    encoding=self.encoding
+                    encoding=self.encoding,
                 )
 
                 self.zk.connect()
@@ -104,8 +105,7 @@ class ZKClient:
                 raise ZKConnectionError(f"Error inesperado: {e}") from e
 
         logger.error(
-            f"No se pudo conectar a {self.ip}:{self.port} "
-            f"después de {max_retries} intentos"
+            f"No se pudo conectar a {self.ip}:{self.port} después de {max_retries} intentos"
         )
         self.connected = False
         return False
@@ -123,9 +123,7 @@ class ZKClient:
                 self.zk = None
 
     def get_attendance(
-        self,
-        clear_after_read: bool = False,
-        disable_device: bool = True
+        self, clear_after_read: bool = False, disable_device: bool = True
     ) -> list[AttendanceRecord] | None:
         """
         Obtener registros de asistencia del dispositivo
@@ -193,11 +191,11 @@ class ZKClient:
 
         try:
             info = {
-                'firmware_version': self.zk.get_firmware_version(),
-                'serial_number': self.zk.get_serialnumber(),
-                'platform': self.zk.get_platform(),
-                'device_name': self.zk.get_device_name(),
-                'mac_address': self.zk.get_mac(),
+                "firmware_version": self.zk.get_firmware_version(),
+                "serial_number": self.zk.get_serialnumber(),
+                "platform": self.zk.get_platform(),
+                "device_name": self.zk.get_device_name(),
+                "mac_address": self.zk.get_mac(),
             }
 
             self._device_info_cache = info
@@ -311,10 +309,10 @@ class ZKClient:
         attempt = self.last_connection_attempt
         success = self.last_successful_connection
         return {
-            'ip': self.ip,
-            'port': self.port,
-            'connected': self.connected,
-            'last_attempt': attempt.isoformat() if attempt else None,
-            'last_success': success.isoformat() if success else None,
-            'failed_attempts': self.connection_attempts,
+            "ip": self.ip,
+            "port": self.port,
+            "connected": self.connected,
+            "last_attempt": attempt.isoformat() if attempt else None,
+            "last_success": success.isoformat() if success else None,
+            "failed_attempts": self.connection_attempts,
         }

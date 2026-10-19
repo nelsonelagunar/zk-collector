@@ -30,9 +30,9 @@ class PlatformSync:
         api_key: str,
         tenant_id: str,
         timeout: int = 30,
-        retry_attempts: int = 3
+        retry_attempts: int = 3,
     ):
-        self.platform_url = platform_url.rstrip('/')
+        self.platform_url = platform_url.rstrip("/")
         self.api_key = api_key
         self.tenant_id = tenant_id
         self.timeout = timeout
@@ -45,7 +45,7 @@ class PlatformSync:
             total=retry_attempts,
             backoff_factor=1.0,
             status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE"]
+            allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE"],
         )
 
         adapter = HTTPAdapter(max_retries=retry_strategy)
@@ -53,12 +53,14 @@ class PlatformSync:
         self.session.mount("http://", adapter)
 
         # Headers por defecto
-        self.session.headers.update({
-            'Authorization': f'Bearer {api_key}',
-            'X-Tenant-ID': tenant_id,
-            'Content-Type': 'application/json',
-            'Accept-Encoding': 'gzip, deflate',
-        })
+        self.session.headers.update(
+            {
+                "Authorization": f"Bearer {api_key}",
+                "X-Tenant-ID": tenant_id,
+                "Content-Type": "application/json",
+                "Accept-Encoding": "gzip, deflate",
+            }
+        )
 
         logger.info(f"PlatformSync inicializado: {self.platform_url}")
 
@@ -82,27 +84,24 @@ class PlatformSync:
         try:
             # Preparar payload
             from typing import Any
+
             payload: dict[str, Any] = {
-                'records': [
+                "records": [
                     {
-                        'user_id': r['user_id'],
-                        'timestamp': r['timestamp'],
-                        'status': r['status'],
-                        'device_ip': r['device_ip'],
-                        'punch_type': r.get('punch_type', 'unknown')
+                        "user_id": r["user_id"],
+                        "timestamp": r["timestamp"],
+                        "status": r["status"],
+                        "device_ip": r["device_ip"],
+                        "punch_type": r.get("punch_type", "unknown"),
                     }
                     for r in records
                 ],
-                'synced_at': datetime.now().isoformat(),
-                'collector_version': '1.0.0'
+                "synced_at": datetime.now().isoformat(),
+                "collector_version": "1.0.0",
             }
 
             # Enviar request
-            response = self.session.post(
-                endpoint,
-                json=payload,
-                timeout=self.timeout
-            )
+            response = self.session.post(endpoint, json=payload, timeout=self.timeout)
 
             # Verificar respuesta
             response.raise_for_status()
@@ -127,11 +126,7 @@ class PlatformSync:
             logger.error(f"Error inesperado sincronizando: {e}", exc_info=True)
             return False
 
-    def send_heartbeat(
-        self,
-        metrics: dict[str, Any],
-        devices_status: list[dict[str, Any]]
-    ) -> bool:
+    def send_heartbeat(self, metrics: dict[str, Any], devices_status: list[dict[str, Any]]) -> bool:
         """
         Enviar heartbeat a plataforma
 
@@ -145,19 +140,16 @@ class PlatformSync:
         endpoint = f"{self.platform_url}/api/v1/collector/heartbeat"
 
         from typing import Any
+
         payload: dict[str, Any] = {
-            'timestamp': datetime.now().isoformat(),
-            'version': '1.0.0',
-            'metrics': metrics,
-            'devices': devices_status
+            "timestamp": datetime.now().isoformat(),
+            "version": "1.0.0",
+            "metrics": metrics,
+            "devices": devices_status,
         }
 
         try:
-            response = self.session.post(
-                endpoint,
-                json=payload,
-                timeout=10
-            )
+            response = self.session.post(endpoint, json=payload, timeout=10)
             response.raise_for_status()
             logger.debug("Heartbeat enviado exitosamente")
             return True
@@ -197,7 +189,7 @@ class PlatformSync:
             response = self.session.get(endpoint, timeout=10)
             response.raise_for_status()
             data: dict[str, Any] = response.json()
-            version = data.get('latest_version')
+            version = data.get("latest_version")
             logger.debug(f"Versión disponible: {version}")
             return version
         except Exception as e:
@@ -241,12 +233,13 @@ class PlatformSync:
         endpoint = f"{self.platform_url}/api/v1/collector/error"
 
         from typing import Any
+
         payload: dict[str, Any] = {
-            'timestamp': datetime.now().isoformat(),
-            'type': error_type,
-            'message': error_message,
-            'context': context,
-            'version': '1.0.0'
+            "timestamp": datetime.now().isoformat(),
+            "type": error_type,
+            "message": error_message,
+            "context": context,
+            "version": "1.0.0",
         }
 
         try:

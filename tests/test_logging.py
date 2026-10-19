@@ -1,12 +1,9 @@
 """
 Unit tests for logging module
 """
+
 import json
 import logging
-from pathlib import Path
-from unittest.mock import patch
-
-import pytest
 
 from src.utils.logging import JsonFormatter, setup_logging
 
@@ -16,49 +13,50 @@ class TestJsonFormatter:
 
     def test_format_basic_log_record(self):
         """Test formatting a basic log record"""
-        formatter = JsonFormatter(datefmt='%Y-%m-%d %H:%M:%S')
+        formatter = JsonFormatter(datefmt="%Y-%m-%d %H:%M:%S")
         record = logging.LogRecord(
-            name='test_logger',
+            name="test_logger",
             level=logging.INFO,
-            pathname='test.py',
+            pathname="test.py",
             lineno=10,
-            msg='Test message',
+            msg="Test message",
             args=(),
-            exc_info=None
+            exc_info=None,
         )
         result = formatter.format(record)
         log_obj = json.loads(result)
-        assert log_obj['logger'] == 'test_logger'
-        assert log_obj['level'] == 'INFO'
-        assert log_obj['message'] == 'Test message'
-        assert 'timestamp' in log_obj
+        assert log_obj["logger"] == "test_logger"
+        assert log_obj["level"] == "INFO"
+        assert log_obj["message"] == "Test message"
+        assert "timestamp" in log_obj
 
     def test_format_log_record_with_exception(self):
         """Test formatting a log record with exception info"""
-        formatter = JsonFormatter(datefmt='%Y-%m-%d %H:%M:%S')
+        formatter = JsonFormatter(datefmt="%Y-%m-%d %H:%M:%S")
         try:
             raise ValueError("test error")
         except ValueError:
             import sys
+
             exc_info = sys.exc_info()
 
         record = logging.LogRecord(
-            name='test_logger',
+            name="test_logger",
             level=logging.ERROR,
-            pathname='test.py',
+            pathname="test.py",
             lineno=10,
-            msg='Error occurred',
+            msg="Error occurred",
             args=(),
-            exc_info=exc_info
+            exc_info=exc_info,
         )
         result = formatter.format(record)
         log_obj = json.loads(result)
-        assert log_obj['logger'] == 'test_logger'
-        assert log_obj['level'] == 'ERROR'
-        assert log_obj['message'] == 'Error occurred'
-        assert 'exception' in log_obj
-        assert 'ValueError' in log_obj['exception']
-        assert 'test error' in log_obj['exception']
+        assert log_obj["logger"] == "test_logger"
+        assert log_obj["level"] == "ERROR"
+        assert log_obj["message"] == "Error occurred"
+        assert "exception" in log_obj
+        assert "ValueError" in log_obj["exception"]
+        assert "test error" in log_obj["exception"]
 
 
 class TestSetupLogging:
@@ -69,7 +67,7 @@ class TestSetupLogging:
         log_dir = tmp_path / "logs"
         logger = setup_logging(log_dir, level=logging.DEBUG, log_format="text")
 
-        assert logger.name == 'attendance_collector'
+        assert logger.name == "attendance_collector"
         assert logger.level == logging.DEBUG
         assert len(logger.handlers) == 3  # console, file, error file
 
@@ -82,7 +80,7 @@ class TestSetupLogging:
         log_dir = tmp_path / "logs"
         logger = setup_logging(log_dir, level=logging.INFO, log_format="json")
 
-        assert logger.name == 'attendance_collector'
+        assert logger.name == "attendance_collector"
         assert logger.level == logging.INFO
         # Should have handlers with JsonFormatter
         formatters = [h.formatter for h in logger.handlers if h.formatter]
@@ -92,22 +90,18 @@ class TestSetupLogging:
         """Test setup_logging creates log directory"""
         log_dir = tmp_path / "new_logs"
         assert not log_dir.exists()
-        logger = setup_logging(log_dir)
+        setup_logging(log_dir)
         assert log_dir.exists()
 
     def test_setup_logging_custom_parameters(self, tmp_path):
         """Test setup_logging with custom max_size and backup_count"""
         log_dir = tmp_path / "logs"
         logger = setup_logging(
-            log_dir,
-            level=logging.WARNING,
-            log_format="text",
-            max_size_mb=5,
-            backup_count=3
+            log_dir, level=logging.WARNING, log_format="text", max_size_mb=5, backup_count=3
         )
 
         # Check rotating file handlers have correct settings
-        file_handlers = [h for h in logger.handlers if hasattr(h, 'maxBytes')]
+        file_handlers = [h for h in logger.handlers if hasattr(h, "maxBytes")]
         for handler in file_handlers:
             assert handler.maxBytes == 5 * 1024 * 1024
             assert handler.backupCount == 3
@@ -125,7 +119,7 @@ class TestSetupLogging:
         log_dir = tmp_path / "logs"
         logger = setup_logging(log_dir)
         assert isinstance(logger, logging.Logger)
-        assert logger.name == 'attendance_collector'
+        assert logger.name == "attendance_collector"
 
     def test_setup_logging_clears_existing_handlers(self, tmp_path):
         """Test setup_logging clears existing handlers"""

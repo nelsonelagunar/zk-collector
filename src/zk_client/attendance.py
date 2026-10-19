@@ -19,6 +19,7 @@ class AttendanceRecord:
         device_ip: IP del dispositivo que registró
         punch_type: Tipo de marcado (derivado de status)
     """
+
     user_id: str
     timestamp: datetime
     status: int
@@ -42,17 +43,17 @@ class AttendanceRecord:
         5 = OT Out (Fin horas extra)
         """
         punch_types = {
-            0: 'entrada',
-            1: 'salida',
-            2: 'salida_comida',
-            3: 'entrada_comida',
-            4: 'entrada_extra',
-            5: 'salida_extra',
+            0: "entrada",
+            1: "salida",
+            2: "salida_comida",
+            3: "entrada_comida",
+            4: "entrada_extra",
+            5: "salida_extra",
         }
-        return punch_types.get(self.status, 'desconocido')
+        return punch_types.get(self.status, "desconocido")
 
     @classmethod
-    def from_zk_attendance(cls, attendance: Any, device_ip: str) -> 'AttendanceRecord':
+    def from_zk_attendance(cls, attendance: Any, device_ip: str) -> "AttendanceRecord":
         """
         Crear AttendanceRecord desde objeto pyzk
 
@@ -73,11 +74,11 @@ class AttendanceRecord:
     def to_dict(self) -> dict:
         """Convertir a diccionario"""
         return {
-            'user_id': self.user_id,
-            'timestamp': self.timestamp.isoformat(),
-            'status': self.status,
-            'device_ip': self.device_ip,
-            'punch_type': self.punch_type,
+            "user_id": self.user_id,
+            "timestamp": self.timestamp.isoformat(),
+            "status": self.status,
+            "device_ip": self.device_ip,
+            "punch_type": self.punch_type,
         }
 
     def __str__(self) -> str:

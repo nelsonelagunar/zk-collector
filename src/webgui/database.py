@@ -66,7 +66,7 @@ class Database:
             # Obtener migraciones aplicadas
             cursor = conn.cursor()
             cursor.execute("SELECT name FROM _migrations")
-            applied = {row['name'] for row in cursor.fetchall()}
+            applied = {row["name"] for row in cursor.fetchall()}
 
             # Aplicar migraciones pendientes
             for migration_file in migration_files:
@@ -82,10 +82,7 @@ class Database:
                     sql = f.read()
 
                 conn.executescript(sql)
-                cursor.execute(
-                    "INSERT INTO _migrations (name) VALUES (?)",
-                    (migration_name,)
-                )
+                cursor.execute("INSERT INTO _migrations (name) VALUES (?)", (migration_name,))
 
             logger.info(f"Migraciones completadas: {len(migration_files)} archivos")
 
@@ -114,8 +111,8 @@ class Database:
 
     def insert(self, table: str, data: dict) -> int:
         """Insertar registro"""
-        columns = ', '.join(data.keys())
-        placeholders = ', '.join(['?'] * len(data))
+        columns = ", ".join(data.keys())
+        placeholders = ", ".join(["?"] * len(data))
 
         query = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
 
@@ -126,7 +123,7 @@ class Database:
 
     def update(self, table: str, data: dict, where: str, where_params: tuple = ()) -> int:
         """Actualizar registros"""
-        set_clause = ', '.join([f"{k} = ?" for k in data])
+        set_clause = ", ".join([f"{k} = ?" for k in data])
         query = f"UPDATE {table} SET {set_clause} WHERE {where}"
 
         params = tuple(data.values()) + where_params
@@ -148,17 +145,11 @@ class Database:
     # Métodos específicos para empleados
     def get_employee_by_code(self, employee_code: str) -> dict | None:
         """Obtener empleado por código"""
-        return self.fetch_one(
-            "SELECT * FROM employees WHERE employee_code = ?",
-            (employee_code,)
-        )
+        return self.fetch_one("SELECT * FROM employees WHERE employee_code = ?", (employee_code,))
 
     def get_employee_by_id(self, employee_id: int) -> dict | None:
         """Obtener empleado por ID"""
-        return self.fetch_one(
-            "SELECT * FROM employees WHERE id = ?",
-            (employee_id,)
-        )
+        return self.fetch_one("SELECT * FROM employees WHERE id = ?", (employee_id,))
 
     def get_employees(self, status: str | None = None, department: str | None = None) -> list[dict]:
         """Obtener lista de empleados con filtros opcionales"""
@@ -188,12 +179,7 @@ class Database:
         """Actualizar empleado existente; refresca updated_at."""
         employee_data = dict(employee_data)
         employee_data["updated_at"] = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
-        return self.update(
-            "employees",
-            employee_data,
-            "id = ?",
-            (employee_id,)
-        )
+        return self.update("employees", employee_data, "id = ?", (employee_id,))
 
     def delete_employee(self, employee_id: int) -> int:
         """Eliminar empleado (soft delete mediante status)"""
@@ -204,7 +190,7 @@ class Database:
                 "updated_at": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S"),
             },
             "id = ?",
-            (employee_id,)
+            (employee_id,),
         )
 
     # Métodos específicos para enlaces empleado-dispositivo
@@ -215,7 +201,7 @@ class Database:
         link_data = {
             "employee_id": employee_id,
             "device_serial": device_serial,
-            "device_user_id": device_user_id
+            "device_user_id": device_user_id,
         }
         return self.insert("employee_device_links", link_data)
 
@@ -226,23 +212,29 @@ class Database:
         return self.delete(
             "employee_device_links",
             "employee_id = ? AND device_serial = ? AND device_user_id = ?",
-            (employee_id, device_serial, device_user_id)
+            (employee_id, device_serial, device_user_id),
         )
 
     def get_devices_for_employee(self, employee_id: int) -> list[dict]:
         """Obtener dispositivos vinculados a un empleado"""
-        return self.fetch_all("""
+        return self.fetch_all(
+            """
             SELECT edl.*, d.name as device_name, d.location, d.address
             FROM employee_device_links edl
             JOIN devices d ON edl.device_serial = d.serial_number
             WHERE edl.employee_id = ?
-        """, (employee_id,))
+        """,
+            (employee_id,),
+        )
 
     def get_employees_for_device(self, device_serial: str, device_user_id: str) -> list[dict]:
         """Obtener empleados vinculados a un dispositivo"""
-        return self.fetch_all("""
+        return self.fetch_all(
+            """
             SELECT e.*, edl.device_serial, edl.device_user_id
             FROM employee_device_links edl
             JOIN employees e ON edl.employee_id = e.id
             WHERE edl.device_serial = ? AND edl.device_user_id = ?
-        """, (device_serial, device_user_id))
+        """,
+            (device_serial, device_user_id),
+        )

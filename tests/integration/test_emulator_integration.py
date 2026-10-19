@@ -227,6 +227,7 @@ async def test_emulator_server_starts():
 
 async def _handle_client(reader, writer):
     from mock.zk_emulator import handle_client
+
     await handle_client(reader, writer)
 
 

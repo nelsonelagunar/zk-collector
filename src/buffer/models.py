@@ -9,6 +9,7 @@ from datetime import datetime
 @dataclass
 class AttendanceRecordDB:
     """Modelo de registro de asistencia para base de datos"""
+
     user_id: str
     timestamp: datetime
     status: int
@@ -20,13 +21,13 @@ class AttendanceRecordDB:
     def to_dict(self) -> dict:
         """Convertir a diccionario"""
         ts = self.timestamp
-        ts_str = ts.isoformat() if hasattr(ts, 'isoformat') else str(ts)
+        ts_str = ts.isoformat() if hasattr(ts, "isoformat") else str(ts)
         return {
-            'user_id': self.user_id,
-            'timestamp': ts_str,
-            'status': self.status,
-            'device_ip': self.device_ip,
-            'punch_type': self.punch_type,
-            'synced': self.synced,
-            'sync_attempts': self.sync_attempts,
+            "user_id": self.user_id,
+            "timestamp": ts_str,
+            "status": self.status,
+            "device_ip": self.device_ip,
+            "punch_type": self.punch_type,
+            "synced": self.synced,
+            "sync_attempts": self.sync_attempts,
         }

@@ -1,10 +1,8 @@
 """
 Unit tests for helpers module
 """
-import os
-from unittest.mock import Mock, patch
 
-import pytest
+from unittest.mock import Mock, patch
 
 from src.utils.helpers import (
     format_bytes,
@@ -19,8 +17,8 @@ from src.utils.helpers import (
 class TestHelpers:
     """Tests for helper functions"""
 
-    @patch('src.utils.helpers.platform')
-    @patch('src.utils.helpers.psutil')
+    @patch("src.utils.helpers.platform")
+    @patch("src.utils.helpers.psutil")
     def test_get_system_info(self, mock_psutil, mock_platform):
         """Test get_system_info returns system information"""
         mock_platform.system.return_value = "Linux"
@@ -32,47 +30,47 @@ class TestHelpers:
         mock_platform.node.return_value = "test-host"
 
         mock_memory = Mock()
-        mock_memory.total = 16 * (1024 ** 3)  # 16 GB
+        mock_memory.total = 16 * (1024**3)  # 16 GB
         mock_psutil.virtual_memory.return_value = mock_memory
         mock_psutil.cpu_count.return_value = 8
 
         info = get_system_info()
-        assert info['os'] == "Linux 6.0.0 (x86_64)"
-        assert info['python'] == "3.12.0 (CPython)"
-        assert info['ram'] == "16.00 GB"
-        assert info['cpu'] == "8 cores (Intel i7)"
-        assert info['hostname'] == "test-host"
+        assert info["os"] == "Linux 6.0.0 (x86_64)"
+        assert info["python"] == "3.12.0 (CPython)"
+        assert info["ram"] == "16.00 GB"
+        assert info["cpu"] == "8 cores (Intel i7)"
+        assert info["hostname"] == "test-host"
 
-    @patch('src.utils.helpers.psutil')
+    @patch("src.utils.helpers.psutil")
     def test_get_disk_usage(self, mock_psutil):
         """Test get_disk_usage returns disk information"""
         mock_disk = Mock()
-        mock_disk.total = 500 * (1024 ** 3)  # 500 GB
-        mock_disk.used = 200 * (1024 ** 3)   # 200 GB
-        mock_disk.free = 300 * (1024 ** 3)   # 300 GB
+        mock_disk.total = 500 * (1024**3)  # 500 GB
+        mock_disk.used = 200 * (1024**3)  # 200 GB
+        mock_disk.free = 300 * (1024**3)  # 300 GB
         mock_disk.percent = 40.0
         mock_psutil.disk_usage.return_value = mock_disk
 
-        usage = get_disk_usage('/')
-        assert usage['total_gb'] == 500.0
-        assert usage['used_gb'] == 200.0
-        assert usage['free_gb'] == 300.0
-        assert usage['percent'] == 40.0
+        usage = get_disk_usage("/")
+        assert usage["total_gb"] == 500.0
+        assert usage["used_gb"] == 200.0
+        assert usage["free_gb"] == 300.0
+        assert usage["percent"] == 40.0
 
-    @patch('src.utils.helpers.os')
+    @patch("src.utils.helpers.os")
     def test_is_running_as_root_true(self, mock_os):
         """Test is_running_as_root returns True for root"""
         mock_os.geteuid.return_value = 0
         assert is_running_as_root() is True
 
-    @patch('src.utils.helpers.os')
+    @patch("src.utils.helpers.os")
     def test_is_running_as_root_false(self, mock_os):
         """Test is_running_as_root returns False for non-root"""
         mock_os.geteuid.return_value = 1000
         assert is_running_as_root() is False
 
-    @patch('src.utils.helpers.psutil')
-    @patch('src.utils.helpers.os')
+    @patch("src.utils.helpers.psutil")
+    @patch("src.utils.helpers.os")
     def test_get_memory_usage(self, mock_os, mock_psutil):
         """Test get_memory_usage returns memory information"""
         mock_os.getpid.return_value = 12345
@@ -82,12 +80,12 @@ class TestHelpers:
         mock_psutil.virtual_memory.return_value = mock_memory
 
         mock_process = Mock()
-        mock_process.memory_info.return_value.rss = 100 * (1024 ** 2)  # 100 MB
+        mock_process.memory_info.return_value.rss = 100 * (1024**2)  # 100 MB
         mock_psutil.Process.return_value = mock_process
 
         usage = get_memory_usage()
-        assert usage['system_percent'] == 45.5
-        assert usage['process_mb'] == 100.0
+        assert usage["system_percent"] == 45.5
+        assert usage["process_mb"] == 100.0
 
     def test_format_bytes_b(self):
         """Test format_bytes for bytes"""

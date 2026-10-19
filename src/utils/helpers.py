@@ -24,22 +24,22 @@ def get_system_info() -> dict[str, Any]:
 
     # RAM
     memory = psutil.virtual_memory()
-    ram_gb = memory.total / (1024 ** 3)
+    ram_gb = memory.total / (1024**3)
 
     # CPU
     cpu_count = psutil.cpu_count()
     cpu_model = platform.processor() or "Unknown"
 
     return {
-        'os': os_info,
-        'python': python_version,
-        'ram': f"{ram_gb:.2f} GB",
-        'cpu': f"{cpu_count} cores ({cpu_model})",
-        'hostname': platform.node(),
+        "os": os_info,
+        "python": python_version,
+        "ram": f"{ram_gb:.2f} GB",
+        "cpu": f"{cpu_count} cores ({cpu_model})",
+        "hostname": platform.node(),
     }
 
 
-def get_disk_usage(path: str = '/') -> dict[str, Any]:
+def get_disk_usage(path: str = "/") -> dict[str, Any]:
     """
     Obtener uso de disco
 
@@ -52,10 +52,10 @@ def get_disk_usage(path: str = '/') -> dict[str, Any]:
     disk = psutil.disk_usage(path)
 
     return {
-        'total_gb': disk.total / (1024 ** 3),
-        'used_gb': disk.used / (1024 ** 3),
-        'free_gb': disk.free / (1024 ** 3),
-        'percent': disk.percent,
+        "total_gb": disk.total / (1024**3),
+        "used_gb": disk.used / (1024**3),
+        "free_gb": disk.free / (1024**3),
+        "percent": disk.percent,
     }
 
 
@@ -80,8 +80,8 @@ def get_memory_usage() -> dict[str, Any]:
     process = psutil.Process(os.getpid())
 
     return {
-        'system_percent': memory.percent,
-        'process_mb': process.memory_info().rss / (1024 ** 2),
+        "system_percent": memory.percent,
+        "process_mb": process.memory_info().rss / (1024**2),
     }
 
 
@@ -96,7 +96,7 @@ def format_bytes(bytes_value: float) -> str:
         String formateado (KB, MB, GB)
     """
     value = float(bytes_value)
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
         if abs(value) < 1024.0:
             return f"{value:.2f} {unit}"
         value /= 1024.0
@@ -116,4 +116,4 @@ def truncate_string(s: str, max_length: int = 50) -> str:
     """
     if len(s) <= max_length:
         return s
-    return s[:max_length - 3] + '...'
+    return s[: max_length - 3] + "..."

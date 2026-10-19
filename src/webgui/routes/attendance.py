@@ -18,7 +18,7 @@ from flask import (
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 
-attendance_bp = Blueprint('attendance', __name__)
+attendance_bp = Blueprint("attendance", __name__)
 
 
 def get_buffer_repo():
@@ -39,7 +39,7 @@ def resolve_employee_names(db, rows) -> dict[tuple[str, str], str]:
     device_serial (via devices.address) + device_user_id. Los registros sin
     enlace quedan fuera del mapa (fallback a device_users en el caller).
     """
-    pairs = {(row['device_ip'], row['user_id']) for row in rows if row['device_ip']}
+    pairs = {(row["device_ip"], row["user_id"]) for row in rows if row["device_ip"]}
 
     device_serial_by_ip: dict[str, str] = {}
     employee_by_link: dict[tuple[str, str], str] = {}
@@ -48,11 +48,11 @@ def resolve_employee_names(db, rows) -> dict[tuple[str, str], str]:
         device_rows = db.fetch_all(
             "SELECT address, serial_number FROM devices WHERE serial_number IS NOT NULL"
         )
-        device_serial_by_ip = {d['address']: d['serial_number'] for d in device_rows}
+        device_serial_by_ip = {d["address"]: d["serial_number"] for d in device_rows}
 
         serials = {device_serial_by_ip[ip] for ip, _ in pairs if ip in device_serial_by_ip}
         if serials:
-            placeholders = ','.join('?' * len(serials))
+            placeholders = ",".join("?" * len(serials))
             links = db.fetch_all(
                 f"""
                 SELECT edl.device_serial, edl.device_user_id,
@@ -64,8 +64,10 @@ def resolve_employee_names(db, rows) -> dict[tuple[str, str], str]:
                 tuple(serials),
             )
             employee_by_link = {
-                (row['device_serial'], row['device_user_id']):
-                    f"{row['first_name']} {row['last_name']}".strip()
+                (
+                    row["device_serial"],
+                    row["device_user_id"],
+                ): f"{row['first_name']} {row['last_name']}".strip()
                 for row in links
             }
 
@@ -77,24 +79,25 @@ def resolve_employee_names(db, rows) -> dict[tuple[str, str], str]:
     return result
 
 
-@attendance_bp.route('/')
+@attendance_bp.route("/")
 def list_attendance():
     """Página principal de asistencia - renderiza template"""
-    return render_template('attendance/list.html')
+    return render_template("attendance/list.html")
 
 
-@attendance_bp.route('/api/devices')
+@attendance_bp.route("/api/devices")
 def api_devices():
     """API para obtener lista de dispositivos para el select de filtro"""
     db = get_webgui_db()
     # Usar columnas reales del schema: address, is_enabled (migracion 001)
     devices = db.fetch_all(
-        "SELECT id, name, address AS ip, is_enabled AS enabled FROM devices WHERE is_enabled = 1 ORDER BY name"
+        "SELECT id, name, address AS ip, is_enabled AS enabled "
+        "FROM devices WHERE is_enabled = 1 ORDER BY name"
     )
-    return jsonify({'devices': devices})
+    return jsonify({"devices": devices})
 
 
-@attendance_bp.route('/api/attendance')
+@attendance_bp.route("/api/attendance")
 def api_attendance():
     """
     API paginada con filtros para registros de asistencia
@@ -116,27 +119,27 @@ def api_attendance():
     db = get_webgui_db()
 
     # Parámetros de paginación
-    page = max(1, request.args.get('page', 1, type=int))
-    per_page = min(max(10, request.args.get('per_page', 50, type=int)), 200)
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = min(max(10, request.args.get("per_page", 50, type=int)), 200)
     offset = (page - 1) * per_page
 
     # Parámetros de filtro
-    start_date = request.args.get('start_date', '')
-    end_date = request.args.get('end_date', '')
-    user_id = request.args.get('user_id', '')
-    device_ip = request.args.get('device_ip', '')
-    status = request.args.get('status', '')
-    punch_type = request.args.get('punch_type', '')
-    synced = request.args.get('synced', '')
-    sort = request.args.get('sort', 'timestamp')
-    order = request.args.get('order', 'desc')
+    start_date = request.args.get("start_date", "")
+    end_date = request.args.get("end_date", "")
+    user_id = request.args.get("user_id", "")
+    device_ip = request.args.get("device_ip", "")
+    status = request.args.get("status", "")
+    punch_type = request.args.get("punch_type", "")
+    synced = request.args.get("synced", "")
+    sort = request.args.get("sort", "timestamp")
+    order = request.args.get("order", "desc")
 
     # Validar sort field
-    allowed_sorts = ['id', 'user_id', 'timestamp', 'status', 'device_ip', 'punch_type', 'synced']
+    allowed_sorts = ["id", "user_id", "timestamp", "status", "device_ip", "punch_type", "synced"]
     if sort not in allowed_sorts:
-        sort = 'timestamp'
-    if order.lower() not in ['asc', 'desc']:
-        order = 'desc'
+        sort = "timestamp"
+    if order.lower() not in ["asc", "desc"]:
+        order = "desc"
 
     # Construir WHERE clause
     where_conditions = []
@@ -154,13 +157,13 @@ def api_attendance():
     if device_ip:
         where_conditions.append("device_ip = ?")
         params.append(device_ip)
-    if status != '':
+    if status != "":
         where_conditions.append("status = ?")
         params.append(int(status))
     if punch_type:
         where_conditions.append("punch_type = ?")
         params.append(punch_type)
-    if synced != '':
+    if synced != "":
         where_conditions.append("synced = ?")
         params.append(int(synced))
 
@@ -191,13 +194,13 @@ def api_attendance():
     # Enriquecer con nombres de usuario desde device_users (webgui.db)
     user_names = {}
     if rows:
-        user_ids = list(set(row['user_id'] for row in rows))
+        user_ids = list(set(row["user_id"] for row in rows))
         if user_ids:
             # SQLite doesn't support row-value IN, use individual placeholders
-            placeholders = ','.join('?' * len(user_ids))
+            placeholders = ",".join("?" * len(user_ids))
             query = f"SELECT user_id, name FROM device_users WHERE user_id IN ({placeholders})"
             user_rows = db.fetch_all(query, tuple(user_ids))
-            user_names = {row['user_id']: row['name'] for row in user_rows}
+            user_names = {row["user_id"]: row["name"] for row in user_rows}
 
     # Nombre del colaborador vía employee_device_links (precedencia sobre device_users)
     employee_names = resolve_employee_names(db, rows)
@@ -205,40 +208,42 @@ def api_attendance():
     records = []
     for row in rows:
         record = dict(row)
-        collaborator = employee_names.get((record['device_ip'], record['user_id']))
+        collaborator = employee_names.get((record["device_ip"], record["user_id"]))
         if collaborator:
-            record['user_name'] = collaborator
+            record["user_name"] = collaborator
         else:
-            record['user_name'] = user_names.get(record['user_id'], record['user_id'])
+            record["user_name"] = user_names.get(record["user_id"], record["user_id"])
         records.append(record)
 
     total_pages = (total + per_page - 1) // per_page
 
-    return jsonify({
-        'records': records,
-        'pagination': {
-            'page': page,
-            'per_page': per_page,
-            'total': total,
-            'total_pages': total_pages,
-            'has_next': page < total_pages,
-            'has_prev': page > 1,
-        },
-        'filters': {
-            'start_date': start_date,
-            'end_date': end_date,
-            'user_id': user_id,
-            'device_ip': device_ip,
-            'status': status,
-            'punch_type': punch_type,
-            'synced': synced,
-            'sort': sort,
-            'order': order,
+    return jsonify(
+        {
+            "records": records,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": total,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_prev": page > 1,
+            },
+            "filters": {
+                "start_date": start_date,
+                "end_date": end_date,
+                "user_id": user_id,
+                "device_ip": device_ip,
+                "status": status,
+                "punch_type": punch_type,
+                "synced": synced,
+                "sort": sort,
+                "order": order,
+            },
         }
-    })
+    )
 
 
-@attendance_bp.route('/attendance/stats')
+@attendance_bp.route("/attendance/stats")
 def attendance_stats():
     """Estadísticas rápidas de asistencia"""
     buffer_repo = get_buffer_repo()
@@ -254,7 +259,7 @@ def attendance_stats():
             FROM attendance_records
             GROUP BY punch_type
         """)
-        by_punch_type = {row['punch_type']: row['count'] for row in cursor.fetchall()}
+        by_punch_type = {row["punch_type"]: row["count"] for row in cursor.fetchall()}
 
         # Por dispositivo
         cursor.execute("""
@@ -262,7 +267,7 @@ def attendance_stats():
             FROM attendance_records
             GROUP BY device_ip
         """)
-        by_device = {row['device_ip']: row['count'] for row in cursor.fetchall()}
+        by_device = {row["device_ip"]: row["count"] for row in cursor.fetchall()}
 
         # Por sincronizado
         cursor.execute("""
@@ -270,11 +275,11 @@ def attendance_stats():
             FROM attendance_records
             GROUP BY synced
         """)
-        by_synced = {row['synced']: row['count'] for row in cursor.fetchall()}
+        by_synced = {row["synced"]: row["count"] for row in cursor.fetchall()}
 
-    stats['by_punch_type'] = by_punch_type
-    stats['by_device'] = by_device
-    stats['by_synced'] = by_synced
+    stats["by_punch_type"] = by_punch_type
+    stats["by_device"] = by_device
+    stats["by_synced"] = by_synced
 
     return jsonify(stats)
 
@@ -284,33 +289,33 @@ def _build_attendance_query(params: dict) -> tuple[str, list]:
     where_conditions = []
     query_params = []
 
-    if params.get('start_date'):
+    if params.get("start_date"):
         where_conditions.append("timestamp >= ?")
-        query_params.append(params['start_date'] + " 00:00:00")
-    if params.get('end_date'):
+        query_params.append(params["start_date"] + " 00:00:00")
+    if params.get("end_date"):
         where_conditions.append("timestamp <= ?")
-        query_params.append(params['end_date'] + " 23:59:59")
-    if params.get('user_id'):
+        query_params.append(params["end_date"] + " 23:59:59")
+    if params.get("user_id"):
         where_conditions.append("user_id = ?")
-        query_params.append(params['user_id'])
-    if params.get('device_ip'):
+        query_params.append(params["user_id"])
+    if params.get("device_ip"):
         where_conditions.append("device_ip = ?")
-        query_params.append(params['device_ip'])
-    if params.get('status') != '':
+        query_params.append(params["device_ip"])
+    if params.get("status") != "":
         where_conditions.append("status = ?")
-        query_params.append(int(params['status']))
-    if params.get('punch_type'):
+        query_params.append(int(params["status"]))
+    if params.get("punch_type"):
         where_conditions.append("punch_type = ?")
-        query_params.append(params['punch_type'])
-    if params.get('synced') != '':
+        query_params.append(params["punch_type"])
+    if params.get("synced") != "":
         where_conditions.append("synced = ?")
-        query_params.append(int(params['synced']))
+        query_params.append(int(params["synced"]))
 
     where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
     return where_clause, query_params
 
 
-@attendance_bp.route('/export')
+@attendance_bp.route("/export")
 def export_attendance():
     """
     Exportar registros de asistencia a CSV o Excel
@@ -322,17 +327,17 @@ def export_attendance():
     buffer_repo = get_buffer_repo()
     db = get_webgui_db()
 
-    format_type = request.args.get('format', 'csv').lower()
+    format_type = request.args.get("format", "csv").lower()
 
     # Recolectar filtros
     filter_params = {
-        'start_date': request.args.get('start_date', ''),
-        'end_date': request.args.get('end_date', ''),
-        'user_id': request.args.get('user_id', ''),
-        'device_ip': request.args.get('device_ip', ''),
-        'status': request.args.get('status', ''),
-        'punch_type': request.args.get('punch_type', ''),
-        'synced': request.args.get('synced', ''),
+        "start_date": request.args.get("start_date", ""),
+        "end_date": request.args.get("end_date", ""),
+        "user_id": request.args.get("user_id", ""),
+        "device_ip": request.args.get("device_ip", ""),
+        "status": request.args.get("status", ""),
+        "punch_type": request.args.get("punch_type", ""),
+        "synced": request.args.get("synced", ""),
     }
 
     where_clause, query_params = _build_attendance_query(filter_params)
@@ -353,27 +358,31 @@ def export_attendance():
     # Enriquecer con nombres de usuario
     user_names = {}
     if rows:
-        user_ids = list(set(row['user_id'] for row in rows))
+        user_ids = list(set(row["user_id"] for row in rows))
         if user_ids:
-            placeholders = ','.join('?' * len(user_ids))
+            placeholders = ",".join("?" * len(user_ids))
             user_query = f"SELECT user_id, name FROM device_users WHERE user_id IN ({placeholders})"
             user_rows = db.fetch_all(user_query, tuple(user_ids))
-            user_names = {row['user_id']: row['name'] for row in user_rows}
+            user_names = {row["user_id"]: row["name"] for row in user_rows}
 
     # Preparar datos para export
     export_data = []
     for row in rows:
         record = dict(row)
-        record['user_name'] = user_names.get(record['user_id'], record['user_id'])
-        record['synced_label'] = 'Sí' if record['synced'] else 'No'
+        record["user_name"] = user_names.get(record["user_id"], record["user_id"])
+        record["synced_label"] = "Sí" if record["synced"] else "No"
         status_labels = {
-            0: 'Entrada', 1: 'Salida', 2: 'Salida Comida',
-            3: 'Entrada Comida', 4: 'Entrada Extra', 5: 'Salida Extra'
+            0: "Entrada",
+            1: "Salida",
+            2: "Salida Comida",
+            3: "Entrada Comida",
+            4: "Entrada Extra",
+            5: "Salida Extra",
         }
-        record['status_label'] = status_labels.get(record['status'], f'Status {record["status"]}')
+        record["status_label"] = status_labels.get(record["status"], f"Status {record['status']}")
         export_data.append(record)
 
-    if format_type == 'xlsx':
+    if format_type == "xlsx":
         return _export_xlsx(export_data)
     else:
         return _export_csv(export_data)
@@ -384,35 +393,45 @@ def _export_csv(data: list[dict]) -> send_file:
     output = io.StringIO()
 
     if not data:
-        output.write('ID,Usuario,Fecha/Hora,Estado,Dispositivo,Tipo Marca,Sincronizado\n')
+        output.write("ID,Usuario,Fecha/Hora,Estado,Dispositivo,Tipo Marca,Sincronizado\n")
     else:
-        writer = csv.DictWriter(output, fieldnames=[
-            'id', 'user_name', 'timestamp', 'status_label',
-            'device_ip', 'punch_type', 'synced_label'
-        ])
+        writer = csv.DictWriter(
+            output,
+            fieldnames=[
+                "id",
+                "user_name",
+                "timestamp",
+                "status_label",
+                "device_ip",
+                "punch_type",
+                "synced_label",
+            ],
+        )
         writer.writeheader()
         for row in data:
-            writer.writerow({
-                'id': row['id'],
-                'user_name': row['user_name'],
-                'timestamp': row['timestamp'],
-                'status_label': row['status_label'],
-                'device_ip': row['device_ip'],
-                'punch_type': row['punch_type'],
-                'synced_label': row['synced_label'],
-            })
+            writer.writerow(
+                {
+                    "id": row["id"],
+                    "user_name": row["user_name"],
+                    "timestamp": row["timestamp"],
+                    "status_label": row["status_label"],
+                    "device_ip": row["device_ip"],
+                    "punch_type": row["punch_type"],
+                    "synced_label": row["synced_label"],
+                }
+            )
 
     output.seek(0)
 
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f'asistencia_{timestamp}.csv'
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"asistencia_{timestamp}.csv"
 
     # Use utf-8-sig to include BOM for Excel compatibility
     return send_file(
-        io.BytesIO(output.getvalue().encode('utf-8-sig')),
-        mimetype='text/csv; charset=utf-8',
+        io.BytesIO(output.getvalue().encode("utf-8-sig")),
+        mimetype="text/csv; charset=utf-8",
         as_attachment=True,
-        download_name=filename
+        download_name=filename,
     )
 
 
@@ -423,20 +442,20 @@ def _export_xlsx(data: list[dict]) -> send_file:
     ws.title = "Asistencia"
 
     # Headers
-    headers = ['ID', 'Usuario', 'Fecha/Hora', 'Estado', 'Dispositivo', 'Tipo Marca', 'Sincronizado']
+    headers = ["ID", "Usuario", "Fecha/Hora", "Estado", "Dispositivo", "Tipo Marca", "Sincronizado"]
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
         cell.font = cell.font.copy(bold=True)
 
     # Data
     for row_idx, record in enumerate(data, 2):
-        ws.cell(row=row_idx, column=1, value=record['id'])
-        ws.cell(row=row_idx, column=2, value=record['user_name'])
-        ws.cell(row=row_idx, column=3, value=record['timestamp'])
-        ws.cell(row=row_idx, column=4, value=record['status_label'])
-        ws.cell(row=row_idx, column=5, value=record['device_ip'])
-        ws.cell(row=row_idx, column=6, value=record['punch_type'])
-        ws.cell(row=row_idx, column=7, value=record['synced_label'])
+        ws.cell(row=row_idx, column=1, value=record["id"])
+        ws.cell(row=row_idx, column=2, value=record["user_name"])
+        ws.cell(row=row_idx, column=3, value=record["timestamp"])
+        ws.cell(row=row_idx, column=4, value=record["status_label"])
+        ws.cell(row=row_idx, column=5, value=record["device_ip"])
+        ws.cell(row=row_idx, column=6, value=record["punch_type"])
+        ws.cell(row=row_idx, column=7, value=record["synced_label"])
 
     # Ajustar anchos de columna
     column_widths = [8, 20, 22, 18, 18, 18, 12]
@@ -448,12 +467,12 @@ def _export_xlsx(data: list[dict]) -> send_file:
     wb.save(output)
     output.seek(0)
 
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f'asistencia_{timestamp}.xlsx'
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"asistencia_{timestamp}.xlsx"
 
     return send_file(
         output,
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
-        download_name=filename
+        download_name=filename,
     )
