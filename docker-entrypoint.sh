@@ -1,12 +1,15 @@
 #!/bin/sh
 # ZK-Collector Docker Entrypoint
 # Validates required environment variables before starting the application
-# Performs one-shot migration from collector.yaml to WebGUI DB if needed
+# Bootstraps the WebGUI SQLite schema, the admin user and (one-shot) migrates
+# devices from collector.yaml to the WebGUI DB.
 
 set -e
 
 WEBGUI_DB_PATH="${WEBGUI_DB_PATH:-/app/data/webgui.db}"
 COLLECTOR_CONFIG_PATH="${COLLECTOR_CONFIG_PATH:-/app/configs/collector.yaml}"
+ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin@localhost}"
 
 echo "=== ZK-Collector Startup ==="
 echo "Validating environment variables..."
@@ -70,21 +73,6 @@ for var in $SMTP_VARS; do
     fi
 done
 
-if [ "$SMTP_CONFIGURED" = "true" ] && [ -f "$WEBGUI_DB_PATH" ]; then
-    echo "Writing SMTP configuration to system_config..."
-    sqlite3 "$WEBGUI_DB_PATH" "
-        UPDATE system_config SET value = '$SMTP_HOST' WHERE key = 'smtp_host';
-        UPDATE system_config SET value = '$SMTP_PORT' WHERE key = 'smtp_port';
-        UPDATE system_config SET value = '$SMTP_USERNAME' WHERE key = 'smtp_username';
-        UPDATE system_config SET value = '$SMTP_PASSWORD' WHERE key = 'smtp_password';
-        UPDATE system_config SET value = '$SMTP_FROM_EMAIL' WHERE key = 'smtp_from_email';
-        UPDATE system_config SET value = '$SMTP_USE_TLS' WHERE key = 'smtp_use_tls';
-        UPDATE system_config SET value = 'true' WHERE key = 'smtp_configured';
-    " 2>/dev/null && echo "  SMTP configuration written to DB" || echo "  ⚠ Failed to write SMTP config to DB"
-elif [ "$SMTP_CONFIGURED" = "false" ]; then
-    echo "  SMTP not fully configured - password reset will show token in UI (dev mode)"
-fi
-
 if [ -n "$MISSING_VARS" ]; then
     echo ""
     echo "ERROR: The following required environment variables are not set:"
@@ -99,6 +87,94 @@ fi
 
 echo ""
 echo "Environment validation passed!"
+
+# ---------------------------------------------------------------------------
+# Bootstrap the WebGUI schema (idempotent). The server applies migrations on
+# import too, but doing it here guarantees the schema exists before the SMTP
+# and device migrations below run on a fresh container.
+# ---------------------------------------------------------------------------
+ensure_webgui_schema() {
+    echo "Ensuring WebGUI database schema..."
+    mkdir -p "$(dirname "$WEBGUI_DB_PATH")"
+    ( cd /app && DB_PATH="$WEBGUI_DB_PATH" python3 - <<'PY'
+import os
+from pathlib import Path
+
+from src.webgui.database import Database
+
+db_path = Path(os.environ["DB_PATH"])
+Database(db_path).initialize()
+print(f"  schema ready: {db_path}")
+PY
+    ) && echo "  Schema OK" || echo "  ⚠ Schema initialization failed"
+}
+
+# ---------------------------------------------------------------------------
+# Provision the admin user from ZK_ADMIN_PASSWORD when the users table is
+# empty, so a freshly deployed container is usable without the setup wizard.
+# ---------------------------------------------------------------------------
+ensure_admin_user() {
+    if [ -z "$ZK_ADMIN_PASSWORD" ]; then
+        echo "  ZK_ADMIN_PASSWORD not set (skipping admin provisioning)"
+        return 0
+    fi
+    echo "Ensuring admin user..."
+    ( cd /app && \
+      DB_PATH="$WEBGUI_DB_PATH" \
+      ADMIN_USERNAME="$ADMIN_USERNAME" \
+      ADMIN_EMAIL="$ADMIN_EMAIL" \
+      ZK_ADMIN_PASSWORD="$ZK_ADMIN_PASSWORD" \
+      python3 - <<'PY'
+import os
+import sqlite3
+
+from src.webgui.auth import Auth
+
+db_path = os.environ["DB_PATH"]
+username = os.environ.get("ADMIN_USERNAME", "admin")
+email = os.environ.get("ADMIN_EMAIL", "")
+password = os.environ["ZK_ADMIN_PASSWORD"]
+
+conn = sqlite3.connect(db_path)
+cursor = conn.cursor()
+count = cursor.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+if count == 0:
+    password_hash = Auth("bootstrap").hash_password(password)
+    cursor.execute(
+        "INSERT INTO users (username, email, password_hash, role, is_active) "
+        "VALUES (?, ?, ?, 'admin', 1)",
+        (username, email, password_hash),
+    )
+    cursor.execute(
+        "INSERT OR REPLACE INTO system_config (key, value, description) "
+        "VALUES ('setup_completed', 'true', 'setup')"
+    )
+    conn.commit()
+    print(f"  admin user '{username}' created")
+else:
+    print(f"  {count} user(s) already exist (skipping admin provisioning)")
+conn.close()
+PY
+    ) && echo "  Admin OK" || echo "  ⚠ Admin provisioning failed"
+}
+
+ensure_webgui_schema
+ensure_admin_user
+
+if [ "$SMTP_CONFIGURED" = "true" ]; then
+    echo "Writing SMTP configuration to system_config..."
+    sqlite3 "$WEBGUI_DB_PATH" "
+        UPDATE system_config SET value = '$SMTP_HOST' WHERE key = 'smtp_host';
+        UPDATE system_config SET value = '$SMTP_PORT' WHERE key = 'smtp_port';
+        UPDATE system_config SET value = '$SMTP_USERNAME' WHERE key = 'smtp_username';
+        UPDATE system_config SET value = '$SMTP_PASSWORD' WHERE key = 'smtp_password';
+        UPDATE system_config SET value = '$SMTP_FROM_EMAIL' WHERE key = 'smtp_from_email';
+        UPDATE system_config SET value = '$SMTP_USE_TLS' WHERE key = 'smtp_use_tls';
+        UPDATE system_config SET value = 'true' WHERE key = 'smtp_configured';
+    " 2>/dev/null && echo "  SMTP configuration written to DB" || echo "  ⚠ Failed to write SMTP config to DB"
+else
+    echo "  SMTP not fully configured - password reset will show token in UI (dev mode)"
+fi
 
 migrate_devices_from_yaml_to_webgui_db() {
     echo "Checking for one-shot YAML to DB migration..."
