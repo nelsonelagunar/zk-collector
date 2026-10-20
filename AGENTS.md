@@ -104,6 +104,17 @@ Migration 002 uses `IF NOT EXISTS` (idempotent, safe for re-run). CRUD helpers l
 - Soporte JSON `/reportes/api/stats` y export CSV/XLSX `/reportes/export` con los mismos filtros
   que la API de MYK-241.
 
+## Entorno de ejecucion Paperclip (workspaces)
+
+Lecciones de MYK-227 (5 runs perdidos). Aplican a CUALQUIER agente:
+
+- El clon del **proyecto** (`/home/paperclip/repos/<repo>`) puede estar montado **read-only** durante el run. No concluyas "el repo es read-only": revisa tu workspace.
+- Trabaja en el clon del **workspace del agente**: `pwd`, o `~/.paperclip/instances/default/workspaces/<agent-id>/<repo>`. Verifica con `touch .wtest && rm .wtest` antes de editar.
+- **Nunca** escribas codigo en `/tmp` scratch: se borra al terminar el run y el trabajo se pierde (fue la causa de 5 runs sin PR).
+- Push: el clon del workspace trae credenciales **repo-local** en `origin`. Si `PAPERCLIP_GIT_TOKEN` viene vacio, **no reescribas la URL** con ese valor vacio (rompe el push); usa `git push` normal y verifica con `git ls-remote origin <rama>`.
+- Flujo: `git fetch origin && git checkout -b feature/myk-<n>-<slug> origin/master` → implementa → tests (`ruff`, `mypy`, `pytest`) → commit → push → PR contra `master`.
+- No dejes el cierre en un comentario: el issue solo pasa a `done` cuando el PR esta mergeado y el deploy verificado.
+
 ## Password Reset (MYK-303, migration 004)
 
 - Flujo forgot/reset vive SOLO en master desde MYK-303 — cualquier hotfix en vivo (templates/rutas editadas en el artifact) se pierde en el siguiente redeploy desde master: fix va SIEMPRE por PR a master primero.
