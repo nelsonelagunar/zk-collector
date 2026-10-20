@@ -1,6 +1,10 @@
 # CI
 name: CI
 
+permissions:
+  contents: read
+  packages: write
+
 on:
   push:
     branches: [master, develop, feature/myk-92-dashboard-modernization, fix/**]
