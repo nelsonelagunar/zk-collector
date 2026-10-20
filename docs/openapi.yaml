@@ -60,6 +60,164 @@ paths:
       summary: End the current session
       responses:
         '302': { description: Redirect to login page }
+  /auth/forgot-password:
+    get:
+      tags: [auth]
+      summary: Render the password recovery request form
+      security: []
+      responses:
+        '200': { description: HTML form (forgot_password.html) }
+    post:
+      tags: [auth]
+      summary: Request a password reset email
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '302':
+          description: >
+            Redirect to /auth/login. Same response for existing and unknown emails
+            (no account enumeration). Creates a hashed, 1h-expiry entry in
+            password_reset_tokens and sends the reset link by email when SMTP is configured.
+        '429': { description: Rate limit exceeded (3 requests per hour per email) }
+  /auth/reset-password:
+    get:
+      tags: [auth]
+      summary: Render the new-password form using a query-string token
+      security: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: HTML form (reset_password.html) }
+        '302': { description: Invalid, expired, used or missing token — redirect to /auth/forgot-password }
+    post:
+      tags: [auth]
+      summary: Set a new password using a token (query string or path variant)
+      security: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [password, password_confirm]
+              properties:
+                password: { type: string, format: password }
+                password_confirm: { type: string, format: password }
+      responses:
+        '302':
+          description: >
+            On success redirect to /auth/login with the user password updated and the token
+            marked as used; on validation failure re-renders the form (200).
+  /auth/reset-password/{token}:
+    get:
+      tags: [auth]
+      summary: Render the new-password form using a path token
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: HTML form (reset_password.html) }
+        '302': { description: Invalid, expired or used token — redirect to /auth/forgot-password }
+    post:
+      tags: [auth]
+      summary: Set a new password using a path token
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [password, password_confirm]
+              properties:
+                password: { type: string, format: password }
+                password_confirm: { type: string, format: password }
+      responses:
+        '302': { description: On success redirect to /auth/login }
+  /auth/api/forgot-password:
+    post:
+      tags: [auth]
+      summary: API - request a password reset email
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200':
+          description: Always success to prevent account enumeration
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PasswordResetRequestResult' }
+        '400': { description: Missing email }
+        '429':
+          description: Rate limit exceeded (3 requests per hour per email)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PasswordResetRequestResult' }
+  /auth/api/reset-password:
+    post:
+      tags: [auth]
+      summary: API - set a new password with a reset token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password, password_confirm]
+              properties:
+                token: { type: string }
+                password: { type: string, format: password }
+                password_confirm: { type: string, format: password }
+      responses:
+        '200':
+          description: Password updated and token consumed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PasswordResetRequestResult' }
+        '400':
+          description: Weak password, mismatch, invalid/expired/used token or missing fields
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string }
+                  errors:
+                    type: array
+                    items: { type: string }
   /devices/api/devices:
     get:
       tags: [devices]
@@ -404,6 +562,12 @@ components:
             properties:
               error: { type: string }
   schemas:
+    PasswordResetRequestResult:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        retry_after: { type: integer, description: Seconds until the rate limit window resets (only on 429) }
     Device:
       type: object
       properties:

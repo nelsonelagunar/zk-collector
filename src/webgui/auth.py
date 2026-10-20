@@ -3,6 +3,8 @@ Auth Module - Authentication & Authorization
 Manejo de autenticación con JWT y Argon2id
 """
 
+import hashlib
+import hmac
 import logging
 import os
 import secrets
@@ -153,3 +155,24 @@ class Auth:
             errors.append("Al menos un carácter especial")
 
         return len(errors) == 0, errors
+
+    @staticmethod
+    def hash_reset_token(token: str) -> str:
+        """Hash del token de reset para almacenamiento seguro (SHA256)"""
+        return hashlib.sha256(token.encode()).hexdigest()
+
+    @staticmethod
+    def verify_reset_token(token: str, token_hash: str) -> bool:
+        """Verificar token de reset contra su hash (comparación en tiempo constante)"""
+        expected_hash = hashlib.sha256(token.encode()).hexdigest()
+        return hmac.compare_digest(expected_hash, token_hash)
+
+    def generate_reset_token_and_hash(self) -> tuple[str, str]:
+        """Generar token de reset y su hash para almacenamiento
+
+        Returns:
+            Tuple[str, str]: (token_plano, token_hash)
+        """
+        token = self.generate_password_reset_token()
+        token_hash = self.hash_reset_token(token)
+        return token, token_hash
