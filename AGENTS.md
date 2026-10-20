@@ -91,3 +91,12 @@ Migration 002 uses `IF NOT EXISTS` (idempotent, safe for re-run). CRUD helpers l
 - Reglas completas y response shape en `docs/attendance_stats.md`; contrato OpenAPI en `docs/openapi.yaml`.
 - El buffer escribe timestamps ISO con `T` (`isoformat()`); el filtrado por fecha usa `substr(timestamp,1,10)` para soportar ambos formatos.
 - Servicio puro en `src/webgui/attendance_stats.py` + rutas en `src/webgui/routes/attendance_stats.py`; tests `tests/test_attendance_stats*.py`.
+
+## Password Reset (MYK-303, migration 004)
+
+- Flujo forgot/reset vive SOLO en master desde MYK-303 — cualquier hotfix en vivo (templates/rutas editadas en el artifact) se pierde en el siguiente redeploy desde master: fix va SIEMPRE por PR a master primero.
+- Rutas en `src/webgui/routes/auth.py` (blueprint `/auth`): `GET/POST /auth/forgot-password` (form), `GET/POST /auth/reset-password?token=...` Y `/auth/reset-password/{token}` (el form del template POSTea al path variant), `POST /auth/api/forgot-password` y `POST /auth/api/reset-password` (JSON).
+- Tokens: SHA256 del token plano en `password_reset_tokens` (migration `004_password_reset_tokens.sql`), expiran en 1h, single-use, los previos se invalidan al pedir uno nuevo; comparación en tiempo constante (`Auth.verify_reset_token`). Contrato OpenAPI actualizado en el mismo PR.
+- Email: `src/webgui/mail.py` `Mailer.from_config(smtp_*)` lee `system_config` (defaults `smtp_*` INSERT OR IGNORE en migration 004); sin SMTP configurado hace fallback a flash/log del enlace — el endpoint NUNCA revela si el email existe (anti-enumeración).
+- Rate limit in-memory por email: 3 requests/hora (`reset_rate_limit_store()` para tests). Tests: `tests/test_password_reset_routes.py` (24 casos; en master sin fix fallan todos).
+- Coverage config omite `src/webgui/routes/auth.py` del requisito — no bajar `fail_under=80` para cubrirlo con tests de integración triviales.
