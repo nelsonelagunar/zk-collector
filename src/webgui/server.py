@@ -10,8 +10,10 @@ from pathlib import Path
 from flask import Flask, jsonify, redirect, render_template, session, url_for
 
 from ..buffer.repository import BufferRepository
+from .alerts import AlertEngine
 from .auth import Auth
 from .database import Database
+from .mail import Mailer
 
 
 def create_app(config=None):
@@ -23,6 +25,12 @@ def create_app(config=None):
     app.db = Database(db_path)
     app.db.initialize()
 
+    # Motor de alertas HR-6 + Mailer (reutiliza SMTP de system_config)
+    smtp_rows = app.db.fetch_all("SELECT key, value FROM system_config WHERE key LIKE 'smtp_%'")
+    smtp_config = {row["key"]: row["value"] for row in smtp_rows}
+    app.mailer = Mailer.from_config(smtp_config)
+    app.alert_engine = AlertEngine(app.db, mailer=app.mailer)
+
     # BufferRepository para attendance_buffer (SQLite local)
     buffer_db_path = Path(os.environ.get("BUFFER_DB_PATH", "/opt/attendance/data/buffer.db"))
     app.buffer_repo = BufferRepository(buffer_db_path)
@@ -33,6 +41,7 @@ def create_app(config=None):
     def utility_processor():
         return {"now": datetime.now}
 
+    from .routes.alerts import alerts_bp
     from .routes.apidocs import apidocs_bp
     from .routes.attendance import attendance_bp
     from .routes.attendance_stats import attendance_stats_bp
@@ -52,6 +61,7 @@ def create_app(config=None):
     app.register_blueprint(employees_bp, url_prefix="/api/employees")
     app.register_blueprint(employees_ui_bp, url_prefix="/colaboradores")
     app.register_blueprint(medical_leaves_bp, url_prefix="/api/medical-leaves")
+    app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
 
     @app.route("/")
     def index():

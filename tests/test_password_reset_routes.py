@@ -29,6 +29,7 @@ def _reset_rate_limit_store():
 
     reset_rate_limit_store()
 
+
 STRONG_PASSWORD = "Sup3rSecret!Pass"
 
 
@@ -145,13 +146,9 @@ class TestResetPasswordPage:
 
 class TestForgotPasswordFlow:
     def test_post_creates_token_row(self, client, app, user_id):
-        response = client.post(
-            "/auth/forgot-password", data={"email": "admin@example.com"}
-        )
+        response = client.post("/auth/forgot-password", data={"email": "admin@example.com"})
         assert response.status_code == 302
-        rows = app.db.fetch_all(
-            "SELECT * FROM password_reset_tokens WHERE user_id = ?", (user_id,)
-        )
+        rows = app.db.fetch_all("SELECT * FROM password_reset_tokens WHERE user_id = ?", (user_id,))
         assert len(rows) == 1
         assert rows[0]["used_at"] is None
 
@@ -172,9 +169,7 @@ class TestForgotPasswordFlow:
 
     def test_rate_limit_after_max_requests(self, client, app, user_id):
         for _ in range(3):
-            response = client.post(
-                "/auth/forgot-password", data={"email": "admin@example.com"}
-            )
+            response = client.post("/auth/forgot-password", data={"email": "admin@example.com"})
             assert response.status_code == 302
         response = client.post("/auth/forgot-password", data={"email": "admin@example.com"})
         assert response.status_code == 429
@@ -229,9 +224,7 @@ class TestResetPasswordFlow:
 
 class TestPasswordResetApi:
     def test_api_forgot_password(self, client, app, user_id):
-        response = client.post(
-            "/auth/api/forgot-password", json={"email": "admin@example.com"}
-        )
+        response = client.post("/auth/api/forgot-password", json={"email": "admin@example.com"})
         assert response.status_code == 200
         body = response.get_json()
         assert body["success"] is True
