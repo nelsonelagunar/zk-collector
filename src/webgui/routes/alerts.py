@@ -63,6 +63,15 @@ def list_alerts():
     return jsonify({"alerts": rows, "total": total})
 
 
+@alerts_bp.route("/evaluate", methods=["POST"])
+@api_auth_required
+def evaluate_alerts():
+    """Ejecuta todas las reglas habilitadas y persiste/envia las alertas."""
+    results = _engine().run_all()
+    total = sum(len(created) for created in results.values())
+    return jsonify({"success": True, "created": total, "by_type": results})
+
+
 @alerts_bp.route("/<int:alert_id>/read", methods=["PATCH"])
 @api_auth_required
 def mark_read(alert_id: int):

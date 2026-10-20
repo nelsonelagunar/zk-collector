@@ -3,7 +3,10 @@ WebGUI Server - Attendance Collector
 """
 
 import contextlib
+import logging
 import os
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -15,6 +18,33 @@ from .auth import Auth
 from .database import Database
 from .mail import Mailer
 
+logger = logging.getLogger(__name__)
+
+
+def _start_alert_scheduler(app):
+    """Job periodico de evaluacion de alertas (opt-in: ALERTS_INTERVAL_MINUTES)."""
+    try:
+        minutes = int(os.environ.get("ALERTS_INTERVAL_MINUTES", "0"))
+    except ValueError:
+        minutes = 0
+    if minutes <= 0 or app.config.get("TESTING"):
+        return
+
+    def _loop():
+        while True:
+            time.sleep(minutes * 60)
+            try:
+                with app.app_context():
+                    results = app.alert_engine.run_all()
+                    logger.info(
+                        "alertas evaluadas: %s",
+                        {key: len(value) for key, value in results.items()},
+                    )
+            except Exception as exc:  # pragma: no cover - defensivo
+                logger.error("fallo evaluando alertas: %s", exc)
+
+    threading.Thread(target=_loop, name="alert-scheduler", daemon=True).start()
+
 
 def create_app(config=None):
     app = Flask(__name__, template_folder="templates", static_folder="static")
@@ -25,15 +55,17 @@ def create_app(config=None):
     app.db = Database(db_path)
     app.db.initialize()
 
+    # BufferRepository para attendance_buffer (SQLite local)
+    buffer_db_path = Path(os.environ.get("BUFFER_DB_PATH", "/opt/attendance/data/buffer.db"))
+    app.buffer_repo = BufferRepository(buffer_db_path)
+
     # Motor de alertas HR-6 + Mailer (reutiliza SMTP de system_config)
     smtp_rows = app.db.fetch_all("SELECT key, value FROM system_config WHERE key LIKE 'smtp_%'")
     smtp_config = {row["key"]: row["value"] for row in smtp_rows}
     app.mailer = Mailer.from_config(smtp_config)
-    app.alert_engine = AlertEngine(app.db, mailer=app.mailer)
+    app.alert_engine = AlertEngine(app.db, mailer=app.mailer, buffer_repo=app.buffer_repo)
 
-    # BufferRepository para attendance_buffer (SQLite local)
-    buffer_db_path = Path(os.environ.get("BUFFER_DB_PATH", "/opt/attendance/data/buffer.db"))
-    app.buffer_repo = BufferRepository(buffer_db_path)
+    _start_alert_scheduler(app)
 
     app.auth = Auth(app.config["SECRET_KEY"])
 
