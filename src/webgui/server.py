@@ -23,6 +23,14 @@ def create_app(config=None):
     app.db = Database(db_path)
     app.db.initialize()
 
+    # Motor de alertas HR-6 + Mailer (reutiliza SMTP de system_config)
+    smtp_rows = app.db.fetch_all(
+        "SELECT key, value FROM system_config WHERE key LIKE 'smtp_%'"
+    )
+    smtp_config = {row['key']: row['value'] for row in smtp_rows}
+    app.mailer = Mailer.from_config(smtp_config)
+    app.alert_engine = AlertEngine(app.db, mailer=app.mailer)
+
     # BufferRepository para attendance_buffer (SQLite local)
     buffer_db_path = Path(os.environ.get("BUFFER_DB_PATH", "/opt/attendance/data/buffer.db"))
     app.buffer_repo = BufferRepository(buffer_db_path)
@@ -41,6 +49,7 @@ def create_app(config=None):
     from .routes.devices import devices_bp
     from .routes.employees import employees_bp
     from .routes.employees_ui import employees_ui_bp
+    from .routes.alerts import alerts_bp
     from .routes.medical_leaves import medical_leaves_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
@@ -52,6 +61,7 @@ def create_app(config=None):
     app.register_blueprint(employees_bp, url_prefix="/api/employees")
     app.register_blueprint(employees_ui_bp, url_prefix="/colaboradores")
     app.register_blueprint(medical_leaves_bp, url_prefix="/api/medical-leaves")
+    app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
 
     @app.route("/")
     def index():
