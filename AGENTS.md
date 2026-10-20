@@ -92,6 +92,18 @@ Migration 002 uses `IF NOT EXISTS` (idempotent, safe for re-run). CRUD helpers l
 - El buffer escribe timestamps ISO con `T` (`isoformat()`); el filtrado por fecha usa `substr(timestamp,1,10)` para soportar ambos formatos.
 - Servicio puro en `src/webgui/attendance_stats.py` + rutas en `src/webgui/routes/attendance_stats.py`; tests `tests/test_attendance_stats*.py`.
 
+## Reportes WebGUI (MYK-242)
+
+- `GET /reportes` — dashboard de estadísticos de asistencia con filtros por rango de fechas,
+  colaborador, departamento y `group_by` (employee|department|company), KPIs y graficas (CSS/SVG
+  puro, sin librerias JS externas).
+- Los numeros provienen de la misma implementacion de MYK-241
+  (`routes/attendance_stats.compute_report`): el dashboard y `/api/attendance/stats` devuelven
+  cifras identicas por construccion; `tests/test_attendance_stats_ui.py` compara las respuestas
+  del dashboard contra la API punto a punto.
+- Soporte JSON `/reportes/api/stats` y export CSV/XLSX `/reportes/export` con los mismos filtros
+  que la API de MYK-241.
+
 ## Password Reset (MYK-303, migration 004)
 
 - Flujo forgot/reset vive SOLO en master desde MYK-303 — cualquier hotfix en vivo (templates/rutas editadas en el artifact) se pierde en el siguiente redeploy desde master: fix va SIEMPRE por PR a master primero.

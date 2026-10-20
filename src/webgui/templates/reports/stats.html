@@ -1,0 +1,529 @@
+{% extends "base.html" %}
+
+{% block title %}Estadísticos de Asistencia - Attendance Collector{% endblock %}
+
+{% block extra_head %}
+<!-- flatpickr para date pickers -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+<style>[x-cloak]{display:none !important;}</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
+     x-data="statsDashboard('{{ default_start_date }}', '{{ default_end_date }}')">
+    <!-- Header -->
+    <div class="md:flex md:items-center md:justify-between mb-8">
+        <div class="flex-1 min-w-0">
+            <h2 class="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
+                Estadísticos de Asistencia
+            </h2>
+            <p class="mt-1 text-sm text-gray-600">
+                Puntualidad y ausentismo por periodo — mismos números que la API
+                <code class="text-xs">/api/attendance/stats</code>
+            </p>
+        </div>
+        <div class="mt-4 flex md:mt-0 md:ml-4 space-x-3">
+            <button type="button"
+                    @click="exportData('csv')"
+                    class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                Exportar CSV
+            </button>
+            <button type="button"
+                    @click="exportData('xlsx')"
+                    class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                Exportar Excel
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtros (mismos filtros que /api/attendance/stats) -->
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+        <div class="p-4 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Filtros</h3>
+        </div>
+        <div class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div>
+                <label for="start_date" class="block text-sm font-medium text-gray-700 mb-1">Fecha Inicio</label>
+                <input type="text" id="start_date" x-ref="startDate"
+                       x-model="filters.start_date"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                       placeholder="YYYY-MM-DD">
+            </div>
+            <div>
+                <label for="end_date" class="block text-sm font-medium text-gray-700 mb-1">Fecha Fin</label>
+                <input type="text" id="end_date" x-ref="endDate"
+                       x-model="filters.end_date"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                       placeholder="YYYY-MM-DD">
+            </div>
+            <div>
+                <label for="employee_id" class="block text-sm font-medium text-gray-700 mb-1">Colaborador</label>
+                <select id="employee_id" x-model="filters.employee_id"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    <option value="">Todos los colaboradores</option>
+                    {% for employee in employees %}
+                    <option value="{{ employee.id }}">{{ employee.first_name }} {{ employee.last_name }} ({{ employee.employee_code }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="department" class="block text-sm font-medium text-gray-700 mb-1">Departamento</label>
+                <select id="department" x-model="filters.department"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    <option value="">Todos los departamentos</option>
+                    {% for department in departments %}
+                    <option value="{{ department }}">{{ department }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="group_by" class="block text-sm font-medium text-gray-700 mb-1">Agrupar por</label>
+                <select id="group_by" x-model="filters.group_by"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    <option value="employee">Colaborador</option>
+                    <option value="department">Departamento</option>
+                    <option value="company">Empresa</option>
+                </select>
+            </div>
+        </div>
+        <div class="p-4 border-t border-gray-200 flex items-center justify-end space-x-3">
+            <button type="button" @click="applyFilters()"
+                    class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                Aplicar Filtros
+            </button>
+            <button type="button" @click="clearFilters()"
+                    class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                Limpiar
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading state -->
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg" x-show="loading">
+        <div class="p-12 text-center">
+            <svg class="animate-spin h-10 w-10 text-blue-600 mx-auto" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-3 text-sm text-gray-600">Calculando reporte...</p>
+        </div>
+    </div>
+
+    <!-- Error state -->
+    <div class="bg-red-50 border border-red-200 rounded-lg p-4" x-show="errorMessage" x-cloak role="alert">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+            </div>
+            <div class="ml-3">
+                <h3 class="text-sm font-medium text-red-800">Error al calcular el reporte</h3>
+                <p class="mt-1 text-sm text-red-700" x-text="errorMessage"></p>
+                <button type="button" @click="loadData()" class="mt-2 text-sm text-red-700 hover:text-red-900 underline font-medium">
+                    Reintentar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <template x-if="report && !loading && rows.length === 0">
+        <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+            <div class="p-12 text-center">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <p class="mt-2 text-lg font-medium text-gray-900">Sin datos en el periodo</p>
+                <p class="mt-1 text-sm text-gray-600">
+                    No hay colaboradores activos ni registros para los filtros actuales
+                </p>
+            </div>
+        </div>
+    </template>
+
+    <template x-if="report && !loading && rows.length > 0">
+        <div>
+            <!-- Periodo y meta -->
+            <p class="mb-4 text-sm text-gray-600">
+                Periodo:
+                <span class="font-medium text-gray-900" x-text="report.period.start_date"></span>
+                a
+                <span class="font-medium text-gray-900" x-text="report.period.end_date"></span>
+                ·
+                <span x-text="report.meta.employees_total"></span> colaborador(es)
+                ·
+                <span x-text="report.meta.unlinked_records"></span> registro(s) sin vincular
+                · Horario de referencia:
+                <span class="font-medium text-gray-900" x-text="report.work_start"></span>
+            </p>
+
+            <!-- KPIs (totals) -->
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+                <div class="bg-white overflow-hidden shadow rounded-lg p-4">
+                    <p class="text-sm font-medium text-gray-600">Puntualidad</p>
+                    <p class="mt-1 text-2xl font-bold text-gray-900" x-text="pct(totals.punctuality_pct)"></p>
+                    <p class="text-xs text-gray-600" x-text="totals.late_arrivals + ' retardo(s)'"></p>
+                </div>
+                <div class="bg-white overflow-hidden shadow rounded-lg p-4">
+                    <p class="text-sm font-medium text-gray-600">Ausentismo</p>
+                    <p class="mt-1 text-2xl font-bold text-gray-900" x-text="pct(totals.absenteeism_pct)"></p>
+                    <p class="text-xs text-gray-600" x-text="totals.days_absent + ' día(s) ausente(s)'"></p>
+                </div>
+                <div class="bg-white overflow-hidden shadow rounded-lg p-4">
+                    <p class="text-sm font-medium text-gray-600">Días Presentes</p>
+                    <p class="mt-1 text-2xl font-bold text-green-700" x-text="num(totals.days_present)"></p>
+                    <p class="text-xs text-gray-600" x-text="'de ' + totals.days_expected + ' esperados'"></p>
+                </div>
+                <div class="bg-white overflow-hidden shadow rounded-lg p-4">
+                    <p class="text-sm font-medium text-gray-600">Días Ausentes</p>
+                    <p class="mt-1 text-2xl font-bold text-red-700" x-text="num(totals.days_absent)"></p>
+                    <p class="text-xs text-gray-600" x-text="'de ' + totals.days_expected + ' esperados'"></p>
+                </div>
+                <div class="bg-white overflow-hidden shadow rounded-lg p-4">
+                    <p class="text-sm font-medium text-gray-600">Incapacidades</p>
+                    <p class="mt-1 text-2xl font-bold text-amber-600" x-text="num(totals.days_incapacity)"></p>
+                    <p class="text-xs text-gray-600">días hábiles cubiertos</p>
+                </div>
+                <div class="bg-white overflow-hidden shadow rounded-lg p-4">
+                    <p class="text-sm font-medium text-gray-600">Vacaciones</p>
+                    <p class="mt-1 text-2xl font-bold text-blue-700" x-text="num(totals.days_vacation)"></p>
+                    <p class="text-xs text-gray-600">días hábiles cubiertos</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                <!-- Donut: composicion del periodo -->
+                <div class="bg-white shadow overflow-hidden sm:rounded-lg p-4">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Composición del periodo</h3>
+                    <div class="flex items-center justify-center gap-6 flex-wrap">
+                        <div class="relative h-40 w-40 rounded-full" :style="donutStyle()"
+                             role="img"
+                             :aria-label="'Composición: ' + totals.days_present + ' días presentes, ' + totals.days_absent + ' ausentes, ' + totals.days_incapacity + ' incapacidad, ' + totals.days_vacation + ' vacaciones'">
+                        </div>
+                        <ul class="space-y-2 text-sm">
+                            <li class="flex items-center gap-2">
+                                <span class="h-3 w-3 rounded-sm bg-green-600" aria-hidden="true"></span>
+                                <span class="text-gray-700">Presentes:</span>
+                                <span class="font-medium text-gray-900" x-text="num(totals.days_present)"></span>
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <span class="h-3 w-3 rounded-sm bg-red-600" aria-hidden="true"></span>
+                                <span class="text-gray-700">Ausentes:</span>
+                                <span class="font-medium text-gray-900" x-text="num(totals.days_absent)"></span>
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <span class="h-3 w-3 rounded-sm bg-amber-500" aria-hidden="true"></span>
+                                <span class="text-gray-700">Incapacidad:</span>
+                                <span class="font-medium text-gray-900" x-text="num(totals.days_incapacity)"></span>
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <span class="h-3 w-3 rounded-sm bg-blue-600" aria-hidden="true"></span>
+                                <span class="text-gray-700">Vacaciones:</span>
+                                <span class="font-medium text-gray-900" x-text="num(totals.days_vacation)"></span>
+                            </li>
+                            <li class="flex items-center gap-2 pt-1 border-t border-gray-200">
+                                <span class="text-gray-700">Días esperados:</span>
+                                <span class="font-medium text-gray-900" x-text="num(totals.days_expected)"></span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Barras: puntualidad por fila -->
+                <div class="bg-white shadow overflow-hidden sm:rounded-lg p-4">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Puntualidad por <span x-text="groupLabel()"></span></h3>
+                    <ul class="space-y-3">
+                        <template x-for="row in rows" :key="rowKey(row)">
+                            <li>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-sm text-gray-700 truncate" x-text="rowLabel(row)"></span>
+                                    <span class="text-sm font-medium text-gray-900 ml-2" x-text="pct(row.punctuality_pct)"></span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-3" role="presentation">
+                                    <div :class="row.punctuality_pct === null ? 'bg-gray-400 h-3 rounded-full' : 'bg-green-600 h-3 rounded-full'"
+                                         :style="'width: ' + (row.punctuality_pct === null ? 0 : Math.max(2, row.punctuality_pct)) + '%'"></div>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+                    <p class="mt-3 text-xs text-gray-600">Días presentados a tiempo vs total presentado (— sin días presentados)</p>
+                </div>
+
+                <!-- Barras: ausentismo por fila -->
+                <div class="bg-white shadow overflow-hidden sm:rounded-lg p-4">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Ausentismo por <span x-text="groupLabel()"></span></h3>
+                    <ul class="space-y-3">
+                        <template x-for="row in rows" :key="rowKey(row)">
+                            <li>
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-sm text-gray-700 truncate" x-text="rowLabel(row)"></span>
+                                    <span class="text-sm font-medium text-gray-900 ml-2" x-text="pct(row.absenteeism_pct)"></span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-3" role="presentation">
+                                    <div :style="'width: ' + (row.absenteeism_pct === null ? 0 : Math.max(2, row.absenteeism_pct)) + '%'"
+                                         :class="row.absenteeism_pct === null ? 'bg-gray-400 h-3 rounded-full' : 'bg-red-600 h-3 rounded-full'"></div>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+                    <p class="mt-3 text-xs text-gray-600">Días ausentes vs días esperados (— sin días esperados)</p>
+                </div>
+            </div>
+
+            <!-- Barras apiladas: asistencia por fila -->
+            <div class="bg-white shadow overflow-hidden sm:rounded-lg p-4 mb-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-1">
+                    Asistencia por <span x-text="groupLabel()"></span>
+                </h3>
+                <div class="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-700">
+                    <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm bg-green-600" aria-hidden="true"></span> Presentes</span>
+                    <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm bg-red-600" aria-hidden="true"></span> Ausentes</span>
+                    <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm bg-amber-500" aria-hidden="true"></span> Incapacidad</span>
+                    <span class="flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-sm bg-blue-600" aria-hidden="true"></span> Vacaciones</span>
+                </div>
+                <ul class="space-y-3">
+                    <template x-for="row in rows" :key="rowKey(row)">
+                        <li>
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-sm text-gray-700 truncate" x-text="rowLabel(row)"></span>
+                                <span class="text-sm text-gray-700 ml-2 whitespace-nowrap">
+                                    <span class="font-medium text-gray-900" x-text="num(row.days_present)"></span>
+                                    /
+                                    <span x-text="num(row.days_expected)"></span>
+                                    días
+                                </span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-3 flex overflow-hidden" role="presentation">
+                                <div class="bg-green-600 h-3" :style="'width: ' + segWidth(row, 'days_present') + '%'"></div>
+                                <div class="bg-red-600 h-3" :style="'width: ' + segWidth(row, 'days_absent') + '%'"></div>
+                                <div class="bg-amber-500 h-3" :style="'width: ' + segWidth(row, 'days_incapacity') + '%'"></div>
+                                <div class="bg-blue-600 h-3" :style="'width: ' + segWidth(row, 'days_vacation') + '%'"></div>
+                            </div>
+                        </li>
+                    </template>
+                </ul>
+            </div>
+
+            <!-- Tabla con los 8 KPIs -->
+            <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <caption class="sr-only">Reporte de estadísticos de asistencia por periodo</caption>
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <template x-if="report.group_by === 'employee'">
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Colaborador</th>
+                                </template>
+                                <template x-if="report.group_by === 'department'">
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Departamento</th>
+                                </template>
+                                <template x-if="report.group_by === 'company'">
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Empresa</th>
+                                </template>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Esperados</th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Presentes</th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Ausentes</th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Incapacidad</th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Vacaciones</th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Retardos</th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Puntualidad</th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">Ausentismo</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="row in rows" :key="rowKey(row)">
+                                <tr class="hover:bg-gray-50">
+                                    <template x-if="report.group_by === 'employee'">
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm">
+                                            <span class="text-gray-900 font-medium" x-text="row.employee_name"></span>
+                                            <span class="ml-2 text-xs text-gray-600" x-text="'(' + row.employee_code + ')'"></span>
+                                            <span class="ml-2 text-xs text-gray-600" x-text="row.department"></span>
+                                        </td>
+                                    </template>
+                                    <template x-if="report.group_by === 'department'">
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900" x-text="row.department"></td>
+                                    </template>
+                                    <template x-if="report.group_by === 'company'">
+                                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900" x-text="row.company"></td>
+                                    </template>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900" x-text="num(row.days_expected)"></td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-green-700" x-text="num(row.days_present)"></td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-red-700" x-text="num(row.days_absent)"></td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-amber-700" x-text="num(row.days_incapacity)"></td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-blue-700" x-text="num(row.days_vacation)"></td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900" x-text="num(row.late_arrivals)"></td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900" x-text="pct(row.punctuality_pct)"></td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900" x-text="pct(row.absenteeism_pct)"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                        <tfoot class="bg-gray-50">
+                            <tr class="font-medium">
+                                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 uppercase">Total</td>
+                                <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900" x-text="num(totals.days_expected)"></td>
+                                <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900" x-text="num(totals.days_present)"></td>
+                                <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900" x-text="num(totals.days_absent)"></td>
+                                <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900" x-text="num(totals.days_incapacity)"></td>
+                                <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900" x-text="num(totals.days_vacation)"></td>
+                                <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900" x-text="num(totals.late_arrivals)"></td>
+                                <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900" x-text="pct(totals.punctuality_pct)"></td>
+                                <td class="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900" x-text="pct(totals.absenteeism_pct)"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </template>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function statsDashboard(defaultStart, defaultEnd) {
+    return {
+        report: null,
+        loading: false,
+        errorMessage: '',
+        filters: {
+            start_date: defaultStart,
+            end_date: defaultEnd,
+            employee_id: '',
+            department: '',
+            group_by: 'employee'
+        },
+
+        init() {
+            this.initDatePickers();
+            this.loadData();
+        },
+
+        initDatePickers() {
+            this.$nextTick(() => {
+                if (typeof flatpickr !== 'undefined') {
+                    flatpickr(this.$refs.startDate, {
+                        dateFormat: "Y-m-d",
+                        locale: "es",
+                        onChange: (selectedDates, dateStr) => { this.filters.start_date = dateStr; }
+                    });
+                    flatpickr(this.$refs.endDate, {
+                        dateFormat: "Y-m-d",
+                        locale: "es",
+                        onChange: (selectedDates, dateStr) => { this.filters.end_date = dateStr; }
+                    });
+                }
+            });
+        },
+
+        get rows() { return this.report ? this.report.rows : []; },
+        get totals() { return this.report ? this.report.totals : {}; },
+
+        rowLabel(row) {
+            if (this.report.group_by === 'company') return row.company;
+            if (this.report.group_by === 'department') return row.department;
+            return row.employee_name;
+        },
+
+        rowKey(row) {
+            if (this.report.group_by === 'company') return row.company;
+            if (this.report.group_by === 'department') return row.department;
+            return row.employee_id;
+        },
+
+        groupLabel() {
+            return { employee: 'colaborador', department: 'departamento', company: 'empresa' }[this.report.group_by] || 'grupo';
+        },
+
+        pct(value) {
+            if (value === null || value === undefined) return '—';
+            return Number(value).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + '%';
+        },
+
+        num(value) {
+            if (value === null || value === undefined) return '—';
+            return Number(value).toLocaleString('es-ES');
+        },
+
+        segWidth(row, key) {
+            const total = row.days_expected || 0;
+            if (!total) return 0;
+            return Math.min(100, (row[key] / total) * 100);
+        },
+
+        donutStyle() {
+            const t = this.totals;
+            const total = (t.days_present || 0) + (t.days_absent || 0) + (t.days_incapacity || 0) + (t.days_vacation || 0);
+            if (!total) return 'background: #e5e7eb';
+            const colors = { days_present: '#16a34a', days_absent: '#dc2626', days_incapacity: '#d97706', days_vacation: '#2563eb' };
+            let acc = 0;
+            const parts = [];
+            for (const key of Object.keys(colors)) {
+                const value = t[key] || 0;
+                if (!value) continue;
+                const from = (acc / total) * 100;
+                acc += value;
+                const to = (acc / total) * 100;
+                parts.push(colors[key] + ' ' + from.toFixed(2) + '% ' + to.toFixed(2) + '%');
+            }
+            return 'background: conic-gradient(' + parts.join(', ') + ')';
+        },
+
+        buildParams() {
+            const params = new URLSearchParams();
+            Object.entries(this.filters).forEach(([key, value]) => {
+                if (value !== '' && value !== null) params.append(key, value);
+            });
+            return params;
+        },
+
+        async loadData() {
+            this.loading = true;
+            this.errorMessage = '';
+            try {
+                const response = await fetch('/reportes/api/stats?' + this.buildParams().toString());
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status));
+                this.report = data;
+            } catch (e) {
+                this.errorMessage = 'Error al calcular el reporte: ' + e.message;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        applyFilters() {
+            this.loadData();
+        },
+
+        clearFilters() {
+            this.filters = {
+                start_date: defaultStart,
+                end_date: defaultEnd,
+                employee_id: '',
+                department: '',
+                group_by: 'employee'
+            };
+            if (this.$refs.startDate && this.$refs.startDate._flatpickr) {
+                this.$refs.startDate._flatpickr.setDate(defaultStart, false);
+            }
+            if (this.$refs.endDate && this.$refs.endDate._flatpickr) {
+                this.$refs.endDate._flatpickr.setDate(defaultEnd, false);
+            }
+            this.loadData();
+        },
+
+        exportData(format) {
+            const params = this.buildParams();
+            params.append('format', format);
+            window.location.href = '/reportes/export?' + params.toString();
+        }
+    };
+}
+</script>
+{% endblock %}
