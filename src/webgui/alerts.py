@@ -50,9 +50,35 @@ class AlertEngine:
     para enviar notificaciones por email.
     """
 
-    def __init__(self, db, mailer: Mailer | None = None):
+    def __init__(self, db, mailer: Mailer | None = None, buffer_repo=None):
         self.db = db
         self.mailer = mailer
+        self.buffer_repo = buffer_repo
+
+    # ------------------------------------------------------------------
+    # Fuentes de datos
+    # ------------------------------------------------------------------
+
+    def _attendance_records(self) -> list[dict]:
+        """Registros de asistencia del buffer DB (si esta disponible)."""
+        if self.buffer_repo is None:
+            return []
+        try:
+            with self.buffer_repo.get_connection() as conn:
+                rows = conn.execute(
+                    "SELECT user_id, timestamp, status FROM attendance_records"
+                ).fetchall()
+            return [dict(r) for r in rows]  # type: ignore[no-any-return]
+        except Exception as exc:  # pragma: no cover - defensivo
+            logger.warning(f"No se pudieron leer attendance_records: {exc}")
+            return []
+
+    def _absences(self) -> list[dict]:
+        """Ausencias justificadas (tabla opcional; aun no existe migracion)."""
+        try:
+            return self.db.fetch_all("SELECT employee_id, date, justified FROM absences")  # type: ignore[no-any-return]
+        except Exception:
+            return []
 
     # ------------------------------------------------------------------
     # Evaluacion de reglas (logica pura, testable con fixtures)
@@ -311,7 +337,7 @@ class AlertEngine:
         created: list[dict] = []
 
         if rule_type == RULE_RETARDOS:
-            records = self.db.fetch_all("SELECT user_id, timestamp, status FROM attendance_records")
+            records = self._attendance_records()
             n = int(config.get("n", 3))
             m_days = int(config.get("m_days", 5))
             work_start = config.get("work_start", WORK_START_DEFAULT)
@@ -323,7 +349,7 @@ class AlertEngine:
             candidates = self.evaluate_incapacidad_por_vencer(leaves, days_before)
 
         elif rule_type == RULE_AUSENCIA:
-            absences = self.db.fetch_all("SELECT employee_id, date, justified FROM absences")
+            absences = self._absences()
             days = int(config.get("days", 3))
             candidates = self.evaluate_ausencia_sin_justificar(absences, days)
 
@@ -357,6 +383,10 @@ class AlertEngine:
         rules = self.db.fetch_all("SELECT * FROM alert_rules WHERE enabled = 1")
         results: dict[str, list[dict]] = {}
         for rule in rules:
-            created = self.run_rule(rule)
+            try:
+                created = self.run_rule(rule)
+            except Exception as exc:  # una regla rota no debe tumbar las demas
+                logger.error(f"Regla {rule.get('id')} ({rule.get('type')}) fallo: {exc}")
+                created = []
             results[rule["type"]] = created
         return results

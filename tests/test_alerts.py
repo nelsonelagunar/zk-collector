@@ -158,7 +158,40 @@ class TestAusenciaSinJustificar:
 # ----------------------------------------------------------------------
 
 
+class TestRunAll:
+    def test_regla_rota_no_tumba_las_demas(self):
+        db = Mock()
+        db.fetch_all.return_value = [
+            {"id": 1, "type": "retardos_reincidentes", "enabled": 1, "config": "{invalido"}
+        ]
+        engine = AlertEngine(db)
+        results = engine.run_all()
+        assert results == {"retardos_reincidentes": []}
+
+    def test_sin_buffer_repo_no_lee_asistencia(self):
+        db = Mock()
+        db.fetch_all.return_value = [
+            {
+                "id": 1,
+                "type": "retardos_reincidentes",
+                "enabled": 1,
+                "config": '{"n": 2, "m_days": 5}',
+            }
+        ]
+        engine = AlertEngine(db)
+        assert engine.run_all() == {"retardos_reincidentes": []}
+
+
 class TestAlertsRoutes:
+    def test_evaluate_runs_all_rules(self, client):
+        # Sin buffer_repo en el app de test, la regla de retardos no crea alertas
+        # pero el endpoint debe responder y no fallar.
+        resp = client.post("/api/alerts/evaluate")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["created"] == 0
+
     def _create_alert(self, app):
         with app.db.get_connection() as conn:
             conn.execute(
