@@ -68,4 +68,8 @@ CSV con BOM `utf-8-sig` (compatibilidad Excel) y XLSX vía openpyxl, reutilizand
 
 - Servicio puro: `src/webgui/attendance_stats.py` (`compute_attendance_stats`).
 - Rutas: `src/webgui/routes/attendance_stats.py`.
-- Tests: `tests/test_attendance_stats.py` (servicio, números contra fixtures) y `tests/test_attendance_stats_routes.py` (API + export).
+- WebGUI dashboard: `src/webgui/routes/attendance_stats_ui.py` + `templates/reports/stats.html`
+  (GET /reportes, MYK-242); reutiliza `compute_report` y `build_export_response` de la API.
+- Tests: `tests/test_attendance_stats.py` (servicio, números contra fixtures),
+  `tests/test_attendance_stats_routes.py` (API + export) y
+  `tests/test_attendance_stats_ui.py` (dashboard: paridad con API, filtros, export, <2s con 10k).

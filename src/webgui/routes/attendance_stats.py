@@ -80,7 +80,13 @@ def _collect_filters() -> dict:
     }
 
 
-def _compute_report() -> dict:
+def compute_report() -> dict:
+    """Computar el reporte desde los query params del request en curso.
+
+    Compartido por la API (`/api/attendance/stats`) y el dashboard WebGUI
+    (`/reportes`, MYK-242): ambas vistas leen de la misma implementacion,
+    por lo que los numeros cuadran por construccion.
+    """
     filters = _collect_filters()
     return compute_attendance_stats(
         current_app.db,  # type: ignore[attr-defined]
@@ -95,12 +101,28 @@ def _compute_report() -> dict:
     )
 
 
+def build_export_response(report: dict, format_type: str) -> Response:
+    """Construir la respuesta CSV/XLSX de un reporte ya computado.
+
+    Reutilizada por el export de la API y por el export del dashboard
+    WebGUI (MYK-242) para garantizar CSV/Excel identicos.
+    """
+    label_columns = _LABEL_COLUMNS[report["group_by"]]
+    headers = [header for _, header in label_columns] + [header for _, header in _NUMERIC_COLUMNS]
+    export_rows = _build_export_rows(report["rows"], report["group_by"])
+    export_rows.append(_total_export_row(report["totals"], report["group_by"]))
+
+    if format_type == "xlsx":
+        return _export_xlsx(headers, export_rows)
+    return _export_csv(headers, export_rows)
+
+
 @attendance_stats_bp.route("/stats")
 @api_auth_required
 def stats_report():
     """Reporte de asistencia (presentes/ausentes/retardos/incapacidades/vacaciones)."""
     try:
-        report = _compute_report()
+        report = compute_report()
     except StatsValidationError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify(report)
@@ -111,19 +133,12 @@ def stats_report():
 def stats_export():
     """Exportar el reporte de asistencia a CSV o Excel con los mismos filtros."""
     try:
-        report = _compute_report()
+        report = compute_report()
     except StatsValidationError as exc:
         return jsonify({"error": str(exc)}), 400
 
     format_type = request.args.get("format", "csv").lower()
-    label_columns = _LABEL_COLUMNS[report["group_by"]]
-    headers = [header for _, header in label_columns] + [header for _, header in _NUMERIC_COLUMNS]
-    export_rows = _build_export_rows(report["rows"], report["group_by"])
-    export_rows.append(_total_export_row(report["totals"], report["group_by"]))
-
-    if format_type == "xlsx":
-        return _export_xlsx(headers, export_rows)
-    return _export_csv(headers, export_rows)
+    return build_export_response(report, format_type)
 
 
 def _build_export_rows(rows: list[dict], group_by: str) -> list[list]:
