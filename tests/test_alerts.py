@@ -63,7 +63,9 @@ def client(tmp_path):
             "VALUES ('Retardos RH','retardos_reincidentes',1,?)",
             ('{"n": 2, "m_days": 5, "work_start": "09:00"}',),
         )
-    return app.test_client()
+    client = app.test_client()
+    client.environ_base["HTTP_AUTHORIZATION"] = "Bearer test-token"
+    return client
 
 
 # ----------------------------------------------------------------------
