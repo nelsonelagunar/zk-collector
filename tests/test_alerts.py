@@ -5,11 +5,11 @@
 - Testes de rutas API: listar, marcar leida/resuelta, preferencias.
 """
 
+from sqlite3 import Connection
 from unittest.mock import Mock
 
 import pytest
 from flask import Flask
-from sqlite3 import Connection
 
 from src.webgui.alerts import AlertEngine
 from src.webgui.database import Database
@@ -23,9 +23,7 @@ def _build_app(tmp_path, *migration_names):
     conn = Connection(db_path)
     conn.execute("PRAGMA foreign_keys = ON")
     for name in migration_names:
-        conn.executescript(
-            (migrations_dir() / name).read_text()
-        )
+        conn.executescript((migrations_dir() / name).read_text())
     conn.close()
 
     app = Flask(__name__)
@@ -38,6 +36,7 @@ def _build_app(tmp_path, *migration_names):
 
 def migrations_dir():
     from pathlib import Path
+
     return Path(__file__).resolve().parents[1] / "migrations"
 
 
@@ -70,6 +69,7 @@ def client(tmp_path):
 # ----------------------------------------------------------------------
 # Motor de reglas (fixtures, sin DB)
 # ----------------------------------------------------------------------
+
 
 class TestRetardosReincidentes:
     def test_dispara_al_cumplir_n_retardos_en_m_dias(self):
@@ -155,6 +155,7 @@ class TestAusenciaSinJustificar:
 # Rutas API
 # ----------------------------------------------------------------------
 
+
 class TestAlertsRoutes:
     def _create_alert(self, app):
         with app.db.get_connection() as conn:
@@ -213,8 +214,9 @@ class TestAlertsRoutes:
         assert prefs[0]["alert_type"] == "retardos_reincidentes"
 
     def test_set_preference(self, client):
-        resp = client.post("/api/alerts/preferences", json={
-            "user_id": 1, "alert_type": "incapacidad_por_vencer", "enabled": True
-        })
+        resp = client.post(
+            "/api/alerts/preferences",
+            json={"user_id": 1, "alert_type": "incapacidad_por_vencer", "enabled": True},
+        )
         assert resp.status_code == 201
         assert resp.get_json()["enabled"] is True

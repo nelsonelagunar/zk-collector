@@ -417,7 +417,7 @@ def api_forgot_password():
         {
             "success": True,
             "message": (
-                "Si el email existe, recibirás instrucciones " "para restablecer tu contraseña."
+                "Si el email existe, recibirás instrucciones para restablecer tu contraseña."
             ),
         }
     )

@@ -10,8 +10,10 @@ from pathlib import Path
 from flask import Flask, jsonify, redirect, render_template, session, url_for
 
 from ..buffer.repository import BufferRepository
+from .alerts import AlertEngine
 from .auth import Auth
 from .database import Database
+from .mail import Mailer
 
 
 def create_app(config=None):
@@ -24,10 +26,8 @@ def create_app(config=None):
     app.db.initialize()
 
     # Motor de alertas HR-6 + Mailer (reutiliza SMTP de system_config)
-    smtp_rows = app.db.fetch_all(
-        "SELECT key, value FROM system_config WHERE key LIKE 'smtp_%'"
-    )
-    smtp_config = {row['key']: row['value'] for row in smtp_rows}
+    smtp_rows = app.db.fetch_all("SELECT key, value FROM system_config WHERE key LIKE 'smtp_%'")
+    smtp_config = {row["key"]: row["value"] for row in smtp_rows}
     app.mailer = Mailer.from_config(smtp_config)
     app.alert_engine = AlertEngine(app.db, mailer=app.mailer)
 
@@ -41,6 +41,7 @@ def create_app(config=None):
     def utility_processor():
         return {"now": datetime.now}
 
+    from .routes.alerts import alerts_bp
     from .routes.apidocs import apidocs_bp
     from .routes.attendance import attendance_bp
     from .routes.attendance_stats import attendance_stats_bp
@@ -49,7 +50,6 @@ def create_app(config=None):
     from .routes.devices import devices_bp
     from .routes.employees import employees_bp
     from .routes.employees_ui import employees_ui_bp
-    from .routes.alerts import alerts_bp
     from .routes.medical_leaves import medical_leaves_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")

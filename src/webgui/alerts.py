@@ -21,23 +21,24 @@ from .mail import Mailer, MailError
 logger = logging.getLogger(__name__)
 
 # Tipos de regla soportados
-RULE_RETARDOS = 'retardos_reincidentes'
-RULE_INCAPACIDAD = 'incapacidad_por_vencer'
-RULE_AUSENCIA = 'ausencia_sin_justificar'
-RULE_VACACIONES = 'vacaciones_pendientes'
+RULE_RETARDOS = "retardos_reincidentes"
+RULE_INCAPACIDAD = "incapacidad_por_vencer"
+RULE_AUSENCIA = "ausencia_sin_justificar"
+RULE_VACACIONES = "vacaciones_pendientes"
 
 # Hora de inicio de jornada por defecto (HH:MM)
-WORK_START_DEFAULT = '09:00'
+WORK_START_DEFAULT = "09:00"
 
 # Estado de las alertas
-ALERT_STATUS_PENDING = 'pending'
-ALERT_STATUS_SENT = 'sent'
-ALERT_STATUS_READ = 'read'
-ALERT_STATUS_RESOLVED = 'resolved'
+ALERT_STATUS_PENDING = "pending"
+ALERT_STATUS_SENT = "sent"
+ALERT_STATUS_READ = "read"
+ALERT_STATUS_RESOLVED = "resolved"
 
 
 class AlertEngineError(Exception):
     """Excepcion para errores del motor de alertas."""
+
     pass
 
 
@@ -57,10 +58,9 @@ class AlertEngine:
     # Evaluacion de reglas (logica pura, testable con fixtures)
     # ------------------------------------------------------------------
 
-    def evaluate_retardos_reincidentes(self, records: list[dict], n: int,
-                                       m_days: int,
-                                       work_start: str = WORK_START_DEFAULT
-                                       ) -> list[dict]:
+    def evaluate_retardos_reincidentes(
+        self, records: list[dict], n: int, m_days: int, work_start: str = WORK_START_DEFAULT
+    ) -> list[dict]:
         """
         Detectar empleados con N retardos en una ventana de M dias.
 
@@ -85,7 +85,7 @@ class AlertEngine:
         # Primera entrada por usuario y dia
         first_by_day: dict[tuple[str, str], str] = {}
         for rec in records:
-            ts = rec.get('timestamp')
+            ts = rec.get("timestamp")
             if not ts:
                 continue
             try:
@@ -96,7 +96,7 @@ class AlertEngine:
             if record_date < cutoff or record_date > today:
                 continue
             time_part = str(ts)[11:16]
-            key = (str(rec.get('user_id')), day)
+            key = (str(rec.get("user_id")), day)
             prev = first_by_day.get(key)
             if prev is None or time_part < prev:
                 first_by_day[key] = time_part
@@ -110,19 +110,19 @@ class AlertEngine:
         alerts = []
         for user_id, days in tardy_days.items():
             if len(days) >= n:
-                alerts.append({
-                    'employee_id': user_id,
-                    'event_type': RULE_RETARDOS,
-                    'message': (
-                        f"{len(days)} retardos en {m_days} dias "
-                        f"({', '.join(sorted(days))})"
-                    ),
-                    'event_date': max(days),
-                })
+                alerts.append(
+                    {
+                        "employee_id": user_id,
+                        "event_type": RULE_RETARDOS,
+                        "message": (
+                            f"{len(days)} retardos en {m_days} dias ({', '.join(sorted(days))})"
+                        ),
+                        "event_date": max(days),
+                    }
+                )
         return alerts
 
-    def evaluate_incapacidad_por_vencer(self, leaves: list[dict],
-                                        days_before: int) -> list[dict]:
+    def evaluate_incapacidad_por_vencer(self, leaves: list[dict], days_before: int) -> list[dict]:
         """
         Detectar incapacidades activas que vencen en los proximos N dias.
 
@@ -141,9 +141,9 @@ class AlertEngine:
 
         alerts = []
         for leave in leaves:
-            if str(leave.get('status', '')).lower() != 'active':
+            if str(leave.get("status", "")).lower() != "active":
                 continue
-            end_raw = leave.get('end_date')
+            end_raw = leave.get("end_date")
             if not end_raw:
                 continue
             try:
@@ -151,18 +151,17 @@ class AlertEngine:
             except (ValueError, TypeError):
                 continue
             if today <= end_date <= limit:
-                alerts.append({
-                    'employee_id': leave.get('employee_id'),
-                    'event_type': RULE_INCAPACIDAD,
-                    'message': (
-                        f"Incapacidad vence el {end_date.isoformat()}"
-                    ),
-                    'event_date': end_date.isoformat(),
-                })
+                alerts.append(
+                    {
+                        "employee_id": leave.get("employee_id"),
+                        "event_type": RULE_INCAPACIDAD,
+                        "message": (f"Incapacidad vence el {end_date.isoformat()}"),
+                        "event_date": end_date.isoformat(),
+                    }
+                )
         return alerts
 
-    def evaluate_ausencia_sin_justificar(self, absences: list[dict],
-                                         days: int) -> list[dict]:
+    def evaluate_ausencia_sin_justificar(self, absences: list[dict], days: int) -> list[dict]:
         """
         Detectar empleados con mas de X ausencias sin justificar.
 
@@ -179,24 +178,23 @@ class AlertEngine:
         unjustified: dict[str, list[str]] = {}
         emp_by_key: dict[str, Any] = {}
         for absence in absences:
-            if str(absence.get('justified', '')).lower() in ('1', 'true', 'yes', 's'):
+            if str(absence.get("justified", "")).lower() in ("1", "true", "yes", "s"):
                 continue
-            key = str(absence.get('employee_id'))
-            unjustified.setdefault(key, []).append(str(absence.get('date')))
-            emp_by_key[key] = absence.get('employee_id')
+            key = str(absence.get("employee_id"))
+            unjustified.setdefault(key, []).append(str(absence.get("date")))
+            emp_by_key[key] = absence.get("employee_id")
 
         alerts = []
         for employee_id_key, dates in unjustified.items():
             if len(dates) > days:
-                alerts.append({
-                    'employee_id': emp_by_key[employee_id_key],
-                    'event_type': RULE_AUSENCIA,
-                    'message': (
-                        f"{len(dates)} ausencias sin justificar "
-                        f"(>{days} dias)"
-                    ),
-                    'event_date': max(d for d in dates if d),
-                })
+                alerts.append(
+                    {
+                        "employee_id": emp_by_key[employee_id_key],
+                        "event_type": RULE_AUSENCIA,
+                        "message": (f"{len(dates)} ausencias sin justificar (>{days} dias)"),
+                        "event_date": max(d for d in dates if d),
+                    }
+                )
         return alerts
 
     # ------------------------------------------------------------------
@@ -206,39 +204,46 @@ class AlertEngine:
     def _now_iso(self) -> str:
         return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
-    def create_alert(self, rule_id: int, employee_id: int, event_type: str,
-                     message: str) -> int:
+    def create_alert(self, rule_id: int, employee_id: int, event_type: str, message: str) -> int:
         """Insertar una alerta y devolver su id."""
         data = {
-            'rule_id': rule_id,
-            'employee_id': int(employee_id),
-            'event_type': event_type,
-            'message': message,
-            'status': ALERT_STATUS_PENDING,
-            'created_at': self._now_iso(),
+            "rule_id": rule_id,
+            "employee_id": int(employee_id),
+            "event_type": event_type,
+            "message": message,
+            "status": ALERT_STATUS_PENDING,
+            "created_at": self._now_iso(),
         }
-        return self.db.insert('alerts', data)
+        return int(self.db.insert("alerts", data))
 
     def mark_sent(self, alert_id: int) -> None:
-        self.db.update('alerts', {'status': ALERT_STATUS_SENT,
-                                  'sent_at': self._now_iso()},
-                       'id = ?', (alert_id,))
+        self.db.update(
+            "alerts",
+            {"status": ALERT_STATUS_SENT, "sent_at": self._now_iso()},
+            "id = ?",
+            (alert_id,),
+        )
 
     def mark_read(self, alert_id: int) -> None:
-        self.db.update('alerts', {'status': ALERT_STATUS_READ,
-                                  'read_at': self._now_iso()},
-                       'id = ?', (alert_id,))
+        self.db.update(
+            "alerts",
+            {"status": ALERT_STATUS_READ, "read_at": self._now_iso()},
+            "id = ?",
+            (alert_id,),
+        )
 
     def mark_resolved(self, alert_id: int) -> None:
-        self.db.update('alerts', {'status': ALERT_STATUS_RESOLVED,
-                                  'resolved_at': self._now_iso()},
-                       'id = ?', (alert_id,))
+        self.db.update(
+            "alerts",
+            {"status": ALERT_STATUS_RESOLVED, "resolved_at": self._now_iso()},
+            "id = ?",
+            (alert_id,),
+        )
 
     def _preference_enabled(self, alert_type: str) -> bool:
         """Devuelve True si algun usuario tiene el tipo de alerta opt-in."""
         row = self.db.fetch_one(
-            "SELECT 1 FROM user_alert_preferences "
-            "WHERE alert_type = ? AND enabled = 1 LIMIT 1",
+            "SELECT 1 FROM user_alert_preferences WHERE alert_type = ? AND enabled = 1 LIMIT 1",
             (alert_type,),
         )
         return row is not None
@@ -247,10 +252,11 @@ class AlertEngine:
         employee = self.db.get_employee_by_id(int(employee_id))
         if not employee:
             return None
-        return employee.get('email') or None
+        return employee.get("email") or None
 
-    def send_alert_email(self, alert_id: int, employee_id: int,
-                         event_type: str, message: str) -> bool:
+    def send_alert_email(
+        self, alert_id: int, employee_id: int, event_type: str, message: str
+    ) -> bool:
         """Enviar email de la alerta si hay mailer y preferencia habilitada.
 
         Devuelve True si se intento el envio (mailer configurado y preferencia
@@ -295,36 +301,30 @@ class AlertEngine:
         `config` es un JSON con los parametros de la regla.
         Returns la lista de alertas creadas.
         """
-        if not rule.get('enabled'):
+        if not rule.get("enabled"):
             return []
 
-        rule_id = int(rule['id'])
-        rule_type = rule['type']
-        config = json.loads(rule['config']) if rule.get('config') else {}
+        rule_id = int(rule["id"])
+        rule_type = rule["type"]
+        config = json.loads(rule["config"]) if rule.get("config") else {}
 
         created: list[dict] = []
 
         if rule_type == RULE_RETARDOS:
-            records = self.db.fetch_all(
-                "SELECT user_id, timestamp, status FROM attendance_records"
-            )
-            n = int(config.get('n', 3))
-            m_days = int(config.get('m_days', 5))
-            work_start = config.get('work_start', WORK_START_DEFAULT)
+            records = self.db.fetch_all("SELECT user_id, timestamp, status FROM attendance_records")
+            n = int(config.get("n", 3))
+            m_days = int(config.get("m_days", 5))
+            work_start = config.get("work_start", WORK_START_DEFAULT)
             candidates = self.evaluate_retardos_reincidentes(records, n, m_days, work_start)
 
         elif rule_type == RULE_INCAPACIDAD:
-            leaves = self.db.fetch_all(
-                "SELECT employee_id, end_date, status FROM medical_leaves"
-            )
-            days_before = int(config.get('days_before', 3))
+            leaves = self.db.fetch_all("SELECT employee_id, end_date, status FROM medical_leaves")
+            days_before = int(config.get("days_before", 3))
             candidates = self.evaluate_incapacidad_por_vencer(leaves, days_before)
 
         elif rule_type == RULE_AUSENCIA:
-            absences = self.db.fetch_all(
-                "SELECT employee_id, date, justified FROM absences"
-            )
-            days = int(config.get('days', 3))
+            absences = self.db.fetch_all("SELECT employee_id, date, justified FROM absences")
+            days = int(config.get("days", 3))
             candidates = self.evaluate_ausencia_sin_justificar(absences, days)
 
         else:
@@ -332,33 +332,31 @@ class AlertEngine:
             return []
 
         for candidate in candidates:
-            employee_id = candidate['employee_id']
+            employee_id = candidate["employee_id"]
             alert_id = self.create_alert(
-                rule_id, employee_id, candidate['event_type'], candidate['message']
+                rule_id, employee_id, candidate["event_type"], candidate["message"]
             )
-            created.append({
-                'id': alert_id,
-                'employee_id': employee_id,
-                'event_type': candidate['event_type'],
-                'message': candidate['message'],
-            })
+            created.append(
+                {
+                    "id": alert_id,
+                    "employee_id": employee_id,
+                    "event_type": candidate["event_type"],
+                    "message": candidate["message"],
+                }
+            )
             # Intentar notificar por email
             self.send_alert_email(
-                alert_id, employee_id, candidate['event_type'], candidate['message']
+                alert_id, employee_id, candidate["event_type"], candidate["message"]
             )
 
-        logger.info(
-            f"Regla {rule_id} ({rule_type}): {len(created)} alerta(s) creada(s)"
-        )
+        logger.info(f"Regla {rule_id} ({rule_type}): {len(created)} alerta(s) creada(s)")
         return created
 
     def run_all(self) -> dict[str, list[dict]]:
         """Ejecutar todas las reglas habilitadas. Devuelve {type: alertas}."""
-        rules = self.db.fetch_all(
-            "SELECT * FROM alert_rules WHERE enabled = 1"
-        )
+        rules = self.db.fetch_all("SELECT * FROM alert_rules WHERE enabled = 1")
         results: dict[str, list[dict]] = {}
         for rule in rules:
             created = self.run_rule(rule)
-            results[rule['type']] = created
+            results[rule["type"]] = created
         return results
