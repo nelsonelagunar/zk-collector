@@ -115,6 +115,16 @@ Lecciones de MYK-227 (5 runs perdidos). Aplican a CUALQUIER agente:
 - Flujo: `git fetch origin && git checkout -b feature/myk-<n>-<slug> origin/master` → implementa → tests (`ruff`, `mypy`, `pytest`) → commit → push → PR contra `master`.
 - No dejes el cierre en un comentario: el issue solo pasa a `done` cuando el PR esta mergeado y el deploy verificado.
 
+## Dashboard WebGUI (MYK-365)
+
+- `GET /` autenticado (`index()` en `src/webgui/server.py`): stats vienen de DOS DBs —
+  `devices_total`/`devices_online` de webgui.db (migrations), `pending_records` de buffer.db
+  vía `app.buffer_repo.get_stats()["pending_sync"]` (tabla `attendance_records`).
+- NUNCA consultar `attendance_buffer` en webgui.db: esa tabla NO existe en migrations 001-004
+  (bug MYK-363, misma clase que MYK-250 — esquema vs DB del deploy).
+- Tests: `tests/test_dashboard_index.py` — login válido → dashboard 200 con webgui.db creada
+  solo desde migrations/ (layout Docker reproducido con tmp_path); CI rojo si vuelve a faltar.
+
 ## Password Reset (MYK-303, migration 004)
 
 - Flujo forgot/reset vive SOLO en master desde MYK-303 — cualquier hotfix en vivo (templates/rutas editadas en el artifact) se pierde en el siguiente redeploy desde master: fix va SIEMPRE por PR a master primero.

@@ -55,7 +55,7 @@ def create_app(config=None):
     app.db = Database(db_path)
     app.db.initialize()
 
-    # BufferRepository para attendance_buffer (SQLite local)
+    # BufferRepository para attendance_records (buffer.db, SQLite local)
     buffer_db_path = Path(os.environ.get("BUFFER_DB_PATH", "/opt/attendance/data/buffer.db"))
     app.buffer_repo = BufferRepository(buffer_db_path)
 
@@ -104,9 +104,7 @@ def create_app(config=None):
             "devices_online": len(
                 app.db.fetch_all("SELECT id FROM devices WHERE status = 'online'")
             ),
-            "pending_records": len(
-                app.db.fetch_all("SELECT id FROM attendance_buffer WHERE synced = 0")
-            ),
+            "pending_records": app.buffer_repo.get_stats()["pending_sync"],
         }
         return render_template("dashboard.html", stats=stats)
 
