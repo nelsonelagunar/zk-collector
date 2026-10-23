@@ -51,3 +51,32 @@ Día 1 del sprint: **ningún item done aún** — nada que verificar contra DoD.
 1. **Hallazgo clave:** los "done" de emulador del Sprint 2 eran reales en código pero viven SOLO en `fix/p0-1-supervisord` — sin merge no hay deploy. MYK-219 lo corrige.
 2. **Password reset ROTO en vivo** (MYK-231, verificado 2026-10-16): /auth/forgot-password → 500, /auth/reset-password → 404. Contradice la verificación SMTP del board; backend-dev investiga.
 3. **Capacidad:** backend-dev carga MYK-219 → MYK-221 (serializado); dba MYK-220 → MYK-238; devops MYK-228 tras MYK-219; frontend-dev MYK-230/240/242 según se liberan sus blockers.
+
+---
+
+# REVIEW + RETRO — Cierre Sprint 3 (2026-10-23, MYK-379)
+
+## Review contra Definition of Done
+
+| Item | Veredicto | Evidencia de cierre |
+|------|-----------|---------------------|
+| S3-1 MYK-219 Emulador | ✅ DONE | `mock/` mergeeado a master (zk_emulator.py, attendance_seed.json, fixtures); issues board done (263f568c, 79d8feb9); AGENTS.md lo referencia como fuente de verificación |
+| S3-2 MYK-228 E2E emulator→deploy | ✅ DONE | Issue 5124bdfb done: collector pollea emulador, registros sintéticos visibles en /attendance |
+| S3-3 MYK-220 Migration employees | ✅ DONE | `migrations/002_employees.sql` en master; issue 00ab90aa done; documentado en AGENTS.md §HR Data Model |
+| S3-4 MYK-221 API CRUD colaboradores | ✅ DONE | PR #57 mergeeado (fee6a7a); EmployeeRepository + device links; AGENTS.md §HR Data Model; issue 82f59312 done |
+| S3-5 MYK-230 ABC UI colaboradores | ✅ DONE | Issue f977325b done; /colaboradores operativo en deploy (PR #57) |
+| S3-6 MYK-238/239/240 Incapacidades | ✅ DONE | PR #56 (06c853d, migration+CRUD) y PR #58 (c5f1569, expediente UI) mergeeados; issues 17f43320/7d238415 done; docs/medical_leaves.md |
+| S3-7 MYK-241/242 Estadísticos | ✅ DONE | PR #59 (8f42857, API+export) y PR #60 (56fa13a, dashboard /reportes) mergeeados; review verdict APPROVE (256dfa9d); docs/attendance_stats.md; issues done |
+
+**Sprint-inserts de la semana (verificados):**
+- MYK-303 password reset en vivo: PR #61 mergeeado (a224519) + redeploy devops verificado (54caf61d) + SMTP Infisical (1ed866f5). ✅
+- MYK-363 login 500: PR #67 mergeeado + deploy master@214759de verificado por devops (0d799f63). ✅
+- MYK-250 WebGUI DB deploy: done (c8a98a80). ✅
+- Halloween (MYK-336/339/343/351/352): done con deploy verificado (80a239a9). ✅
+
+**NO terminado al cierre (vuelve al backlog, sprint planning 10-26 decide):**
+- MYK-366 time-bomb test_alerts: PR #68 open (91abd700, CI verde, mergeable clean) — falta verdict formal de reviewer + merge del owner.
+- MYK-377 secciones nav + seed demo: PR #69 open (6b788029) con verdict APPROVE de reviewer (comment 6375615173, issue 107db9df) PERO CI test(3.12) en rojo por los 2 fallos preexistentes test_alerts (time-bomb, reproducidos en master limpio). Merge order: #68 → rebase #69 → CI → merge → devops verify.
+
+## Retro Sprint 3 — detalle en RETRO-3.md
+3 funcionaron / 3 fallaron / 3 acciones. Resumen: emulador habilitó E2E sin hardware; cadena HR entregada completa con PRs reviewados; hotfixes en vivo con redeploy verificado. Falló: time-bomb de tests (CI verde ≠ suite estable); review duplicado del PR #69; guard de atribución/gateway costó turns todo el sprint (escalation 99cc199e sigue abierta).
