@@ -4,6 +4,7 @@ Manejo de base de datos SQLite
 """
 
 import logging
+import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -71,6 +72,14 @@ class Database:
             # Aplicar migraciones pendientes
             for migration_file in migration_files:
                 migration_name = migration_file.name
+
+                # Seeds de datos demo (*_demo_seed*.sql) son opt-in: solo
+                # aplican con ZK_DEMO_SEED=1 (default en Docker, MYK-377).
+                if "_demo_seed" in migration_name and os.environ.get("ZK_DEMO_SEED") != "1":
+                    logger.debug(
+                        f"Migration {migration_name} omitida (ZK_DEMO_SEED != 1)"
+                    )
+                    continue
 
                 if migration_name in applied:
                     logger.debug(f"Migration {migration_name} ya aplicada")

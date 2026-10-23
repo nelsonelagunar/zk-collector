@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración - Attendance Collector{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="mb-8">
+        <h2 class="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl">Configuración</h2>
+        <p class="mt-1 text-sm text-gray-500">
+            Parámetros del sistema: empresa, correo SMTP y valores internos
+        </p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Form editable -->
+        <div class="lg:col-span-2">
+            <form method="POST" action="/settings/update" class="bg-white shadow sm:rounded-lg px-6 py-6 space-y-6">
+                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div class="sm:col-span-2">
+                        <label for="company_name" class="block text-sm font-medium text-gray-700">Nombre de la empresa</label>
+                        <input id="company_name" name="company_name" type="text"
+                            value="{{ settings.get('company_name', {}).get('value', '') }}"
+                            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="smtp_host" class="block text-sm font-medium text-gray-700">Servidor SMTP</label>
+                        <input id="smtp_host" name="smtp_host" type="text"
+                            value="{{ settings.get('smtp_host', {}).get('value', '') }}"
+                            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="smtp_port" class="block text-sm font-medium text-gray-700">Puerto SMTP</label>
+                        <input id="smtp_port" name="smtp_port" type="number" min="1" max="65535"
+                            value="{{ settings.get('smtp_port', {}).get('value', '587') }}"
+                            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="smtp_username" class="block text-sm font-medium text-gray-700">Usuario SMTP</label>
+                        <input id="smtp_username" name="smtp_username" type="text"
+                            value="{{ settings.get('smtp_username', {}).get('value', '') }}"
+                            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="smtp_password" class="block text-sm font-medium text-gray-700">
+                            Contraseña SMTP
+                            <span class="text-gray-400 font-normal">(no se muestra; dejar vacío para conservar)</span>
+                        </label>
+                        <input id="smtp_password" name="smtp_password" type="password" placeholder="••••••••"
+                            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="smtp_from_email" class="block text-sm font-medium text-gray-700">Email remitente</label>
+                        <input id="smtp_from_email" name="smtp_from_email" type="email"
+                            value="{{ settings.get('smtp_from_email', {}).get('value', '') }}"
+                            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div class="flex items-end">
+                        <label for="smtp_use_tls" class="inline-flex items-center">
+                            <input id="smtp_use_tls" name="smtp_use_tls" type="checkbox" value="true"
+                                {% if settings.get('smtp_use_tls', {}).get('value', 'true') == 'true' %}checked{% endif %}
+                                class="h-4 w-4 text-blue-600 border-gray-300 rounded">
+                            <span class="ml-2 text-sm text-gray-700">Usar TLS</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="flex justify-end">
+                    <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+                        Guardar Cambios
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Estado actual -->
+        <div class="bg-white shadow sm:rounded-lg overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-sm font-medium text-gray-900">Estado actual</h3>
+            </div>
+            <ul class="divide-y divide-gray-200">
+                {% for key, row in settings.items() %}
+                <li class="px-6 py-3">
+                    <div class="text-xs font-mono text-gray-500">{{ key }}</div>
+                    <div class="text-sm text-gray-900">
+                        {% if key == 'smtp_password' %}
+                            {% if row.value %}Configurada{% else %}No configurada{% endif %}
+                        {% else %}
+                            {{ row.value if row.value else '—' }}
+                        {% endif %}
+                    </div>
+                    {% if row.description %}
+                    <div class="text-xs text-gray-400">{{ row.description }}</div>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -80,7 +80,7 @@ def resolve_employee_names(db, rows) -> dict[tuple[str, str], str]:
     return result
 
 
-@attendance_bp.route("/")
+@attendance_bp.route("/", strict_slashes=False)
 def list_attendance():
     """Página principal de asistencia - renderiza template"""
     return render_template("attendance/list.html")

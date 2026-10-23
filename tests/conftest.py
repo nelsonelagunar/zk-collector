@@ -2,6 +2,8 @@
 Fixtures y configuración común para tests
 """
 
+import os
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -84,3 +86,74 @@ def sample_attendance_record():
         status = 0
 
     return AttendanceData()
+
+
+# --- Fixtures de la app real (create_app) para tests de UI (MYK-377) ---
+
+os.environ.setdefault("WEBGUI_SKIP_APP_CREATE", "1")
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+MIGRATIONS_DIR = REPO_ROOT / "migrations"
+STRONG_PASSWORD = "Sup3rSecret!Pass"
+
+
+@pytest.fixture
+def webgui_app(tmp_path, monkeypatch):
+    """App de produccion (create_app) con layout Docker y todas las migraciones."""
+    import shutil as _shutil
+
+    _shutil.copytree(MIGRATIONS_DIR, tmp_path / "migrations")
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("DB_PATH", str(data_dir / "webgui.db"))
+    monkeypatch.setenv("BUFFER_DB_PATH", str(data_dir / "buffer.db"))
+    monkeypatch.setenv("WEBGUI_SECRET_KEY", "test-secret-key")
+    monkeypatch.setenv("ZK_DEMO_SEED", "1")
+    from src.webgui.server import create_app
+
+    app = create_app()
+    app.config["TESTING"] = True
+    return app
+
+
+@pytest.fixture
+def logged_client(webgui_app):
+    """Admin autenticado: inserta la cuenta, hace login y devuelve el client."""
+    webgui_app.db.insert(
+        "users",
+        {
+            "username": "admin",
+            "email": "admin@example.com",
+            "password_hash": webgui_app.auth.hash_password(STRONG_PASSWORD),
+            "full_name": "Admin Test",
+            "role": "admin",
+        },
+    )
+    client = webgui_app.test_client()
+    client.post(
+        "/auth/login",
+        data={"username": "admin", "password": STRONG_PASSWORD},
+        follow_redirects=True,
+    )
+    return webgui_app, client
+
+
+@pytest.fixture
+def user_role_client(webgui_app):
+    """Usuario con rol 'user' autenticado (para probar admin_required)."""
+    webgui_app.db.insert(
+        "users",
+        {
+            "username": "normal.user",
+            "email": "normal@example.com",
+            "password_hash": webgui_app.auth.hash_password(STRONG_PASSWORD),
+            "full_name": "Usuario Normal",
+            "role": "user",
+        },
+    )
+    client = webgui_app.test_client()
+    client.post(
+        "/auth/login",
+        data={"username": "normal.user", "password": STRONG_PASSWORD},
+        follow_redirects=True,
+    )
+    return webgui_app, client

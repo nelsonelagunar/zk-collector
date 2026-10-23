@@ -50,7 +50,7 @@ def _active_filter_options(db: Database) -> tuple[list[dict], list[str]]:
     return employees, [row["department"] for row in department_rows]
 
 
-@attendance_stats_ui_bp.route("/")
+@attendance_stats_ui_bp.route("/", strict_slashes=False)
 def stats_dashboard():
     """Dashboard de estadisticos de asistencia con filtros."""
     db = cast(Database, current_app.db)  # type: ignore[attr-defined]
