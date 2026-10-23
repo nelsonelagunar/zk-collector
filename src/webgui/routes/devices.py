@@ -173,7 +173,7 @@ def api_device_users_stats():
     )
 
 
-@devices_bp.route("/")
+@devices_bp.route("/", strict_slashes=False)
 def list_devices():
     """Lista de dispositivos"""
     db = current_app.db

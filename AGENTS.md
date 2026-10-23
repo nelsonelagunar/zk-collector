@@ -133,3 +133,23 @@ Lecciones de MYK-227 (5 runs perdidos). Aplican a CUALQUIER agente:
 - Email: `src/webgui/mail.py` `Mailer.from_config(smtp_*)` lee `system_config` (defaults `smtp_*` INSERT OR IGNORE en migration 004); sin SMTP configurado hace fallback a flash/log del enlace — el endpoint NUNCA revela si el email existe (anti-enumeración).
 - Rate limit in-memory por email: 3 requests/hora (`reset_rate_limit_store()` para tests). Tests: `tests/test_password_reset_routes.py` (24 casos; en master sin fix fallan todos).
 - Coverage config omite `src/webgui/routes/auth.py` del requisito — no bajar `fail_under=80` para cubrirlo con tests de integración triviales.
+
+## Secciones WebGUI y Seed Demo (MYK-377)
+
+- Todas las secciones del navbar (`/`, `/attendance`, `/reportes`, `/colaboradores`,
+  `/devices`, `/users`, `/settings`, `/profile`) estan registradas en `create_app`
+  (`src/webgui/server.py`). Las rutas indice usan `strict_slashes=False`:
+  `/seccion` y `/seccion/` responden 200 directo (sin 308 del proxy).
+- `/users`, `/settings` y `/profile` viven en `src/webgui/routes/{users_ui,settings_ui,profile_ui}.py`
+  con templates que extienden `base.html` (siempre dentro del layout con menus).
+  Paginas: `login_required`; mutaciones (alta/toggle usuario, update config): `admin_required`.
+  `smtp_password` es write-only: nunca se muestra en `/settings`.
+- `company_name` (system_config) se carga en `app.config["COMPANY_NAME"]` al arrancar;
+  lo consume `/api/attendance/stats` (`group_by=company`) via `DEFAULT_COMPANY` fallback.
+- Seed demo: `migrations/007_demo_seed.sql` — 120 colaboradores, 3 dispositivos,
+  40 usuarios de reloj, 40 vinculos colaborador-reloj, 5 usuarios WebGUI demo
+  (password `demo1234`, hash Argon2id precomputado) y empresa en system_config.
+  OPT-IN: migraciones `*_demo_seed*.sql` solo aplican con `ZK_DEMO_SEED=1`
+  (`Database._run_migrations`); el Dockerfile la deja ON, pytest/dev quedan sin seed.
+  Idempotente por guards de llave natural (employee_code/username UNIQUE, links PK,
+  devices por address). Tests: `tests/test_demo_seed.py`, `tests/test_nav_routing.py`.

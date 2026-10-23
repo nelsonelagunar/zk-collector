@@ -13,6 +13,7 @@ services:
       - ZK_COLLECTOR_DATA=/app/data
       - ZK_SYNC_URL=${ZK_SYNC_URL:-}
       - ZK_SYNC_TOKEN=${ZK_SYNC_TOKEN:-}
+      - ZK_DEMO_SEED=${ZK_DEMO_SEED:-1}
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
       interval: 30s

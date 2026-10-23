@@ -43,6 +43,9 @@ ENV ZK_COLLECTOR_DATA=/app/data
 # and the collector pointed at the same buffer.
 ENV DB_PATH=/app/data/webgui.db
 ENV BUFFER_DB_PATH=/app/data/buffer.db
+# Demo data seed (migrations/*_demo_seed*.sql) on by default in the deployed
+# image; disable with ZK_DEMO_SEED=0. Local dev/pytest stay unseeded (MYK-377).
+ENV ZK_DEMO_SEED=1
 
 VOLUME /app/data
 EXPOSE 8080

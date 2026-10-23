@@ -83,6 +83,9 @@ def create_app(config=None):
     from .routes.employees import employees_bp
     from .routes.employees_ui import employees_ui_bp
     from .routes.medical_leaves import medical_leaves_bp
+    from .routes.profile_ui import profile_bp
+    from .routes.settings_ui import settings_ui_bp
+    from .routes.users_ui import users_ui_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(devices_bp, url_prefix="/devices")
@@ -93,6 +96,14 @@ def create_app(config=None):
     app.register_blueprint(employees_bp, url_prefix="/api/employees")
     app.register_blueprint(employees_ui_bp, url_prefix="/colaboradores")
     app.register_blueprint(medical_leaves_bp, url_prefix="/api/medical-leaves")
+    app.register_blueprint(users_ui_bp, url_prefix="/users")
+    app.register_blueprint(settings_ui_bp, url_prefix="/settings")
+    app.register_blueprint(profile_bp, url_prefix="/profile")
+
+    # Nombre de la empresa (system_config) para reportes/agrupaciones (MYK-377)
+    company = app.db.fetch_one("SELECT value FROM system_config WHERE key = 'company_name'")
+    if company and company.get("value"):
+        app.config["COMPANY_NAME"] = company["value"]
     app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
 
     @app.route("/")
