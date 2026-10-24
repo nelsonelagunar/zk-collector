@@ -5,6 +5,7 @@
 - Testes de rutas API: listar, marcar leida/resuelta, preferencias.
 """
 
+from datetime import date, timedelta
 from sqlite3 import Connection
 from unittest.mock import Mock
 
@@ -14,6 +15,11 @@ from flask import Flask
 from src.webgui.alerts import AlertEngine
 from src.webgui.database import Database
 from src.webgui.routes.alerts import alerts_bp
+
+
+def _day(offset: int) -> str:
+    """Fecha ISO relativa a hoy — evita time-bombs por fechas hardcodeadas (MYK-366)."""
+    return (date.today() + timedelta(days=offset)).isoformat()
 
 MIGRATIONS_DIR = None  # se resuelve por test
 
@@ -77,11 +83,11 @@ class TestRetardosReincidentes:
     def test_dispara_al_cumplir_n_retardos_en_m_dias(self):
         engine = AlertEngine(Mock())
         records = [
-            {"user_id": "E001", "timestamp": "2026-10-16 09:10:00"},
-            {"user_id": "E001", "timestamp": "2026-10-17 09:05:00"},
-            {"user_id": "E001", "timestamp": "2026-10-18 09:30:00"},
+            {"user_id": "E001", "timestamp": f"{_day(-4)} 09:10:00"},
+            {"user_id": "E001", "timestamp": f"{_day(-3)} 09:05:00"},
+            {"user_id": "E001", "timestamp": f"{_day(-2)} 09:30:00"},
             # entrada temprana (no retardo)
-            {"user_id": "E001", "timestamp": "2026-10-19 08:50:00"},
+            {"user_id": "E001", "timestamp": f"{_day(-1)} 08:50:00"},
         ]
         alerts = engine.evaluate_retardos_reincidentes(records, n=2, m_days=5)
         assert len(alerts) == 1
@@ -91,8 +97,8 @@ class TestRetardosReincidentes:
     def test_no_dispara_por_debajo_de_n(self):
         engine = AlertEngine(Mock())
         records = [
-            {"user_id": "E001", "timestamp": "2026-10-16 09:10:00"},
-            {"user_id": "E001", "timestamp": "2026-10-17 08:50:00"},
+            {"user_id": "E001", "timestamp": f"{_day(-4)} 09:10:00"},
+            {"user_id": "E001", "timestamp": f"{_day(-3)} 08:50:00"},
         ]
         alerts = engine.evaluate_retardos_reincidentes(records, n=3, m_days=5)
         assert alerts == []
@@ -101,8 +107,8 @@ class TestRetardosReincidentes:
         engine = AlertEngine(Mock())
         # 2 retardos pero uno fuera de la ventana de 3 dias
         records = [
-            {"user_id": "E001", "timestamp": "2026-10-15 09:10:00"},  # fuera (dia 5 si hoy es 20)
-            {"user_id": "E001", "timestamp": "2026-10-19 09:10:00"},
+            {"user_id": "E001", "timestamp": f"{_day(-5)} 09:10:00"},  # fuera (cutoff = hoy-2)
+            {"user_id": "E001", "timestamp": f"{_day(-1)} 09:10:00"},
         ]
         alerts = engine.evaluate_retardos_reincidentes(records, n=2, m_days=3)
         assert alerts == []
@@ -112,10 +118,9 @@ class TestIncapacidadPorVencer:
     def test_dispara_incapacidad_activa_cerca_de_vencer(self):
         engine = AlertEngine(Mock())
         leaves = [
-            {"employee_id": 1, "end_date": "2026-10-21", "status": "active"},
-            {"employee_id": 2, "end_date": "2026-10-25", "status": "active"},
+            {"employee_id": 1, "end_date": _day(1), "status": "active"},
+            {"employee_id": 2, "end_date": _day(5), "status": "active"},
         ]
-        # Today is mocked via date.today(); usamos days_before grande para caer en rango
         alerts = engine.evaluate_incapacidad_por_vencer(leaves, days_before=10)
         ids = {a["employee_id"] for a in alerts}
         assert 1 in ids
@@ -123,7 +128,7 @@ class TestIncapacidadPorVencer:
     def test_no_dispara_cancelada(self):
         engine = AlertEngine(Mock())
         leaves = [
-            {"employee_id": 1, "end_date": "2026-10-21", "status": "cancelled"},
+            {"employee_id": 1, "end_date": _day(1), "status": "cancelled"},
         ]
         alerts = engine.evaluate_incapacidad_por_vencer(leaves, days_before=10)
         assert alerts == []
