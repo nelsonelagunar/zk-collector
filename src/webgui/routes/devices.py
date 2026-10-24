@@ -277,13 +277,15 @@ def test_device(device_id):
         return jsonify({"success": False, "message": "Dispositivo no encontrado"}), 404
 
     try:
-        # Intentar conexión
+        # Intentar conexión — ommit_ping: el probe real es el handshake TCP,
+        # pyzk.test_ping() (ICMP) falla en redes que filtran ICMP (MYK-384)
         zk = ZK(
             device["address"],
             port=device["port"],
             timeout=device["timeout"],
             password=device["password"],
             force_udp=(device["protocol"] == "udp"),
+            ommit_ping=True,
         )
 
         conn = zk.connect()
@@ -338,6 +340,7 @@ def api_test_device():
             timeout=data.get("timeout", 5),
             password=data.get("password", 0),
             force_udp=(data.get("protocol") == "udp"),
+            ommit_ping=True,
         )
 
         conn = zk.connect()
