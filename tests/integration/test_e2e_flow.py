@@ -341,8 +341,8 @@ class TestE2EFlow:
         }
         where_clause, query_params = _build_attendance_query(params)
 
-        assert "timestamp >= ?" in where_clause
-        assert "timestamp <= ?" in where_clause
+        assert "substr(timestamp, 1, 10) >= ?" in where_clause
+        assert "substr(timestamp, 1, 10) <= ?" in where_clause
         assert "user_id = ?" in where_clause
 
     # ===== TEST 5: Export Functionality =====

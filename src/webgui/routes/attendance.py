@@ -147,11 +147,11 @@ def api_attendance():
     params = []
 
     if start_date:
-        where_conditions.append("timestamp >= ?")
-        params.append(start_date + " 00:00:00")
+        where_conditions.append("substr(timestamp, 1, 10) >= ?")
+        params.append(start_date)
     if end_date:
-        where_conditions.append("timestamp <= ?")
-        params.append(end_date + " 23:59:59")
+        where_conditions.append("substr(timestamp, 1, 10) <= ?")
+        params.append(end_date)
     if user_id:
         where_conditions.append("user_id = ?")
         params.append(user_id)
@@ -291,11 +291,11 @@ def _build_attendance_query(params: dict) -> tuple[str, list]:
     query_params = []
 
     if params.get("start_date"):
-        where_conditions.append("timestamp >= ?")
-        query_params.append(params["start_date"] + " 00:00:00")
+        where_conditions.append("substr(timestamp, 1, 10) >= ?")
+        query_params.append(params["start_date"])
     if params.get("end_date"):
-        where_conditions.append("timestamp <= ?")
-        query_params.append(params["end_date"] + " 23:59:59")
+        where_conditions.append("substr(timestamp, 1, 10) <= ?")
+        query_params.append(params["end_date"])
     if params.get("user_id"):
         where_conditions.append("user_id = ?")
         query_params.append(params["user_id"])
