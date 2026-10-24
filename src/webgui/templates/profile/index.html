@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Perfil - Attendance Collector{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="bg-white shadow sm:rounded-lg overflow-hidden">
+        <div class="px-6 py-6 border-b border-gray-200 flex items-center space-x-4">
+            <div class="h-14 w-14 rounded-full bg-blue-600 flex items-center justify-center text-white text-xl font-bold">
+                {{ user.username[0]|upper }}
+            </div>
+            <div>
+                <h2 class="text-xl font-bold text-gray-900">{{ user.full_name or user.username }}</h2>
+                <p class="text-sm text-gray-500">@{{ user.username }}</p>
+            </div>
+            <span class="ml-auto inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {% if user.role == 'admin' %}bg-purple-100 text-purple-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                {{ user.role }}
+            </span>
+        </div>
+        <dl class="divide-y divide-gray-200">
+            <div class="px-6 py-4 flex justify-between">
+                <dt class="text-sm font-medium text-gray-500">Email</dt>
+                <dd class="text-sm text-gray-900">{{ user.email or '—' }}</dd>
+            </div>
+            <div class="px-6 py-4 flex justify-between">
+                <dt class="text-sm font-medium text-gray-500">Último acceso</dt>
+                <dd class="text-sm text-gray-900">{{ user.last_login or '—' }}</dd>
+            </div>
+            <div class="px-6 py-4 flex justify-between">
+                <dt class="text-sm font-medium text-gray-500">Cuenta creada</dt>
+                <dd class="text-sm text-gray-900">{{ user.created_at or '—' }}</dd>
+            </div>
+        </dl>
+    </div>
+</div>
+{% endblock %}

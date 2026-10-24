@@ -16,7 +16,7 @@ from ..database import Database
 employees_ui_bp = Blueprint("employees_ui", __name__)
 
 
-@employees_ui_bp.route("/")
+@employees_ui_bp.route("/", strict_slashes=False)
 def list_employees_ui():
     """Página principal de colaboradores."""
     return render_template("employees/list.html")
