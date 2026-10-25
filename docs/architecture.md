@@ -113,7 +113,7 @@ CREATE TABLE sync_log (
 - **Offline-first:** Records stored locally immediately
 - **Deduplication:** Unique constraint on (device_id, user_id, timestamp)
 - **Sync tracking:** `synced` column tracks platform sync status
-- **Cleanup:** Automatic removal of old synced records (`cleanup_days`)
+- **Retention (LFT 804-III):** No automatic deletion; manual-only purge with `retention_audit` bitácora entry (`retention_days`, default 730)
 - **Capacity limit:** `max_records` prevents unbounded growth
 
 **Key Methods:**

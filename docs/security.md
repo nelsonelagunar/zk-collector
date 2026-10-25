@@ -519,20 +519,25 @@ curl -b cookies.txt https://attendance.yourdomain.com/devices/api/sync/status
 
 ### Data Retention Policy
 
+LFT 804-III (MYK-419): attendance records are kept >= 24 months (730 days).
+There is NO automatic deletion. Deletion is manual-only and always audited:
+
 ```yaml
 # In devices.yaml
 buffer:
   max_records: 10000
-  cleanup_days: 90  # Keep synced records 90 days
+  retention_days: 730  # Min days to KEEP records (LFT 804-III)
 ```
 
-```bash
-# Manual cleanup
-sqlite3 /opt/attendance/data/buffer.db "
-DELETE FROM attendance_buffer 
-WHERE synced = 1 AND synced_at < datetime('now', '-90 days');
-"
+```python
+# Manual purge (the only sanctioned deletion path) — leaves a
+# retention_audit bitácora entry; never deletes unsynced records.
+repo.purge_synced_older_than(days=730, reason="annual archive", operator="admin")
 ```
+
+Never run raw `DELETE` against `attendance_records` outside this API —
+unlogged deletions are a legal risk (LFT 805: failure to exhibit records
+creates a presumption against the employer).
 
 ---
 

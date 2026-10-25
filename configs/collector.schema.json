@@ -55,7 +55,7 @@
       "type": "object",
       "properties": {
         "max_records": {"type": "integer", "default": 10000, "minimum": 100},
-        "cleanup_days": {"type": "integer", "default": 30, "minimum": 1}
+        "retention_days": {"type": "integer", "default": 730, "minimum": 1}
       }
     },
     "logging": {

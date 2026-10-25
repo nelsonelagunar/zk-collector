@@ -253,7 +253,7 @@ class TestConfig:
         # _apply_defaults only processes sections with 'fields' key
         # buffer and logging use 'fields' but inside 'fields' not at top level
         assert config.get("buffer.max_records") is None
-        assert config.get("buffer.cleanup_days") is None
+        assert config.get("buffer.retention_days") is None
 
     def test_logging_section_not_applied(self, tmp_path):
         """Test logging section defaults are NOT applied"""

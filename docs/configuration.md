@@ -95,7 +95,7 @@ sync_interval_seconds: 60                  # Cloud sync interval (10-600)
 # --- Buffer Settings ---/buffer
 buffer:
   max_records: 10000                       # Max records in SQLite buffer (min 100)
-  cleanup_days: 30                         # Delete synced records older than X days
+  retention_days: 730                      # Min days to KEEP records (LFT 804-III); deletion is manual-only
 
 # --- Logging Settings ---
 logging:
@@ -154,9 +154,12 @@ Time between cloud sync attempts. Only applies if `platform.url` is configured.
 | Field | Type | Default |
 |-------|------|---------|
 | `max_records` | integer | 10000 |
-| `cleanup_days` | integer | 30 |
+| `retention_days` | integer | 730 |
 
-Controls SQLite buffer retention. Old synced records are deleted after `cleanup_days`.
+Legal retention (MYK-419, LFT 804-III): records are NEVER deleted automatically.
+Deletion is manual-only via `purge_synced_older_than()` and always leaves an
+entry in the `retention_audit` bitácora. Overflow compacts synced records only;
+unsynced records are never deleted.
 
 ##### logging
 

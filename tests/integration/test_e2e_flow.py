@@ -64,7 +64,7 @@ class TestE2EFlow:
             ],
             "poll_interval_seconds": 60,
             "sync_interval_seconds": 30,
-            "buffer": {"max_records": 100, "cleanup_days": 30},
+            "buffer": {"max_records": 100, "retention_days": 730},
             "logging": {"level": "DEBUG"},
         }
 

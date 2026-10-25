@@ -22,7 +22,10 @@ class BufferRepository:
     Características:
     - Almacenamiento offline (hasta 10,000 registros)
     - Cola de sincronización pendiente
-    - Limpieza automática (30 días)
+    - Retención legal LFT 804-III: SIN borrado automático por antigüedad;
+      el borrado es manual (purge_synced_older_than) con entrada en bitácora
+      (tabla retention_audit). El overflow solo compacta registros ya
+      sincronizados: los pendientes NUNCA se borran.
     - Transacciones atómicas
     - Conexión thread-safe
     """
@@ -113,6 +116,20 @@ class BufferRepository:
                 )
             """)
 
+            # Bitácora de retención (MYK-419, LFT 804-III): todo borrado de
+            # registros de asistencia es manual y debe quedar registrado aquí.
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS retention_audit (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    action TEXT NOT NULL,
+                    records_deleted INTEGER NOT NULL,
+                    cutoff_date TEXT,
+                    reason TEXT,
+                    operator TEXT
+                )
+            """)
+
             logger.info(f"Base de datos inicializada: {self.db_path}")
 
     def add_records(self, records: list[AttendanceRecordDB]) -> int:
@@ -156,8 +173,9 @@ class BufferRepository:
 
             inserted = int(cursor.rowcount)
 
-            # Limpiar registros antiguos si excedemos el máximo
-            self._cleanup_old_records(conn)
+            # Compacción de capacidad: SOLO registros ya sincronizados.
+            # LFT 804-III: nunca se borra por antigüedad ni pendientes.
+            self._enforce_capacity(conn)
 
             logger.info(
                 f"Agregados {inserted} registros al buffer "
@@ -263,50 +281,115 @@ class BufferRepository:
                 [max_attempts] + record_ids,
             )
 
-    def _cleanup_old_records(self, conn, days: int = 30):
+    def _enforce_capacity(self, conn):
         """
-        Limpiar registros antiguos
+        Compacción del buffer al exceder max_records.
 
-        Args:
-            conn: Conexión SQLite
-            days: Días a mantener
+        LFT 804-III: el overflow SOLO compacta registros ya sincronizados
+        (respaldados en la plataforma). Los registros pendientes (synced=0)
+        NUNCA se borran: si siguen sobrando tras compactar, se conserva todo
+        y se alerta por log para restaurar el sync.
         """
         cursor = conn.cursor()
 
-        # Eliminar registros sincronizados mayores a N días
-        cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
-
-        cursor.execute(
-            """
-            DELETE FROM attendance_records
-            WHERE synced = 1 AND timestamp < ?
-        """,
-            (cutoff_date,),
-        )
-
-        deleted = cursor.rowcount
-
-        # Si aún excedemos el máximo, eliminar los más antiguos
         cursor.execute("SELECT COUNT(*) FROM attendance_records")
         count = cursor.fetchone()[0]
 
-        if count > self.max_records:
-            excess = count - self.max_records
+        if count <= self.max_records:
+            return
+
+        excess = count - self.max_records
+        cursor.execute(
+            """
+            DELETE FROM attendance_records
+            WHERE id IN (
+                SELECT id FROM attendance_records
+                WHERE synced = 1
+                ORDER BY timestamp ASC
+                LIMIT ?
+            )
+        """,
+            (excess,),
+        )
+        compacted = cursor.rowcount if cursor.rowcount is not None else 0
+
+        if compacted > 0:
+            logger.info(f"Capacidad excedida: {compacted} registros sincronizados compactados")
+
+        cursor.execute("SELECT COUNT(*) FROM attendance_records WHERE synced = 0")
+        pending = cursor.fetchone()[0]
+        if pending > self.max_records:
+            logger.critical(
+                f"Buffer sobre capacidad con {pending} registros PENDIENTES de sync "
+                f"(max_records={self.max_records}). Nada se borra (LFT 804-III): "
+                f"restaurar el sync para drenar el buffer."
+            )
+
+    def purge_synced_older_than(self, days: int, reason: str, operator: str) -> int:
+        """
+        Borrado MANUAL de registros sincronizados más antiguos que `days` días.
+
+        LFT 804-III (MYK-419): única vía de borrado por antigüedad. Nunca
+        borra pendientes de sync. Requiere `reason` y `operator` no vacíos y
+        deja entrada obligatoria en la bitácora (retention_audit).
+
+        Returns:
+            Número de registros eliminados
+        """
+        if not reason or not reason.strip():
+            raise ValueError("reason obligatorio: borrado manual requiere bitácora")
+        if not operator or not operator.strip():
+            raise ValueError("operator obligatorio: borrado manual requiere bitácora")
+        if days < 0:
+            raise ValueError("days no puede ser negativo")
+
+        cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
             cursor.execute(
                 """
                 DELETE FROM attendance_records
-                WHERE id IN (
-                    SELECT id FROM attendance_records
-                    ORDER BY timestamp ASC
-                    LIMIT ?
-                )
+                WHERE synced = 1 AND timestamp < ?
             """,
-                (excess,),
+                (cutoff_date,),
             )
-            deleted += cursor.rowcount
+            deleted = cursor.rowcount if cursor.rowcount is not None else 0
 
-        if deleted > 0:
-            logger.info(f"Limpieza completada: {deleted} registros eliminados")
+            cursor.execute(
+                """
+                INSERT INTO retention_audit
+                (action, records_deleted, cutoff_date, reason, operator)
+                VALUES ('purge_synced', ?, ?, ?, ?)
+            """,
+                (deleted, cutoff_date, reason.strip(), operator.strip()),
+            )
+
+            if deleted > 0:
+                logger.warning(
+                    f"Borrado manual: {deleted} registros sincronizados < {cutoff_date} "
+                    f"por {operator}: {reason}"
+                )
+            return deleted
+
+    def get_retention_audit(self, limit: int = 50) -> list[dict]:
+        """
+        Obtener bitácora de retención (borrados manuales).
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute(
+                """
+                SELECT * FROM retention_audit
+                ORDER BY timestamp DESC, id DESC
+                LIMIT ?
+            """,
+                (limit,),
+            )
+
+            return [dict(row) for row in cursor.fetchall()]
 
     def get_stats(self) -> dict[str, Any]:
         """
@@ -388,9 +471,23 @@ class BufferRepository:
             return [dict(row) for row in cursor.fetchall()]
 
     def clear_all(self):
-        """Limpiar todos los registros (usar con precaución)"""
+        """Limpiar todos los registros (usar con precaución).
+
+        Borrado manual destructivo: queda registrado en la bitácora
+        (retention_audit) por LFT 804-III (MYK-419).
+        """
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM attendance_records")
+            total = cursor.fetchone()[0]
             cursor.execute("DELETE FROM attendance_records")
             cursor.execute("DELETE FROM sync_log")
+            cursor.execute(
+                """
+                INSERT INTO retention_audit
+                (action, records_deleted, reason, operator)
+                VALUES ('clear_all', ?, ?, ?)
+            """,
+                (total, "clear_all(): borrado manual completo del buffer", "unknown"),
+            )
             logger.warning("Todos los registros del buffer han sido eliminados")
