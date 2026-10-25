@@ -31,7 +31,7 @@
         <div class="px-4 py-3 border-b border-gray-200"><h3 class="text-sm font-semibold text-gray-900">Dispositivos vinculados</h3></div>
         <ul class="p-4 divide-y divide-gray-200">
             <template x-for="link in deviceLinks" :key="link.device_serial + '-' + link.device_user_id">
-                <li class="py-2 flex items-center justify-between"><span class="text-sm font-mono text-gray-900" x-text="link.device_serial"></span><span class="text-sm text-gray-600">Usuario del reloj: <span class="font-mono" x-text="link.device_user_id"></span></span></li>
+                <li class="py-2 flex flex-wrap gap-2 items-center justify-between"><span class="text-sm font-mono text-gray-900" x-text="link.device_serial"></span><span class="text-sm text-gray-600">Usuario del reloj: <span class="font-mono" x-text="link.device_user_id"></span></span></li>
             </template>
             <li x-show="deviceLinks.length === 0" class="py-2 text-sm text-gray-500">Sin dispositivos vinculados.</li>
         </ul>
@@ -94,7 +94,7 @@
                 </tbody>
             </table>
         </div>
-        <div class="bg-white px-4 py-3 border-t border-gray-200 flex items-center justify-between" x-show="pagination.total_pages > 1">
+        <div class="bg-white px-4 py-3 border-t border-gray-200 flex flex-wrap gap-2 items-center justify-between" x-show="pagination.total_pages > 1">
             <span class="text-sm text-gray-600" x-text="'Página ' + pagination.page + ' de ' + pagination.total_pages + ' (' + pagination.total + ' incapacidades)'"></span>
             <div class="flex items-center space-x-2"><button type="button" @click="prevPage()" :disabled="!pagination.has_prev" class="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40">Anterior</button><button type="button" @click="nextPage()" :disabled="!pagination.has_next" class="px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40">Siguiente</button></div>
         </div>
