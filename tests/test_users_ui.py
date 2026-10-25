@@ -1,5 +1,7 @@
 """Tests de la seccion Usuarios y Perfil (MYK-377)."""
 
+import pytest
+
 from src.webgui.auth import Auth
 
 
@@ -40,7 +42,7 @@ def test_create_user_persists_and_hashes_password(logged_client):
             "username": "nueva.cuenta",
             "email": "nueva@example.com",
             "full_name": "Nueva Cuenta",
-            "role": "user",
+            "role": "rrhh",
             "password": "PasswordSegura99",
         },
         follow_redirects=True,
@@ -56,7 +58,7 @@ def test_create_user_rejects_short_password(logged_client):
     app, client = logged_client
     resp = client.post(
         "/users/new",
-        data={"username": "corta.cuenta", "role": "user", "password": "123"},
+        data={"username": "corta.cuenta", "role": "rrhh", "password": "123"},
     )
     assert resp.status_code == 200
     assert b"al menos 8" in resp.data
@@ -67,7 +69,7 @@ def test_create_user_rejects_duplicate_username(logged_client):
     app, client = logged_client
     resp = client.post(
         "/users/new",
-        data={"username": "demo.admin", "role": "user", "password": "PasswordSegura99"},
+        data={"username": "demo.admin", "role": "rrhh", "password": "PasswordSegura99"},
     )
     assert resp.status_code == 200
     assert b"ya existe" in resp.data
@@ -78,10 +80,23 @@ def test_create_user_requires_admin(user_role_client):
     app, client = user_role_client
     resp = client.post(
         "/users/new",
-        data={"username": "sin.permiso", "role": "user", "password": "PasswordSegura99"},
+        data={"username": "sin.permiso", "role": "auditor", "password": "PasswordSegura99"},
     )
     assert resp.status_code == 302
     assert _count_users(app, "sin.permiso") == 0
+
+
+@pytest.mark.parametrize("bad_role", ["user", "superadmin", ""])
+def test_create_user_rejects_role_outside_catalog(logged_client, bad_role):
+    """Write path valida contra ALLOWED_ROLES (ADR-001): 'user' legacy ya no es rol."""
+    app, client = logged_client
+    resp = client.post(
+        "/users/new",
+        data={"username": "rol.malo", "role": bad_role, "password": "PasswordSegura99"},
+    )
+    assert resp.status_code == 200
+    assert b"Rol invalido" in resp.data
+    assert _count_users(app, "rol.malo") == 0
 
 
 def test_toggle_user_activates_and_deactivates(logged_client):

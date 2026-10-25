@@ -153,3 +153,17 @@ Lecciones de MYK-227 (5 runs perdidos). Aplican a CUALQUIER agente:
   (`Database._run_migrations`); el Dockerfile la deja ON, pytest/dev quedan sin seed.
   Idempotente por guards de llave natural (employee_code/username UNIQUE, links PK,
   devices por address). Tests: `tests/test_demo_seed.py`, `tests/test_nav_routing.py`.
+
+## RBAC (ADR-001, MYK-412, migration 008)
+
+- Roles fijos (catalogo cerrado): `admin`, `rrhh`, `supervisor`, `auditor` en `users.role`.
+- `src/webgui/permissions.py`: `ALLOWED_ROLES`, `ROLE_PERMISSIONS` (matriz exacta del ADR-001)
+  y funciones puras `has_permission(role, perm)` / `role_permissions(role)` — deny por defecto
+  para roles desconocidos. Testeable sin BD (`tests/test_permissions.py`).
+- `migrations/008_rbac_roles.sql`: normaliza roles legacy (`'user'`, NULL, otros) a `'auditor'`.
+  Idempotente (solo UPDATE). NOTA: el ADR-001 dice "migracion 005", pero `005_alerts.sql` ya
+  ocupaba el slot en master; la numeracion fisica manda (008).
+- Validacion de rol es capa app (SQLite no soporta ADD CONSTRAINT): todo write path de
+  `users` debe validar contra `ALLOWED_ROLES` (`/users/new` ya lo hace).
+- Decoradores `require()`/`api_require()` y aplicacion por blueprint: issues hijos de
+  MYK-406 (middleware, blueprint application, API usuarios) — NO implementados en MYK-412.

@@ -30,7 +30,9 @@
                 <label for="role" class="block text-sm font-medium text-gray-700">Rol</label>
                 <select id="role" name="role"
                     class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                    <option value="user" {% if form.get('role', 'user') == 'user' %}selected{% endif %}>Usuario</option>
+                    <option value="auditor" {% if form.get('role', 'auditor') == 'auditor' %}selected{% endif %}>Auditor (solo lectura)</option>
+                    <option value="supervisor" {% if form.get('role') == 'supervisor' %}selected{% endif %}>Supervisor</option>
+                    <option value="rrhh" {% if form.get('role') == 'rrhh' %}selected{% endif %}>RRHH</option>
                     <option value="admin" {% if form.get('role') == 'admin' %}selected{% endif %}>Administrador</option>
                 </select>
             </div>
