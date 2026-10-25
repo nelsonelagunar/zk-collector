@@ -30,12 +30,15 @@ def sync_users(device_id):
         return jsonify({"success": False, "message": "Dispositivo no encontrado"}), 404
 
     try:
+        # ommit_ping: el probe real es el handshake TCP; pyzk.test_ping() (ICMP)
+        # falla en redes que filtran ICMP (misma clase que MYK-384)
         zk = ZK(
             device["address"],
             port=device["port"],
             timeout=device["timeout"],
             password=device["password"],
             force_udp=(device["protocol"] == "udp"),
+            ommit_ping=True,
         )
 
         conn = zk.connect()
