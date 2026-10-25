@@ -4,10 +4,14 @@ Misma clase de bug que MYK-384: pyzk ejecuta helper.test_ping() (ICMP) dentro
 de connect() salvo que se pase ommit_ping=True. sync-users es la unica ruta ZK
 del WebGUI que seguia sin ommit_ping, fallando en redes que filtran ICMP
 aunque el handshake TCP :4370 este abierto.
+
+MYK-397: zk.user.User real NO trae user_role ni .get() — el route debe
+tolerar ese shape (user_role ausente -> default 0) sin AttributeError.
 """
 
 import pytest
 from zk.exception import ZKError
+from zk.user import User as PyzkUser
 
 
 class FakeDeviceUser:
@@ -65,6 +69,38 @@ class UnreachableFakeZK(IcmpBlockedFakeZK):
 
     def connect(self):
         raise ZKError("can't reach device (connect error)")
+
+
+class PyzkRealUserZK:
+    """get_users devuelve objetos zk.user.User REALES del paquete instalado.
+
+    Shape fiel a produccion: uid, name, privilege, password, group_id,
+    user_id, card — SIN user_role y SIN .get() (causa del bug MYK-397).
+    """
+
+    def __init__(
+        self,
+        ip,
+        port=4370,
+        timeout=60,
+        password=0,
+        force_udp=False,
+        ommit_ping=False,
+        **kwargs,
+    ):
+        pass
+
+    def connect(self):
+        return object()
+
+    def get_users(self):
+        return [
+            PyzkUser(uid=1, name="Ada Lovelace", privilege=14, group_id="1", user_id="1"),
+            PyzkUser(uid=2, name="Grace Hopper", privilege=0, group_id="1", user_id="2"),
+        ]
+
+    def disconnect(self):
+        pass
 
 
 @pytest.fixture
@@ -145,3 +181,39 @@ def test_sync_users_unknown_device_404(webgui_app):
     client = webgui_app.test_client()
     resp = client.post("/devices/999999/sync-users")
     assert resp.status_code == 404
+
+
+def test_sync_users_tolerates_real_pyzk_user(webgui_app, monkeypatch, device_row):
+    """MYK-397: sync-users con zk.user.User real (sin user_role ni .get())."""
+    monkeypatch.setattr("src.webgui.routes.devices.ZK", PyzkRealUserZK)
+    client = webgui_app.test_client()
+    resp = client.post(f"/devices/{device_row['id']}/sync-users")
+
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["success"] is True, body
+    assert body["synced_count"] == 2
+
+    rows = _rows_for(webgui_app, device_row["id"])
+    assert [r["user_id"] for r in rows] == ["1", "2"]
+    assert rows[0]["name"] == "Ada Lovelace"
+    assert rows[0]["privilege"] == 14
+    assert rows[0]["group_id"] == "1"
+    assert int(rows[0]["user_role"]) == 0
+
+
+def test_sync_users_resync_real_pyzk_user_no_duplicates(webgui_app, monkeypatch, device_row):
+    """MYK-397: re-sync con User real actualiza sin duplicar ni fallar."""
+    monkeypatch.setattr("src.webgui.routes.devices.ZK", PyzkRealUserZK)
+    client = webgui_app.test_client()
+
+    first = client.post(f"/devices/{device_row['id']}/sync-users").get_json()
+    assert first["success"] is True
+
+    second = client.post(f"/devices/{device_row['id']}/sync-users").get_json()
+    assert second["success"] is True, second
+    assert second["synced_count"] == 2
+
+    rows = _rows_for(webgui_app, device_row["id"])
+    assert len(rows) == 2
+    assert {r["name"] for r in rows} == {"Ada Lovelace", "Grace Hopper"}
