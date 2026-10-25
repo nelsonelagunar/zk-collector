@@ -20,6 +20,22 @@ from zk.exception import ZKError
 devices_bp = Blueprint("devices", __name__)
 
 
+def _user_field(user, attr, default=""):
+    """Lee un campo de un usuario ZK tolerando los shapes que devuelve pyzk.
+
+    MYK-397: zk.user.User real expone atributos (uid, name, privilege,
+    password, group_id, user_id, card) SIN user_role y SIN .get(); llamar
+    user.get() sobre el es un AttributeError. Se prefiere atributo, luego
+    dict-like, y si el campo no existe se devuelve el default.
+    """
+    value = getattr(user, attr, None)
+    if value is not None:
+        return value
+    if hasattr(user, "get"):
+        return user.get(attr, default)
+    return default
+
+
 @devices_bp.route("/<int:device_id>/sync-users", methods=["POST"])
 def sync_users(device_id):
     """Sincronizar usuarios desde el dispositivo ZKTeco a la base de datos WebGUI"""
@@ -58,16 +74,12 @@ def sync_users(device_id):
         # Upsert en device_users
         synced_count = 0
         for user in users:
-            user_id = (
-                str(user.user_id) if hasattr(user, "user_id") else str(user.get("user_id", ""))
-            )
-            name = user.name if hasattr(user, "name") else user.get("name", "")
-            privilege = user.privilege if hasattr(user, "privilege") else user.get("privilege", 0)
-            password = user.password if hasattr(user, "password") else user.get("password", "")
-            group_id = (
-                str(user.group_id) if hasattr(user, "group_id") else str(user.get("group_id", ""))
-            )
-            user_role = user.user_role if hasattr(user, "user_role") else user.get("user_role", 0)
+            user_id = str(_user_field(user, "user_id", ""))
+            name = _user_field(user, "name", "")
+            privilege = _user_field(user, "privilege", 0)
+            password = _user_field(user, "password", "")
+            group_id = str(_user_field(user, "group_id", ""))
+            user_role = _user_field(user, "user_role", 0)
 
             # Verificar si existe
             existing = db.fetch_one(
