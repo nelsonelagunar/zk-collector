@@ -104,6 +104,22 @@ Migration 002 uses `IF NOT EXISTS` (idempotent, safe for re-run). CRUD helpers l
 - Soporte JSON `/reportes/api/stats` y export CSV/XLSX `/reportes/export` con los mismos filtros
   que la API de MYK-241.
 
+## MCP Server (MYK-408)
+
+- `src/mcp_server/` — MCP server read-only (FastMCP, extra `pip install "zk-collector[mcp]"`,
+  entrypoint `zk-collector-mcp`). 4 tools: `attendance_stats` (`/api/attendance/stats`),
+  `list_punches` (`/attendance/api/attendance`), `list_devices` (`/attendance/api/devices`),
+  `list_employees` (`/api/employees/` — con slash final, blueprint es `url_prefix="/api/employees"` + ruta `/`).
+- Auth: token desde `ZK_COLLECTOR_API_TOKEN` (o `ZK_API_TOKEN`), enviado como Bearer en cada
+  request; NUNCA se loguea ni se devuelve al modelo; el client sanitiza el token de los
+  detalles de error (`_safe_detail`). Timeout `ZK_COLLECTOR_MCP_TIMEOUT` (1-60s), 1 retry solo
+  en errores de conexión.
+- Transporte: stdio por defecto (cero puertos); HTTP opt-in con `ZK_COLLECTOR_MCP_HTTP=1`,
+  bind `127.0.0.1` (default) — jamás exponer a internet (regla dura #2 aplica también aquí).
+- `mcp` está en extras `dev` (CI corre los tests de FastMCP) y `mcp` (usuarios).
+  Tests: `tests/test_mcp_server.py` (26) incluyendo E2E real contra `create_app()` con
+  werkzeug `make_server`. Setup doc: `docs/mcp.md`.
+
 ## Entorno de ejecucion Paperclip (workspaces)
 
 Lecciones de MYK-227 (5 runs perdidos). Aplican a CUALQUIER agente:
