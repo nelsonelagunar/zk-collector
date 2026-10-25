@@ -125,6 +125,14 @@ Lecciones de MYK-227 (5 runs perdidos). Aplican a CUALQUIER agente:
 - Tests: `tests/test_dashboard_index.py` — login válido → dashboard 200 con webgui.db creada
   solo desde migrations/ (layout Docker reproducido con tmp_path); CI rojo si vuelve a faltar.
 
+## Razón Social (MYK-405, migration 008)
+
+- Migration **008** (no 005: `005_alerts`/`006_alert_default_rules`/`007_demo_seed` ya ocupan 005-007). Idempotente (`IF NOT EXISTS`) como 002. Modelo y decisiones en `docs/companies.md`.
+- `companies`: razon_social NOT NULL, rfc/imss_registro_patronal/domicilio_fiscal opcionales, status active/inactive (soft delete). RFC con índice UNIQUE parcial (NULL/'' repetibles).
+- `company_devices` (puente 1:N): UNIQUE(device_serial) = un reloj pertenece a UNA empresa; referencia por `device_serial` TEXT (misma convención que `employee_device_links` porque `devices.serial_number` no es llave). Relajar a N:M = migration futura que solo toca el índice.
+- `employees` NO lleva `company_id` (aún): SQLite `ALTER ADD COLUMN` no es idempotente y no hay consumidor; derivación: empleado → `employee_device_links` → `company_devices`.
+- CRUD en `src/webgui/database.py` (get_compan*, create/update/delete_company, link/unlink device↔company con upsert de transferencia). Tests: `tests/test_companies.py`.
+
 ## Password Reset (MYK-303, migration 004)
 
 - Flujo forgot/reset vive SOLO en master desde MYK-303 — cualquier hotfix en vivo (templates/rutas editadas en el artifact) se pierde en el siguiente redeploy desde master: fix va SIEMPRE por PR a master primero.
