@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from ..utils.timezones import coerce_timezone
+
 
 @dataclass
 class AttendanceRecord:
@@ -53,20 +55,27 @@ class AttendanceRecord:
         return punch_types.get(self.status, "desconocido")
 
     @classmethod
-    def from_zk_attendance(cls, attendance: Any, device_ip: str) -> "AttendanceRecord":
+    def from_zk_attendance(
+        cls, attendance: Any, device_ip: str, timezone: Any = None
+    ) -> "AttendanceRecord":
         """
         Crear AttendanceRecord desde objeto pyzk
 
         Args:
             attendance: Objeto de asistencia de pyzk
             device_ip: IP del dispositivo
+            timezone: Huso IANA del dispositivo (MYK-420); el firmware entrega
+                datetimes naive (hora de pared del reloj) y se localizan aqui.
 
         Returns:
             AttendanceRecord instance
         """
+        timestamp = attendance.timestamp
+        if timezone is not None and getattr(timestamp, "tzinfo", None) is None:
+            timestamp = timestamp.replace(tzinfo=coerce_timezone(timezone))
         return cls(
             user_id=str(attendance.user_id),
-            timestamp=attendance.timestamp,
+            timestamp=timestamp,
             status=attendance.status,
             device_ip=device_ip,
         )

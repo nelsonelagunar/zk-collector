@@ -36,7 +36,7 @@ Fechas inválidas, `start_date > end_date`, `group_by` o `employee_id` inválido
 - `absenteeism_pct`: `100 * ausentes / expected`; `null` si `expected == 0`.
 - Registros que no mapean a un colaborador activo (sin `employee_device_links`) se cuentan en `meta.unlinked_records` y no afectan KPIs.
 
-Acepta timestamps del buffer en formato `YYYY-MM-DD HH:MM:SS` e ISO con `T` (el emulador/colector escribe con `isoformat()`).
+Acepta timestamps del buffer en formato `YYYY-MM-DD HH:MM:SS` e ISO con `T` (el emulador/colector escribe con `isoformat()`), con o sin offset ISO-8601 (MYK-420). Los KPIs se computan en la hora local del centro de trabajo (`system_config.timezone`, default `America/Mexico_City`): los naive se asumen en ese huso y los con offset se convierten antes de agrupar por día.
 
 ## Response shape (JSON)
 

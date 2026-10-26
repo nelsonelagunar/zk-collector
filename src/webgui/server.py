@@ -13,6 +13,7 @@ from pathlib import Path
 from flask import Flask, jsonify, redirect, render_template, session, url_for
 
 from ..buffer.repository import BufferRepository
+from ..utils.timezones import get_system_timezone
 from .alerts import AlertEngine
 from .auth import Auth
 from .database import Database
@@ -55,9 +56,13 @@ def create_app(config=None):
     app.db = Database(db_path)
     app.db.initialize()
 
-    # BufferRepository para attendance_records (buffer.db, SQLite local)
+    # BufferRepository para attendance_records (buffer.db, SQLite local).
+    # Huso del centro de trabajo (system_config.timezone, MYK-420) para que
+    # los timestamps naive del firmware se persistan con offset ISO-8601.
     buffer_db_path = Path(os.environ.get("BUFFER_DB_PATH", "/opt/attendance/data/buffer.db"))
-    app.buffer_repo = BufferRepository(buffer_db_path)
+    app.buffer_repo = BufferRepository(
+        buffer_db_path, default_timezone=get_system_timezone(app.db)
+    )
 
     # Motor de alertas HR-6 + Mailer (reutiliza SMTP de system_config)
     smtp_rows = app.db.fetch_all("SELECT key, value FROM system_config WHERE key LIKE 'smtp_%'")
