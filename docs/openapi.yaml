@@ -287,6 +287,12 @@ paths:
     post:
       tags: [devices]
       summary: Test connectivity to a device address (no config saved)
+      description: >-
+        UI JSON endpoint guarded by api_auth_required (MYK-451): accepts the
+        WebGUI session cookie or a Bearer JWT like the rest of /api/*.
+      security:
+        - bearerAuth: []
+        - sessionCookie: []
       requestBody:
         required: true
         content:
@@ -308,6 +314,8 @@ paths:
                 properties:
                   success: { type: boolean }
                   device_info: { type: object }
+        '401':
+          description: Missing WebGUI session or Bearer JWT (MYK-451)
         '502': { description: Device unreachable or protocol error }
   /devices/api/devices/{id}/toggle:
     post:

@@ -46,7 +46,11 @@ def _build_app(tmp_path: Path) -> Flask:
 @pytest.fixture
 def client(tmp_path):
     app = _build_app(tmp_path)
-    return app.test_client()
+    test_client = app.test_client()
+    # MYK-451: /attendance/api/* y /attendance/export requieren sesion/JWT.
+    with test_client.session_transaction() as session:
+        session["user_id"] = 1
+    return test_client
 
 
 def _insert_records(client, rows) -> None:
