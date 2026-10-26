@@ -64,7 +64,7 @@ class TestE2EFlow:
             ],
             "poll_interval_seconds": 60,
             "sync_interval_seconds": 30,
-            "buffer": {"max_records": 100, "cleanup_days": 30},
+            "buffer": {"max_records": 100, "retention_days": 730},
             "logging": {"level": "DEBUG"},
         }
 
@@ -274,7 +274,7 @@ class TestE2EFlow:
         assert unsynced[0]["id"] == record_ids[0]
 
     def test_buffer_repo_max_records_cleanup(self, buffer_repo):
-        """Test: Buffer cleans up when max_records exceeded"""
+        """Test: MYK-419 — exceso de max_records no compacta pendientes"""
         # Add more than max_records
         records = [
             AttendanceRecord(
@@ -285,7 +285,9 @@ class TestE2EFlow:
         buffer_repo.add_records(records)
 
         stats = buffer_repo.get_stats()
-        assert stats["total_records"] <= 100
+        # Contrato nuevo (MYK-419, LFT 804-III): ningun pendiente se compacta
+        assert stats["total_records"] == 150
+        assert stats["pending_sync"] == 150
 
     def test_buffer_sync_log(self, buffer_repo):
         """Test: Sync logging works correctly"""
