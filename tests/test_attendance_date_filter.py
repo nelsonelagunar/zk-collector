@@ -14,12 +14,18 @@ import pytest
 from flask import Flask
 
 from src.buffer.repository import BufferRepository
+from src.webgui.api_tokens import ApiTokenService
 from src.webgui.database import Database
 from src.webgui.routes.attendance import attendance_bp
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MIGRATIONS_DIR = REPO_ROOT / "migrations"
-MIGRATION_CHAIN = ("001_initial_schema.sql", "002_employees.sql", "003_medical_leaves.sql")
+MIGRATION_CHAIN = (
+    "001_initial_schema.sql",
+    "002_employees.sql",
+    "003_medical_leaves.sql",
+    "009_api_tokens.sql",
+)
 
 
 def _apply_migrations(conn: sqlite3.Connection) -> None:
@@ -46,7 +52,18 @@ def _build_app(tmp_path: Path) -> Flask:
 @pytest.fixture
 def client(tmp_path):
     app = _build_app(tmp_path)
-    return app.test_client()
+    test_client = app.test_client()
+
+    # PAT real: /attendance/api/* requiere Bearer desde MYK-407
+    user_id = app.db.insert(
+        "users",
+        {"username": "tester", "password_hash": "x", "role": "admin"},
+    )
+    token = ApiTokenService(app.db).issue_token(
+        user_id, "test", ["read", "write"]
+    )["token"]
+    test_client.environ_base["HTTP_AUTHORIZATION"] = f"Bearer {token}"
+    return test_client
 
 
 def _insert_records(client, rows) -> None:

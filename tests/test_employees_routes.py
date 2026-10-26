@@ -1,4 +1,8 @@
-"""Tests para las rutas CRUD /api/employees (MYK-221)."""
+"""Tests para las rutas CRUD /api/employees (MYK-221).
+
+Desde MYK-407 /api/employees requiere Bearer auth: los tests emiten un
+PAT real con scopes read+write (ApiTokenService) en el fixture.
+"""
 
 import sqlite3
 from pathlib import Path
@@ -6,6 +10,7 @@ from pathlib import Path
 import pytest
 from flask import Flask
 
+from src.webgui.api_tokens import ApiTokenService
 from src.webgui.database import Database
 from src.webgui.routes.employees import employees_bp
 
@@ -21,7 +26,9 @@ def _build_app(tmp_path: Path) -> Flask:
     db_path = tmp_path / "webgui.db"
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA foreign_keys = ON")
-    _apply_migrations(conn, "001_initial_schema.sql", "002_employees.sql")
+    _apply_migrations(
+        conn, "001_initial_schema.sql", "002_employees.sql", "009_api_tokens.sql"
+    )
     conn.close()
 
     app = Flask(__name__)
@@ -35,7 +42,17 @@ def _build_app(tmp_path: Path) -> Flask:
 @pytest.fixture
 def client(tmp_path: Path):
     app = _build_app(tmp_path)
-    return app.test_client()
+    test_client = app.test_client()
+
+    user_id = app.db.insert(
+        "users",
+        {"username": "tester", "password_hash": "x", "role": "admin"},
+    )
+    token = ApiTokenService(app.db).issue_token(
+        user_id, "test", ["read", "write"]
+    )["token"]
+    test_client.environ_base["HTTP_AUTHORIZATION"] = f"Bearer {token}"
+    return test_client
 
 
 def _create(client, code="E001", first="Ana", last="Lopez", **extra):

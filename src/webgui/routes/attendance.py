@@ -19,6 +19,8 @@ from flask import (
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 
+from ..middleware.auth import api_auth_required
+
 attendance_bp = Blueprint("attendance", __name__)
 
 
@@ -87,6 +89,7 @@ def list_attendance():
 
 
 @attendance_bp.route("/api/devices")
+@api_auth_required(required_scope="read")
 def api_devices():
     """API para obtener lista de dispositivos para el select de filtro"""
     db = get_webgui_db()
@@ -99,6 +102,7 @@ def api_devices():
 
 
 @attendance_bp.route("/api/attendance")
+@api_auth_required(required_scope="read")
 def api_attendance():
     """
     API paginada con filtros para registros de asistencia

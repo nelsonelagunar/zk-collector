@@ -1,4 +1,8 @@
-"""Tests para las rutas CRUD /api/medical-leaves (MYK-239)."""
+"""Tests para las rutas CRUD /api/medical-leaves (MYK-239).
+
+Desde MYK-407 el Bearer token se verifica de verdad: el fixture emite
+un PAT real con scopes read+write.
+"""
 
 import sqlite3
 from pathlib import Path
@@ -6,13 +10,19 @@ from pathlib import Path
 import pytest
 from flask import Flask
 
+from src.webgui.api_tokens import ApiTokenService
 from src.webgui.database import Database
 from src.webgui.routes.medical_leaves import medical_leaves_bp
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[1] / "migrations"
-MIGRATION_CHAIN = ("001_initial_schema.sql", "002_employees.sql", "003_medical_leaves.sql")
+MIGRATION_CHAIN = (
+    "001_initial_schema.sql",
+    "002_employees.sql",
+    "003_medical_leaves.sql",
+    "009_api_tokens.sql",
+)
 
-AUTH_HEADER = {"Authorization": "Bearer test-token"}
+AUTH_HEADER: dict[str, str] = {}
 
 
 def _apply_migrations(conn: sqlite3.Connection) -> None:
@@ -38,7 +48,18 @@ def _build_app(tmp_path: Path) -> Flask:
 @pytest.fixture
 def client(tmp_path: Path):
     app = _build_app(tmp_path)
-    return app.test_client()
+    test_client = app.test_client()
+
+    user_id = app.db.insert(
+        "users",
+        {"username": "tester", "password_hash": "x", "role": "admin"},
+    )
+    token = ApiTokenService(app.db).issue_token(
+        user_id, "test", ["read", "write"]
+    )["token"]
+    AUTH_HEADER.clear()
+    AUTH_HEADER["Authorization"] = f"Bearer {token}"
+    return test_client
 
 
 @pytest.fixture
@@ -63,7 +84,7 @@ def _create(client, employee_id, **extra):
     return client.post(
         "/api/medical-leaves/",
         json=_payload(employee_id, **extra),
-        headers=AUTH_HEADER,
+        headers=dict(AUTH_HEADER),
     )
 
 
@@ -73,13 +94,13 @@ class TestAuth:
         assert resp.status_code == 401
 
     def test_accepts_bearer_token(self, client, employee_id):
-        resp = client.get("/api/medical-leaves/", headers=AUTH_HEADER)
+        resp = client.get("/api/medical-leaves/", headers=dict(AUTH_HEADER))
         assert resp.status_code == 200
 
 
 class TestListMedicalLeaves:
     def test_empty_list(self, client):
-        resp = client.get("/api/medical-leaves/", headers=AUTH_HEADER)
+        resp = client.get("/api/medical-leaves/", headers=dict(AUTH_HEADER))
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["leaves"] == []
@@ -96,7 +117,7 @@ class TestListMedicalLeaves:
 
         resp = client.get(
             "/api/medical-leaves/?per_page=1&page=1",
-            headers=AUTH_HEADER,
+            headers=dict(AUTH_HEADER),
         )
         data = resp.get_json()
         assert len(data["leaves"]) == 1
@@ -105,7 +126,7 @@ class TestListMedicalLeaves:
 
         resp = client.get(
             f"/api/medical-leaves/?employee_id={employee_id}",
-            headers=AUTH_HEADER,
+            headers=dict(AUTH_HEADER),
         )
         data = resp.get_json()
         assert data["pagination"]["total"] == 2
@@ -131,7 +152,7 @@ class TestCreateMedicalLeave:
         resp = client.post(
             "/api/medical-leaves/",
             json=payload,
-            headers=AUTH_HEADER,
+            headers=dict(AUTH_HEADER),
         )
         assert resp.status_code == 400
 
@@ -151,12 +172,12 @@ class TestCreateMedicalLeave:
 
 class TestGetUpdateDelete:
     def test_get_404(self, client):
-        resp = client.get("/api/medical-leaves/999", headers=AUTH_HEADER)
+        resp = client.get("/api/medical-leaves/999", headers=dict(AUTH_HEADER))
         assert resp.status_code == 404
 
     def test_get_ok(self, client, employee_id):
         leave_id = _create(client, employee_id).get_json()["leave"]["id"]
-        resp = client.get(f"/api/medical-leaves/{leave_id}", headers=AUTH_HEADER)
+        resp = client.get(f"/api/medical-leaves/{leave_id}", headers=dict(AUTH_HEADER))
         assert resp.status_code == 200
         assert resp.get_json()["leave"]["id"] == leave_id
 
@@ -165,7 +186,7 @@ class TestGetUpdateDelete:
         resp = client.put(
             f"/api/medical-leaves/{leave_id}",
             json={"end_date": "2026-01-08", "days": 1},
-            headers=AUTH_HEADER,
+            headers=dict(AUTH_HEADER),
         )
         assert resp.status_code == 200
         assert resp.get_json()["leave"]["days"] == 8
@@ -174,18 +195,18 @@ class TestGetUpdateDelete:
         resp = client.put(
             "/api/medical-leaves/999",
             json={"end_date": "2026-01-08"},
-            headers=AUTH_HEADER,
+            headers=dict(AUTH_HEADER),
         )
         assert resp.status_code == 404
 
     def test_delete_soft_cancel(self, client, employee_id):
         leave_id = _create(client, employee_id).get_json()["leave"]["id"]
-        resp = client.delete(f"/api/medical-leaves/{leave_id}", headers=AUTH_HEADER)
+        resp = client.delete(f"/api/medical-leaves/{leave_id}", headers=dict(AUTH_HEADER))
         assert resp.status_code == 200
         assert resp.get_json()["leave"]["status"] == "cancelled"
 
     def test_delete_404(self, client):
-        resp = client.delete("/api/medical-leaves/999", headers=AUTH_HEADER)
+        resp = client.delete("/api/medical-leaves/999", headers=dict(AUTH_HEADER))
         assert resp.status_code == 404
 
 

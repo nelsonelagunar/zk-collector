@@ -17,6 +17,8 @@ from flask import (
 from zk import ZK
 from zk.exception import ZKError
 
+from ..middleware.auth import api_auth_required
+
 devices_bp = Blueprint("devices", __name__)
 
 
@@ -131,6 +133,7 @@ def sync_users(device_id):
 
 
 @devices_bp.route("/api/device-users")
+@api_auth_required(required_scope="read")
 def api_device_users():
     """API para obtener lista de usuarios de un dispositivo"""
     db = current_app.db
@@ -158,6 +161,7 @@ def api_device_users():
 
 
 @devices_bp.route("/api/device-users/stats")
+@api_auth_required(required_scope="read")
 def api_device_users_stats():
     """API para obtener estadísticas de usuarios de un dispositivo"""
     db = current_app.db
@@ -344,6 +348,7 @@ def test_device(device_id):
 
 
 @devices_bp.route("/api/devices/test", methods=["POST"])
+@api_auth_required(required_scope="write")
 def api_test_device():
     """API endpoint para test de conexión desde el form"""
     data = request.get_json()

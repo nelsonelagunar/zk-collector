@@ -114,6 +114,22 @@ def test_device_test_unreachable_marks_offline(webgui_app, monkeypatch, device_r
 def test_api_devices_test_omits_ping(webgui_app, icmp_blocked_zk):
     """POST /devices/api/devices/test (form) tambien debe omitir el ping ICMP."""
     client = webgui_app.test_client()
+
+    # PAT real con scope write: /devices/api/* requiere Bearer desde MYK-407
+    from src.webgui.api_tokens import ApiTokenService
+
+    user_id = webgui_app.db.fetch_one("SELECT id FROM users LIMIT 1")
+    if not user_id:
+        user_id_id = webgui_app.db.insert(
+            "users",
+            {"username": "tester", "password_hash": "x", "role": "admin"},
+        )
+    else:
+        user_id_id = user_id["id"]
+    token = ApiTokenService(webgui_app.db).issue_token(
+        user_id_id, "test", ["read", "write"]
+    )["token"]
+
     resp = client.post(
         "/devices/api/devices/test",
         json={
@@ -123,6 +139,7 @@ def test_api_devices_test_omits_ping(webgui_app, icmp_blocked_zk):
             "password": 0,
             "protocol": "tcp",
         },
+        headers={"Authorization": f"Bearer {token}"},
     )
 
     assert resp.status_code == 200

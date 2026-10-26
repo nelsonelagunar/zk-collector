@@ -53,6 +53,7 @@ def client(tmp_path):
         "001_initial_schema.sql",
         "002_employees.sql",
         "005_alerts.sql",
+        "009_api_tokens.sql",
     )
     # Semilla de datos minima para las FK de alertas
     with app.db.get_connection() as conn:
@@ -70,7 +71,11 @@ def client(tmp_path):
             ('{"n": 2, "m_days": 5, "work_start": "09:00"}',),
         )
     client = app.test_client()
-    client.environ_base["HTTP_AUTHORIZATION"] = "Bearer test-token"
+    # PAT real con scopes read+write (MYK-407: el token se verifica de verdad)
+    from src.webgui.api_tokens import ApiTokenService
+
+    token = ApiTokenService(app.db).issue_token(1, "test", ["read", "write"])["token"]
+    client.environ_base["HTTP_AUTHORIZATION"] = f"Bearer {token}"
     return client
 
 

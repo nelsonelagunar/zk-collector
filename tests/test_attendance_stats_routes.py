@@ -1,4 +1,8 @@
-"""Tests para las rutas /api/attendance/stats y /stats/export (MYK-241)."""
+"""Tests para las rutas /api/attendance/stats y /stats/export (MYK-241).
+
+Desde MYK-407 el Bearer token se verifica de verdad: el fixture emite
+un PAT real con scope read (stats) y write (no aplica: export usa read).
+"""
 
 import io
 import shutil
@@ -10,14 +14,20 @@ from flask import Flask
 from openpyxl import load_workbook
 
 from src.buffer.repository import BufferRepository
+from src.webgui.api_tokens import ApiTokenService
 from src.webgui.database import Database
 from src.webgui.routes.attendance_stats import attendance_stats_bp
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MIGRATIONS_DIR = REPO_ROOT / "migrations"
-MIGRATION_CHAIN = ("001_initial_schema.sql", "002_employees.sql", "003_medical_leaves.sql")
+MIGRATION_CHAIN = (
+    "001_initial_schema.sql",
+    "002_employees.sql",
+    "003_medical_leaves.sql",
+    "009_api_tokens.sql",
+)
 
-AUTH_HEADER = {"Authorization": "Bearer test-token"}
+AUTH_HEADER: dict[str, str] = {}
 START, END = "2026-10-05", "2026-10-09"
 
 CSV_CONTENT_TYPE = "text/csv; charset=utf-8"
@@ -49,7 +59,18 @@ def _build_app(tmp_path: Path) -> Flask:
 @pytest.fixture
 def client(tmp_path):
     app = _build_app(tmp_path)
-    return app.test_client()
+    test_client = app.test_client()
+
+    user_id = app.db.insert(
+        "users",
+        {"username": "tester", "password_hash": "x", "role": "admin"},
+    )
+    token = ApiTokenService(app.db).issue_token(
+        user_id, "test", ["read", "write"]
+    )["token"]
+    AUTH_HEADER.clear()
+    AUTH_HEADER["Authorization"] = f"Bearer {token}"
+    return test_client
 
 
 @pytest.fixture
@@ -96,12 +117,16 @@ def seeded(client):
     return {"ana_id": ana_id}
 
 
-def _get(client, query, headers=AUTH_HEADER):
-    return client.get(f"/api/attendance/stats?{query}", headers=headers)
+def _get(client, query, headers=None):
+    return client.get(
+        f"/api/attendance/stats?{query}", headers=headers or dict(AUTH_HEADER)
+    )
 
 
-def _get_export(client, query, headers=AUTH_HEADER):
-    return client.get(f"/api/attendance/stats/export?{query}", headers=headers)
+def _get_export(client, query, headers=None):
+    return client.get(
+        f"/api/attendance/stats/export?{query}", headers=headers or dict(AUTH_HEADER)
+    )
 
 
 class TestAuth:

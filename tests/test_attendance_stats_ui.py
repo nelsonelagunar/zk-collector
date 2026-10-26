@@ -17,6 +17,7 @@ from flask import Flask
 from openpyxl import load_workbook
 
 from src.buffer.repository import BufferRepository
+from src.webgui.api_tokens import ApiTokenService
 from src.webgui.database import Database
 from src.webgui.routes.attendance_stats import attendance_stats_bp
 from src.webgui.routes.attendance_stats_ui import attendance_stats_ui_bp
@@ -24,9 +25,14 @@ from src.webgui.routes.attendance_stats_ui import attendance_stats_ui_bp
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MIGRATIONS_DIR = REPO_ROOT / "migrations"
 WEBGUI_DIR = REPO_ROOT / "src" / "webgui"
-MIGRATION_CHAIN = ("001_initial_schema.sql", "002_employees.sql", "003_medical_leaves.sql")
+MIGRATION_CHAIN = (
+    "001_initial_schema.sql",
+    "002_employees.sql",
+    "003_medical_leaves.sql",
+    "009_api_tokens.sql",
+)
 
-AUTH_HEADER = {"Authorization": "Bearer test-token"}
+AUTH_HEADER: dict[str, str] = {}
 START, END = "2026-10-05", "2026-10-09"
 
 CSV_CONTENT_TYPE = "text/csv; charset=utf-8"
@@ -63,7 +69,18 @@ def _build_app(tmp_path: Path) -> Flask:
 @pytest.fixture
 def client(tmp_path):
     app = _build_app(tmp_path)
-    return app.test_client()
+    test_client = app.test_client()
+
+    user_id = app.db.insert(
+        "users",
+        {"username": "tester", "password_hash": "x", "role": "admin"},
+    )
+    token = ApiTokenService(app.db).issue_token(
+        user_id, "test", ["read", "write"]
+    )["token"]
+    AUTH_HEADER.clear()
+    AUTH_HEADER["Authorization"] = f"Bearer {token}"
+    return test_client
 
 
 @pytest.fixture
@@ -115,7 +132,7 @@ def _ui_stats(client, query):
 
 
 def _api_stats(client, query):
-    return client.get(f"/api/attendance/stats?{query}", headers=AUTH_HEADER)
+    return client.get(f"/api/attendance/stats?{query}", headers=dict(AUTH_HEADER))
 
 
 def _ui_export(client, query):
@@ -123,7 +140,9 @@ def _ui_export(client, query):
 
 
 def _api_export(client, query):
-    return client.get(f"/api/attendance/stats/export?{query}", headers=AUTH_HEADER)
+    return client.get(
+        f"/api/attendance/stats/export?{query}", headers=dict(AUTH_HEADER)
+    )
 
 
 class TestDashboardPage:
