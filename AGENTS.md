@@ -142,6 +142,13 @@ Lecciones de MYK-227 (5 runs perdidos). Aplican a CUALQUIER agente:
 - Rate limit in-memory por email: 3 requests/hora (`reset_rate_limit_store()` para tests). Tests: `tests/test_password_reset_routes.py` (24 casos; en master sin fix fallan todos).
 - Coverage config omite `src/webgui/routes/auth.py` del requisito — no bajar `fail_under=80` para cubrirlo con tests de integración triviales.
 
+## Landing Page "Attendance Controller" (MYK-409, migration 005)
+
+- Rutas publicas en `src/webgui/routes/landing.py`: `GET /landing` (con o sin sesion) y `POST /landing/contact`. Blueprint SIN url_prefix — las rutas van explicitas (`/landing`, `/landing/contact`): con url_prefix="/landing" + route "/" Flask devuelve 308 a `/landing/` y rompe el criterio "/landing renderiza".
+- Leads en tabla `landing_leads` (migration `005_landing_leads.sql`): name/email NOT NULL, company/phone/message opcionales, indexes created_at/email. Honeypot `website` anti-spam: flash exitoso pero NO guarda.
+- Validacion server-side (nombre + regex email, caps 120-2000 chars); error re-renderiza landing con valores; exito = PRG a `/landing#contacto` con flash. Sin SMTP. `/` sigue siendo dashboard (redirect a login); landing se descubre via link en `login.html`.
+- Tests: `tests/test_landing_routes.py` (patron _build_app standalone + blueprint, migration chain 001-005).
+
 ## Secciones WebGUI y Seed Demo (MYK-377)
 
 - Todas las secciones del navbar (`/`, `/attendance`, `/reportes`, `/colaboradores`,
