@@ -134,9 +134,17 @@ def _rows_for(webgui_app, device_id):
     )
 
 
+def _logged_client(app):
+    """Client con sesion WebGUI activa (MYK-451: sync-users requiere auth)."""
+    client = app.test_client()
+    with client.session_transaction() as session:
+        session["user_id"] = 1
+    return client
+
+
 def test_sync_users_omits_ping_when_icmp_blocked(webgui_app, icmp_blocked_zk, device_row):
     """POST sync-users con ping bloqueado debe conectar via TCP y sincronizar (MYK-389)."""
-    client = webgui_app.test_client()
+    client = _logged_client(webgui_app)
     resp = client.post(f"/devices/{device_row['id']}/sync-users")
 
     assert resp.status_code == 200
@@ -154,7 +162,7 @@ def test_sync_users_omits_ping_when_icmp_blocked(webgui_app, icmp_blocked_zk, de
 def test_sync_users_unreachable_reports_failure(webgui_app, monkeypatch, device_row):
     """Dispositivo TCP-inalcanzable: success=false y sin escrituras (no falso positivo)."""
     monkeypatch.setattr("src.webgui.routes.devices.ZK", UnreachableFakeZK)
-    client = webgui_app.test_client()
+    client = _logged_client(webgui_app)
     resp = client.post(f"/devices/{device_row['id']}/sync-users")
 
     body = resp.get_json()
@@ -164,7 +172,7 @@ def test_sync_users_unreachable_reports_failure(webgui_app, monkeypatch, device_
 
 def test_sync_users_resync_updates_without_duplicates(webgui_app, icmp_blocked_zk, device_row):
     """Re-sincronizar actualiza los usuarios existentes en vez de duplicarlos."""
-    client = webgui_app.test_client()
+    client = _logged_client(webgui_app)
     first = client.post(f"/devices/{device_row['id']}/sync-users").get_json()
     assert first["success"] is True
 
@@ -178,7 +186,7 @@ def test_sync_users_resync_updates_without_duplicates(webgui_app, icmp_blocked_z
 
 def test_sync_users_unknown_device_404(webgui_app):
     """Dispositivo inexistente responde 404 sin tocar la red ZK."""
-    client = webgui_app.test_client()
+    client = _logged_client(webgui_app)
     resp = client.post("/devices/999999/sync-users")
     assert resp.status_code == 404
 
@@ -186,7 +194,7 @@ def test_sync_users_unknown_device_404(webgui_app):
 def test_sync_users_tolerates_real_pyzk_user(webgui_app, monkeypatch, device_row):
     """MYK-397: sync-users con zk.user.User real (sin user_role ni .get())."""
     monkeypatch.setattr("src.webgui.routes.devices.ZK", PyzkRealUserZK)
-    client = webgui_app.test_client()
+    client = _logged_client(webgui_app)
     resp = client.post(f"/devices/{device_row['id']}/sync-users")
 
     assert resp.status_code == 200
@@ -205,7 +213,7 @@ def test_sync_users_tolerates_real_pyzk_user(webgui_app, monkeypatch, device_row
 def test_sync_users_resync_real_pyzk_user_no_duplicates(webgui_app, monkeypatch, device_row):
     """MYK-397: re-sync con User real actualiza sin duplicar ni fallar."""
     monkeypatch.setattr("src.webgui.routes.devices.ZK", PyzkRealUserZK)
-    client = webgui_app.test_client()
+    client = _logged_client(webgui_app)
 
     first = client.post(f"/devices/{device_row['id']}/sync-users").get_json()
     assert first["success"] is True

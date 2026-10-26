@@ -63,6 +63,14 @@ def icmp_blocked_zk(monkeypatch):
     monkeypatch.setattr("src.webgui.routes.devices.ZK", IcmpBlockedFakeZK)
 
 
+def _logged_client(app):
+    """Client con sesion WebGUI activa (MYK-451: /test requiere auth)."""
+    client = app.test_client()
+    with client.session_transaction() as session:
+        session["user_id"] = 1
+    return client
+
+
 @pytest.fixture
 def device_row(webgui_app):
     webgui_app.db.insert(
@@ -83,7 +91,7 @@ def device_row(webgui_app):
 
 def test_device_test_omits_ping_when_icmp_blocked(webgui_app, icmp_blocked_zk, device_row):
     """GET /devices/<id>/test con ping bloqueado debe conectar via TCP (MYK-384)."""
-    client = webgui_app.test_client()
+    client = _logged_client(webgui_app)
     resp = client.get(f"/devices/{device_row['id']}/test")
 
     assert resp.status_code == 200
@@ -102,7 +110,7 @@ def test_device_test_omits_ping_when_icmp_blocked(webgui_app, icmp_blocked_zk, d
 def test_device_test_unreachable_marks_offline(webgui_app, monkeypatch, device_row):
     """Dispositivo TCP-inalcanzable sigue quedando offline (no falso positivo)."""
     monkeypatch.setattr("src.webgui.routes.devices.ZK", UnreachableFakeZK)
-    client = webgui_app.test_client()
+    client = _logged_client(webgui_app)
     resp = client.get(f"/devices/{device_row['id']}/test")
 
     body = resp.get_json()
@@ -113,7 +121,7 @@ def test_device_test_unreachable_marks_offline(webgui_app, monkeypatch, device_r
 
 def test_api_devices_test_omits_ping(webgui_app, icmp_blocked_zk):
     """POST /devices/api/devices/test (form) tambien debe omitir el ping ICMP."""
-    client = webgui_app.test_client()
+    client = _logged_client(webgui_app)
     resp = client.post(
         "/devices/api/devices/test",
         json={
