@@ -45,7 +45,7 @@ def users_manage_ui_required(view):
         if not has_permission(str(session.get("role", "")), "users:manage"):
             if request.method == "POST":
                 abort(403)
-            flash("Tu rol no tiene permiso para administrar usuarios", "error")
+            flash("No tienes permiso para administrar usuarios", "error")
             return redirect(url_for("errors_ui.forbidden"))
         return view(*args, **kwargs)
 

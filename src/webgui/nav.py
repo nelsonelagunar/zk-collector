@@ -16,7 +16,7 @@ from typing import NamedTuple
 
 from flask import session
 
-from .permissions import ALLOWED_ROLES
+from .permissions import ALLOWED_ROLES, has_permission
 
 
 class NavSection(NamedTuple):
@@ -70,15 +70,21 @@ def role_badge_for(role: str) -> dict[str, str] | None:
     return {"label": role, "class": ROLE_BADGE_CLASSES.get(role, _DEFAULT_BADGE_CLASS)}
 
 
+def _deny(_perm: str) -> bool:
+    return False
+
+
 def rbac_nav_context() -> dict:
-    """Context processor de Flask: expone nav_sections y role_badge a base.html."""
+    """Context processor de Flask: expone nav_sections, role_badge y can() a base.html."""
     logged = session.get("user_id") is not None
     role = str(session.get("role", ""))
+    can = (lambda perm: has_permission(role, perm)) if logged else _deny
     if not logged:
-        return {"nav_sections": (), "role_badge": None}
+        return {"nav_sections": (), "role_badge": None, "can": can}
     return {
         "nav_sections": menu_sections_for(role),
         "role_badge": role_badge_for(role),
+        "can": can,
     }
 
 
