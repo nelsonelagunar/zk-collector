@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Mi asistencia - Attendance Collector{% endblock %}
+
+{% block content %}
+<div class="min-h-[calc(100vh-4rem)] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8">
+        <div>
+            <div class="flex justify-center">
+                <svg class="h-16 w-16 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <h1 class="mt-6 text-center text-3xl font-extrabold text-gray-900">Mi asistencia</h1>
+            <p class="mt-2 text-center text-sm text-gray-600">
+                Consulta tus marcas y horas extra (LFT 132-XVII)
+            </p>
+        </div>
+
+        <form class="mt-8 space-y-6" method="POST" action="/mi-asistencia/login" autocomplete="off">
+            <div class="rounded-md shadow-sm -space-y-px">
+                <div>
+                    <label for="employee_code" class="sr-only">Numero de empleado</label>
+                    <input id="employee_code" name="employee_code" type="text" required inputmode="numeric"
+                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                        placeholder="Numero de empleado" autocomplete="off">
+                </div>
+                <div>
+                    <label for="pin" class="sr-only">PIN</label>
+                    <input id="pin" name="pin" type="password" required inputmode="numeric" maxlength="8"
+                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                        placeholder="PIN">
+                </div>
+            </div>
+
+            <div>
+                <button type="submit"
+                    class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Ver mi asistencia
+                </button>
+            </div>
+        </form>
+
+        <p class="mt-2 text-center text-sm text-gray-600">
+            ¿No tienes PIN? Solicitalo a Recursos Humanos.
+        </p>
+        <p class="text-center text-xs text-gray-500">
+            <a href="/mi-asistencia/aviso-privacidad" class="text-blue-600 hover:text-blue-800 underline">Aviso de privacidad</a>
+            — tus datos biometricos son sensibles (LFPDPPP).
+        </p>
+    </div>
+</div>
+{% endblock %}

@@ -5,6 +5,16 @@ All notable changes to ZK-Collector are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Portal del trabajador `/mi-asistencia` (MYK-425)**: consulta lectura-unica de
+  marcas y horas extra del periodo (LFT 132-XVII). Login por empleado con PIN
+  (Argon2id, migracion 009), rate limit 5/15min, mensaje generico
+  anti-enumeracion y aislamiento estricto (`employee_id` ajeno -> 403).
+  Aviso de privacidad LFPDPPP enlazado (datos biometricos = sensibles).
+  Gestion de PINs por RRHH/admin desde el expediente del colaborador.
+
 ## [1.0.0] - 2026-10-08
 
 ### Added

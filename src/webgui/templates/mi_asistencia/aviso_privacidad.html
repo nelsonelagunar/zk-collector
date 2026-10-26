@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Aviso de privacidad - Mi asistencia{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <a href="/mi-asistencia" class="text-sm text-blue-600 hover:text-blue-800">&larr; Volver a mis registros</a>
+    <h1 class="mt-3 text-2xl font-bold text-gray-900">Aviso de privacidad — Portal Mi Asistencia</h1>
+    <p class="mt-2 text-sm text-gray-600">Ultima actualizacion: 2026-10 (MYK-425, MYK-410 item 7)</p>
+
+    <div class="mt-6 space-y-6 text-sm leading-6 text-gray-700">
+        <section class="bg-white shadow sm:rounded-lg border border-gray-200 p-6">
+            <h2 class="text-base font-semibold text-gray-900">1. Responsable</h2>
+            <p class="mt-2">La empresa responsable del tratamiento es la titular del sistema Attendance Controller
+            (datos de contacto disponibles en Recursos Humanos de tu centro de trabajo).</p>
+        </section>
+        <section class="bg-white shadow sm:rounded-lg border border-gray-200 p-6">
+            <h2 class="text-base font-semibold text-gray-900">2. Datos que tratamos</h2>
+            <p class="mt-2">Tratamos tu numero de empleado, nombre, departamento, puesto y tus
+            <strong>marcas de asistencia y horas extra</strong>. El origen es el reloj checador biometrico:
+            la plantilla biométrica vive <strong>únicamente en el dispositivo</strong> y jamas se copia a este
+            sistema, que solo recibe fecha/hora de cada marca.</p>
+            <p class="mt-2">Los datos personales derivados de un medio de identificación biométrica son
+            <strong>datos sensibles</strong> conforme a la LFPDPPP, por lo que su tratamiento se rige por
+            consentimiento expreso y medidas de seguridad reforzadas.</p>
+        </section>
+        <section class="bg-white shadow sm:rounded-lg border border-gray-200 p-6">
+            <h2 class="text-base font-semibold text-gray-900">3. Finalidades</h2>
+            <ul class="mt-2 list-disc pl-5 space-y-1">
+                <li>Primaria: control de la jornada laboral, calculo de horas extra y cumplimiento de la
+                LFT 132-XVII, 804-805 bis (registro electronico de jornada).</li>
+                <li>Secundaria: estadisticas internas de asistencia (opt-out ante Recursos Humanos).</li>
+            </ul>
+        </section>
+        <section class="bg-white shadow sm:rounded-lg border border-gray-200 p-6">
+            <h2 class="text-base font-semibold text-gray-900">4. Conservacion</h2>
+            <p class="mt-2">Los controles de asistencia se conservan al menos 12 meses tras la baja
+            (LFT 804-III: ultimo anio + 1 anio). El borrado requiere autorizacion y queda en bitacora.</p>
+        </section>
+        <section class="bg-white shadow sm:rounded-lg border border-gray-200 p-6">
+            <h2 class="text-base font-semibold text-gray-900">5. Tus derechos (ARCO)</h2>
+            <p class="mt-2">Puedes ejercer acceso, rectificacion, cancelacion u oposicion, y revocar el
+            consentimiento, ante Recursos Humanos. Este portal es de <strong>lectura unica</strong>:
+            solo tu puedes ver tus registros (acceso ajeno denegado con error 403).</p>
+        </section>
+    </div>
+</div>
+{% endblock %}

@@ -92,6 +92,7 @@ def create_app(config=None):
     from .routes.employees_ui import employees_ui_bp
     from .routes.landing import landing_bp
     from .routes.medical_leaves import medical_leaves_bp
+    from .routes.mi_asistencia import mi_asistencia_bp
     from .routes.profile_ui import profile_bp
     from .routes.settings_ui import settings_ui_bp
     from .routes.users_ui import users_ui_bp
@@ -108,6 +109,8 @@ def create_app(config=None):
     app.register_blueprint(medical_leaves_bp, url_prefix="/api/medical-leaves")
     # Landing page publica "Attendance Controller" (MYK-409) — fuera del login
     app.register_blueprint(landing_bp)
+    # Portal del trabajador /mi-asistencia (MYK-425) — fuera del login admin
+    app.register_blueprint(mi_asistencia_bp, url_prefix="/mi-asistencia")
     app.register_blueprint(users_ui_bp, url_prefix="/users")
     app.register_blueprint(settings_ui_bp, url_prefix="/settings")
     app.register_blueprint(companies_bp, url_prefix="/api/companies")
