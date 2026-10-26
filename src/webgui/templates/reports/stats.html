@@ -11,7 +11,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
+<div class="px-4 sm:px-6 lg:px-8"
      x-data="statsDashboard('{{ default_start_date }}', '{{ default_end_date }}')">
     <!-- Header -->
     <div class="md:flex md:items-center md:justify-between mb-8">
@@ -24,7 +24,7 @@
                 <code class="text-xs">/api/attendance/stats</code>
             </p>
         </div>
-        <div class="mt-4 flex md:mt-0 md:ml-4 space-x-3">
+        <div class="mt-4 flex flex-wrap gap-2 md:mt-0 md:ml-4">
             <button type="button"
                     @click="exportData('csv')"
                     class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
@@ -94,7 +94,7 @@
                 </select>
             </div>
         </div>
-        <div class="p-4 border-t border-gray-200 flex items-center justify-end space-x-3">
+        <div class="p-4 border-t border-gray-200 flex flex-wrap items-center justify-end space-x-3">
             <button type="button" @click="applyFilters()"
                     class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                 Aplicar Filtros
@@ -164,36 +164,66 @@
             </p>
 
             <!-- KPIs (totals) -->
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-                <div class="bg-white overflow-hidden shadow rounded-lg p-4">
-                    <p class="text-sm font-medium text-gray-600">Puntualidad</p>
-                    <p class="mt-1 text-2xl font-bold text-gray-900" x-text="pct(totals.punctuality_pct)"></p>
-                    <p class="text-xs text-gray-600" x-text="totals.late_arrivals + ' retardo(s)'"></p>
+            <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+                <div class="bg-white overflow-hidden shadow rounded-lg border-t-4 border-green-500">
+                    <div class="p-4">
+                        <p class="text-sm font-medium text-gray-600">Puntualidad</p>
+                        <p class="mt-1 text-2xl font-bold text-gray-900" x-text="pct(totals.punctuality_pct)"></p>
+                        <div class="mt-2 h-1.5 w-full bg-gray-200 rounded-full overflow-hidden" role="presentation">
+                            <div class="h-1.5 bg-green-600 rounded-full" :style="'width:' + ratioBar(totals.punctuality_pct, 100) + '%'"></div>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-600" x-text="totals.late_arrivals + ' retardo(s)'"></p>
+                    </div>
                 </div>
-                <div class="bg-white overflow-hidden shadow rounded-lg p-4">
-                    <p class="text-sm font-medium text-gray-600">Ausentismo</p>
-                    <p class="mt-1 text-2xl font-bold text-gray-900" x-text="pct(totals.absenteeism_pct)"></p>
-                    <p class="text-xs text-gray-600" x-text="totals.days_absent + ' día(s) ausente(s)'"></p>
+                <div class="bg-white overflow-hidden shadow rounded-lg border-t-4 border-red-500">
+                    <div class="p-4">
+                        <p class="text-sm font-medium text-gray-600">Ausentismo</p>
+                        <p class="mt-1 text-2xl font-bold text-gray-900" x-text="pct(totals.absenteeism_pct)"></p>
+                        <div class="mt-2 h-1.5 w-full bg-gray-200 rounded-full overflow-hidden" role="presentation">
+                            <div class="h-1.5 bg-red-600 rounded-full" :style="'width:' + ratioBar(totals.absenteeism_pct, 100) + '%'"></div>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-600" x-text="totals.days_absent + ' día(s) ausente(s)'"></p>
+                    </div>
                 </div>
-                <div class="bg-white overflow-hidden shadow rounded-lg p-4">
-                    <p class="text-sm font-medium text-gray-600">Días Presentes</p>
-                    <p class="mt-1 text-2xl font-bold text-green-700" x-text="num(totals.days_present)"></p>
-                    <p class="text-xs text-gray-600" x-text="'de ' + totals.days_expected + ' esperados'"></p>
+                <div class="bg-white overflow-hidden shadow rounded-lg border-t-4 border-green-600">
+                    <div class="p-4">
+                        <p class="text-sm font-medium text-gray-600">Días Presentes</p>
+                        <p class="mt-1 text-2xl font-bold text-green-700" x-text="num(totals.days_present)"></p>
+                        <div class="mt-2 h-1.5 w-full bg-gray-200 rounded-full overflow-hidden" role="presentation">
+                            <div class="h-1.5 bg-green-600 rounded-full" :style="'width:' + ratioBar(totals.days_present, totals.days_expected) + '%'"></div>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-600" x-text="'de ' + totals.days_expected + ' esperados'"></p>
+                    </div>
                 </div>
-                <div class="bg-white overflow-hidden shadow rounded-lg p-4">
-                    <p class="text-sm font-medium text-gray-600">Días Ausentes</p>
-                    <p class="mt-1 text-2xl font-bold text-red-700" x-text="num(totals.days_absent)"></p>
-                    <p class="text-xs text-gray-600" x-text="'de ' + totals.days_expected + ' esperados'"></p>
+                <div class="bg-white overflow-hidden shadow rounded-lg border-t-4 border-red-600">
+                    <div class="p-4">
+                        <p class="text-sm font-medium text-gray-600">Días Ausentes</p>
+                        <p class="mt-1 text-2xl font-bold text-red-700" x-text="num(totals.days_absent)"></p>
+                        <div class="mt-2 h-1.5 w-full bg-gray-200 rounded-full overflow-hidden" role="presentation">
+                            <div class="h-1.5 bg-red-600 rounded-full" :style="'width:' + ratioBar(totals.days_absent, totals.days_expected) + '%'"></div>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-600" x-text="'de ' + totals.days_expected + ' esperados'"></p>
+                    </div>
                 </div>
-                <div class="bg-white overflow-hidden shadow rounded-lg p-4">
-                    <p class="text-sm font-medium text-gray-600">Incapacidades</p>
-                    <p class="mt-1 text-2xl font-bold text-amber-600" x-text="num(totals.days_incapacity)"></p>
-                    <p class="text-xs text-gray-600">días hábiles cubiertos</p>
+                <div class="bg-white overflow-hidden shadow rounded-lg border-t-4 border-amber-500">
+                    <div class="p-4">
+                        <p class="text-sm font-medium text-gray-600">Incapacidades</p>
+                        <p class="mt-1 text-2xl font-bold text-amber-600" x-text="num(totals.days_incapacity)"></p>
+                        <div class="mt-2 h-1.5 w-full bg-gray-200 rounded-full overflow-hidden" role="presentation">
+                            <div class="h-1.5 bg-amber-500 rounded-full" :style="'width:' + ratioBar(totals.days_incapacity, totals.days_expected) + '%'"></div>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-600">días hábiles cubiertos</p>
+                    </div>
                 </div>
-                <div class="bg-white overflow-hidden shadow rounded-lg p-4">
-                    <p class="text-sm font-medium text-gray-600">Vacaciones</p>
-                    <p class="mt-1 text-2xl font-bold text-blue-700" x-text="num(totals.days_vacation)"></p>
-                    <p class="text-xs text-gray-600">días hábiles cubiertos</p>
+                <div class="bg-white overflow-hidden shadow rounded-lg border-t-4 border-blue-600">
+                    <div class="p-4">
+                        <p class="text-sm font-medium text-gray-600">Vacaciones</p>
+                        <p class="mt-1 text-2xl font-bold text-blue-700" x-text="num(totals.days_vacation)"></p>
+                        <div class="mt-2 h-1.5 w-full bg-gray-200 rounded-full overflow-hidden" role="presentation">
+                            <div class="h-1.5 bg-blue-600 rounded-full" :style="'width:' + ratioBar(totals.days_vacation, totals.days_expected) + '%'"></div>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-600">días hábiles cubiertos</p>
+                    </div>
                 </div>
             </div>
 
@@ -448,6 +478,11 @@ function statsDashboard(defaultStart, defaultEnd) {
         num(value) {
             if (value === null || value === undefined) return '—';
             return Number(value).toLocaleString('es-ES');
+        },
+
+        ratioBar(value, total) {
+            if (value === null || value === undefined || !total) return 0;
+            return Math.max(0, Math.min(100, (value / total) * 100));
         },
 
         segWidth(row, key) {
