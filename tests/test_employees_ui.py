@@ -16,7 +16,11 @@ def _build_app(tmp_path: Path) -> Flask:
     db_path = tmp_path / "webgui.db"
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA foreign_keys = ON")
-    for name in ("001_initial_schema.sql", "002_employees.sql"):
+    for name in (
+        "001_initial_schema.sql",
+        "002_employees.sql",
+        "011_employee_labor_data.sql",
+    ):
         conn.executescript((MIGRATIONS_DIR / name).read_text())
     conn.close()
 
@@ -123,3 +127,32 @@ def test_colaboradores_list_links_expediente(client):
     resp = client.get("/colaboradores/")
     assert resp.status_code == 200
     assert b"/colaboradores/expediente/" in resp.data
+
+
+# --- MYK-423: datos laborales en la UI ---
+
+VALID_CURP = "GARC850101HDFRRL09"
+
+
+def test_colaboradores_form_has_labor_fields(client):
+    resp = client.get("/colaboradores/")
+    assert resp.status_code == 200
+    assert b"CURP" in resp.data
+    assert b"RFC" in resp.data
+    assert b"NSS" in resp.data
+    assert b"tipo_jornada" in resp.data
+
+
+def test_expediente_lists_labor_data(client):
+    employee_id = _seed_employee(
+        client.application.db,
+        curp=VALID_CURP,
+        tipo_jornada="diurna",
+        turno="matutino",
+    )
+    resp = client.get(f"/colaboradores/expediente/{employee_id}")
+    assert resp.status_code == 200
+    assert b"Datos laborales" in resp.data
+    assert VALID_CURP.encode() in resp.data
+    assert b"diurna" in resp.data
+    assert b"matutino" in resp.data

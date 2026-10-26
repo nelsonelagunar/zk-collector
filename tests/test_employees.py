@@ -173,3 +173,80 @@ def test_delete_removes_links(repo):
     assert repo.delete(employee_id) == 1
     assert repo.get(employee_id) is None
     assert repo.list_links(employee_id) == []
+
+
+# --- MYK-423: datos laborales (migracion 011 + validacion de formato) ---
+
+VALID_CURP = "GARC850101HDFRRL09"
+VALID_RFC_FISICA = "GARC850101H45"
+VALID_NSS = "12345678901"
+
+
+def test_migration_011_adds_labor_columns(db):
+    columns = {row["name"] for row in db.fetch_all("PRAGMA table_info(employees)")}
+    assert {"curp", "rfc", "nss", "imss_numero_seguro", "tipo_jornada", "turno"}.issubset(columns)
+
+
+def test_migration_011_length_and_enum_checks(db):
+    conn = sqlite3.connect(str(db.db_path))
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute("INSERT INTO employees (employee_code, curp) VALUES ('L-001', 'GARC')")
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute("INSERT INTO employees (employee_code, nss) VALUES ('L-002', '123')")
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO employees (employee_code, tipo_jornada) VALUES ('L-003', 'vespertina')"
+        )
+    conn.close()
+
+
+def test_migration_011_accepts_valid_values(db):
+    conn = sqlite3.connect(str(db.db_path))
+    conn.execute(
+        "INSERT INTO employees (employee_code, curp, rfc, nss, tipo_jornada, turno) "
+        "VALUES ('L-004', ?, ?, ?, 'nocturna', 'nocturno A')",
+        (VALID_CURP, VALID_RFC_FISICA, VALID_NSS),
+    )
+    conn.commit()
+    row = conn.execute(
+        "SELECT curp, tipo_jornada FROM employees WHERE employee_code = 'L-004'"
+    ).fetchone()
+    conn.close()
+    assert tuple(row) == (VALID_CURP, "nocturna")
+
+
+def test_repository_rejects_malformed_curp(repo):
+    with pytest.raises(ValueError, match="curp"):
+        repo.create({"employee_code": "L-005", "curp": "GARC850101HDF"})
+
+
+def test_repository_normalizes_lowercase_curp(repo):
+    employee_id = repo.create({"employee_code": "L-006", "curp": VALID_CURP.lower()})
+    assert repo.get(employee_id)["curp"] == VALID_CURP
+
+
+def test_repository_rejects_malformed_rfc(repo):
+    with pytest.raises(ValueError, match="rfc"):
+        repo.create({"employee_code": "L-007", "rfc": "GARC"})
+
+
+def test_repository_rejects_bad_nss(repo):
+    with pytest.raises(ValueError, match="nss"):
+        repo.create({"employee_code": "L-008", "nss": "1234567890"})
+
+
+def test_repository_rejects_bad_tipo_jornada(repo):
+    with pytest.raises(ValueError, match="tipo_jornada"):
+        repo.create({"employee_code": "L-009", "tipo_jornada": "vespertina"})
+
+
+def test_repository_update_does_not_clear_absent_fields(repo):
+    employee_id = repo.create({"employee_code": "L-010", "curp": VALID_CURP})
+    repo.update(employee_id, {"first_name": "Ana"})
+    assert repo.get(employee_id)["curp"] == VALID_CURP
+
+
+def test_repository_update_rejects_malformed_curp(repo):
+    employee_id = repo.create({"employee_code": "L-011"})
+    with pytest.raises(ValueError, match="curp"):
+        repo.update(employee_id, {"curp": "XYZ"})

@@ -13,6 +13,7 @@ import logging
 from datetime import datetime
 
 from .database import Database
+from .validators import normalize_labor_fields
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ class EmployeeRepository:
         if not data.get("employee_code"):
             raise ValueError("employee_code es requerido")
         self._validate_status(data.get("status"))
+        normalize_labor_fields(data)
 
         now = datetime.now().isoformat()
         payload = dict(data)
@@ -75,6 +77,7 @@ class EmployeeRepository:
     def update(self, employee_id: int, data: dict) -> int:
         """Actualizar campos editables. `employee_code` y `created_at` no se modifican."""
         self._validate_status(data.get("status"))
+        normalize_labor_fields(data)
 
         payload = {k: v for k, v in data.items() if k not in ("id", "employee_code", "created_at")}
         payload["updated_at"] = datetime.now().isoformat()

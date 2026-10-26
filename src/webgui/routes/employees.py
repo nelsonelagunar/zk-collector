@@ -2,11 +2,18 @@
 Employees Routes - CRUD de colaboradores (MYK-221)
 API REST para el módulo HR-1 Colaboradores ABC.
 Estilo consistente con src/webgui/routes/devices.py (jsonify + status codes).
+
+Datos laborales opcionales (CURP/RFC/NSS/tipo jornada/turno) validados en
+MYK-423 via src/webgui/validators.py; export CSV en /export.
 """
 
+import csv
+import io
 import sqlite3
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, Response, current_app, jsonify, request
+
+from ..validators import LABOR_FIELDS, normalize_labor_fields
 
 from ..middleware.auth import api_auth_required
 
@@ -23,6 +30,23 @@ UPDATABLE_FIELDS = (
     "position",
     "hire_date",
     "notes",
+) + LABOR_FIELDS
+
+EXPORT_COLUMNS = (
+    "employee_code",
+    "first_name",
+    "last_name",
+    "email",
+    "department",
+    "position",
+    "hire_date",
+    "status",
+    "curp",
+    "rfc",
+    "nss",
+    "imss_numero_seguro",
+    "tipo_jornada",
+    "turno",
 )
 
 
@@ -52,6 +76,11 @@ def _validate_payload(data: dict, partial: bool = False) -> list[str]:
         errors.append("first_name es requerido")
     if "last_name" in data and not str(data.get("last_name", "")).strip():
         errors.append("last_name es requerido")
+
+    try:
+        normalize_labor_fields(data)
+    except ValueError as exc:
+        errors.append(str(exc))
 
     return errors
 
@@ -109,6 +138,52 @@ def list_employees():
                 "has_prev": page > 1,
             },
         }
+    )
+
+
+@employees_bp.route("/export", methods=["GET"])
+def export_employees():
+    """Export CSV de colaboradores con columnas laborales (MYK-423): incluye CURP y RFC."""
+    db = _db()
+
+    status = request.args.get("status", "").strip()
+    department = request.args.get("department", "").strip()
+    search = request.args.get("search", "").strip()
+
+    conditions: list[str] = []
+    params: list = []
+
+    if status:
+        conditions.append("status = ?")
+        params.append(status)
+    if department:
+        conditions.append("department = ?")
+        params.append(department)
+    if search:
+        conditions.append(
+            "(employee_code LIKE ? OR first_name LIKE ? OR last_name LIKE ? "
+            "OR email LIKE ? OR department LIKE ?)"
+        )
+        like = f"%{search}%"
+        params.extend([like, like, like, like, like])
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
+    rows = db.fetch_all(
+        f"SELECT {', '.join(EXPORT_COLUMNS)} FROM employees {where} ORDER BY last_name, first_name",
+        tuple(params),
+    )
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(EXPORT_COLUMNS)
+    for row in rows:
+        writer.writerow(["" if row[col] is None else row[col] for col in EXPORT_COLUMNS])
+
+    return Response(
+        buffer.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=colaboradores.csv"},
     )
 
 

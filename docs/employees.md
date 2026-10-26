@@ -22,6 +22,12 @@ incapacidades, retardos y estadísticos.
 | hire_date      | DATE      |                                        |
 | status         | TEXT      | `active` / `inactive` (CHECK), default `active` |
 | notes          | TEXT      |                                        |
+| curp           | TEXT      | opcional; CHECK length=18 (mig. 011)   |
+| rfc            | TEXT      | opcional; CHECK length 12/13 (mig. 011)|
+| nss            | TEXT      | opcional; CHECK length=11 (mig. 011)   |
+| imss_numero_seguro | TEXT | opcional; CHECK length=11 (mig. 011)   |
+| tipo_jornada   | TEXT      | opcional; CHECK IN `diurna`/`mixta`/`nocturna` (mig. 011) |
+| turno          | TEXT      | opcional, texto libre (mig. 011)       |
 | created_at     | DATETIME  | default `CURRENT_TIMESTAMP`            |
 | updated_at     | DATETIME  | default `CURRENT_TIMESTAMP`            |
 
@@ -52,15 +58,46 @@ Vincula un colaborador con sus badges/dispositivos (1 colaborador → N enlaces)
 `EXPLAIN QUERY PLAN SELECT * FROM employees WHERE status = 'active'` → usa
 `idx_employees_status` (índice) en lugar de full scan.
 
+## Datos laborales del empleado (MYK-423, migración 011)
+
+Columnas opcionales de identidad y jornada (compliance jornada 2027,
+`docs/compliance_nomina_2027.md` §4 item 5): `curp`, `rfc`, `nss`,
+`imss_numero_seguro`, `tipo_jornada`, `turno`. Todas aceptan NULL
+("no capturado"); el CHECK SQL cubre longitud/enum y la validación de
+FORMATO completa vive en `src/webgui/validators.py` (aplicada por la API
+`/api/employees` y por `EmployeeRepository`):
+
+- **CURP**: 18 caracteres con estructura RENAPO (4 letras, fecha YYMMDD,
+  sexo H/M, clave de entidad federativa del catálogo oficial, 3 consonantes
+  interiores, homoclave alfanumérica, dígito verificador). Se normaliza a
+  mayúsculas. No se recalcula el dígito verificador (validación de
+  estructura, no de padrón).
+- **RFC**: 12 caracteres (persona moral: 3 letras + fecha + homoclave) o
+  13 (persona física: 4 letras + fecha + homoclave), estructura SAT.
+  Se normaliza a mayúsculas.
+- **NSS / imss_numero_seguro**: 11 dígitos (formato IMSS).
+- **tipo_jornada**: enum LFT 58-60 (`diurna`, `mixta`, `nocturna`).
+- **turno**: texto libre (matutino/vespertino/rotativo/…).
+
+Sin índices ni UNIQUE nuevos en la 011: no existe query shape que filtre
+por CURP/RFC (revisar con EXPLAIN cuando EX-1 los junte en el export legal),
+y los registros legados pueden cargar duplicados pendientes de depurar.
+
+**Export**: `GET /api/employees/export` (CSV, mismos filtros status/
+department/search que el listado) incluye todas las columnas laborales,
+con `curp` y `rfc` en cada fila.
+
 ## Capa de acceso (contrato para backend-dev)
 
 `src/webgui/employees.py` — `EmployeeRepository(db)` (recibe la instancia
 `Database` de webgui):
 
-- `create(data) -> int` — requiere `employee_code`; valida `status`.
+- `create(data) -> int` — requiere `employee_code`; valida `status` y formato
+  de los campos laborales (CURP/RFC/NSS/tipo_jornada, MYK-423).
 - `get(id)` / `get_by_code(code)` — devuelve `dict | None`.
 - `list_employees(status=None, search=None) -> list[dict]` — filtro por status y búsqueda libre.
-- `update(id, data) -> int` — no modifica `employee_code` ni `created_at`.
+- `update(id, data) -> int` — no modifica `employee_code` ni `created_at`;
+  valida los campos laborales presentes (los ausentes no se limpian).
 - `set_status(id, status) -> int` — alta/baja lógica.
 - `delete(id) -> int` — borrado físico (limpia links explícitamente).
 - `link_device(id, device_serial, device_user_id) -> int` — idempotente (`OR IGNORE`).
