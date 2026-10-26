@@ -85,3 +85,27 @@ CRUD en `src/webgui/database.py` (métodos de `Database`):
 (soft delete), `link_device_to_company` (upsert: re-vincular transfiere propiedad),
 `unlink_device_from_company(device_serial)`, `get_devices_for_company`,
 `get_company_for_device`. Tests: `tests/test_companies.py`.
+
+## API REST y WebGUI (MYK-411)
+
+Endpoints Bearer bajo `/api/companies` (`src/webgui/routes/companies.py`),
+contrato completo en `docs/openapi.yaml` (tag `companies`):
+
+| Método | Ruta | Semántica |
+|--------|------|-----------|
+| GET | `/api/companies/` | Lista (todas; `?status=active\|inactive` filtra) |
+| POST | `/api/companies/` | Crear — `razon_social` requerido, RFC duplicado → 409 |
+| GET/PUT/DELETE | `/api/companies/{id}` | Detalle / actualización parcial / **baja lógica** (status inactive, conserva vínculos) |
+| GET | `/api/companies/{id}/devices` | Relojes ligados (join con `devices`) |
+| POST | `/api/companies/{id}/devices` | Ligar reloj — valida que `device_serial` exista en `devices`; si ya era de otra empresa, **transfiere** |
+| DELETE | `/api/companies/{id}/devices/{device_serial}` | Desligar — 404 si el reloj no pertenece a esa empresa |
+
+WebGUI: sección `/configuracion/razon-social` (navbar "Razón Social", blueprint
+`routes/companies_ui.py` + `templates/companies/index.html`): tabla de empresas,
+form alta/edición, baja, panel de relojes por empresa con ligado/desligado.
+El endpoint de soporte `/configuracion/razon-social/api/devices` (sesión) expone
+cada reloj con serial + empresa propietaria actual. El formulario consume la API
+con header `Authorization: Bearer webgui` (mismo patrón que expediente de colaboradores).
+
+Tests: `tests/test_companies_routes.py` (API), `tests/test_companies_ui.py` (sección
+WebGUI + flujo completo contra la app real), `tests/test_nav_routing.py` (navbar).

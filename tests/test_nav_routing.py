@@ -13,6 +13,7 @@ NAV_PATHS = (
     "/colaboradores",
     "/devices",
     "/users",
+    "/configuracion/razon-social",
     "/settings",
     "/profile",
 )
@@ -29,6 +30,8 @@ SECTION_PATHS = (
     "/reportes/",
     "/users",
     "/users/",
+    "/configuracion/razon-social",
+    "/configuracion/razon-social/",
     "/settings",
     "/settings/",
     "/profile",

@@ -79,6 +79,8 @@ def create_app(config=None):
     from .routes.attendance_stats import attendance_stats_bp
     from .routes.attendance_stats_ui import attendance_stats_ui_bp
     from .routes.auth import auth_bp
+    from .routes.companies import companies_bp
+    from .routes.companies_ui import companies_ui_bp
     from .routes.devices import devices_bp
     from .routes.employees import employees_bp
     from .routes.employees_ui import employees_ui_bp
@@ -101,6 +103,8 @@ def create_app(config=None):
     app.register_blueprint(landing_bp)
     app.register_blueprint(users_ui_bp, url_prefix="/users")
     app.register_blueprint(settings_ui_bp, url_prefix="/settings")
+    app.register_blueprint(companies_bp, url_prefix="/api/companies")
+    app.register_blueprint(companies_ui_bp, url_prefix="/configuracion/razon-social")
     app.register_blueprint(profile_bp, url_prefix="/profile")
 
     # Nombre de la empresa (system_config) para reportes/agrupaciones (MYK-377)
