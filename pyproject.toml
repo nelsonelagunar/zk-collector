@@ -48,13 +48,18 @@ dev = [
     "ruff>=0.8.0",
     "mypy>=1.13.0",
     "bandit>=1.8.0",
+    "mcp>=1.2,<2",
 ]
 docker = [
     "pyinstaller>=6.11.0",
 ]
+mcp = [
+    "mcp>=1.2,<2",
+]
 
 [project.scripts]
 zk-collector = "src.main:main"
+zk-collector-mcp = "src.mcp_server.server:main"
 
 [project.urls]
 Homepage = "https://github.com/nelsonelagunar/zk-collector"
