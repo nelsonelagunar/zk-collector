@@ -142,8 +142,9 @@ def api_attendance():
     if order.lower() not in ["asc", "desc"]:
         order = "desc"
 
-    # Construir WHERE clause
-    where_conditions = []
+    # Construir WHERE clause. Los registros anulados por correccion (MYK-422)
+    # no aparecen en listados/exportaciones: su historial vive en la bitacora.
+    where_conditions = ["annulled = 0"]
     params = []
 
     if start_date:
@@ -254,10 +255,11 @@ def attendance_stats():
     with buffer_repo.get_connection() as conn:
         cursor = conn.cursor()
 
-        # Por estado (punch_type)
+        # Por estado (punch_type) — anulados fuera (MYK-422)
         cursor.execute("""
             SELECT punch_type, COUNT(*) as count
             FROM attendance_records
+            WHERE annulled = 0
             GROUP BY punch_type
         """)
         by_punch_type = {row["punch_type"]: row["count"] for row in cursor.fetchall()}
@@ -266,6 +268,7 @@ def attendance_stats():
         cursor.execute("""
             SELECT device_ip, COUNT(*) as count
             FROM attendance_records
+            WHERE annulled = 0
             GROUP BY device_ip
         """)
         by_device = {row["device_ip"]: row["count"] for row in cursor.fetchall()}
@@ -274,6 +277,7 @@ def attendance_stats():
         cursor.execute("""
             SELECT synced, COUNT(*) as count
             FROM attendance_records
+            WHERE annulled = 0
             GROUP BY synced
         """)
         by_synced = {row["synced"]: row["count"] for row in cursor.fetchall()}
@@ -287,7 +291,8 @@ def attendance_stats():
 
 def _build_attendance_query(params: dict) -> tuple[str, list]:
     """Construir query base con filtros para export"""
-    where_conditions = []
+    # Registros anulados por correccion (MYK-422) fuera del export
+    where_conditions = ["annulled = 0"]
     query_params = []
 
     if params.get("start_date"):

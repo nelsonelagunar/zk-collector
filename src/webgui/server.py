@@ -76,6 +76,7 @@ def create_app(config=None):
     from .routes.alerts import alerts_bp
     from .routes.apidocs import apidocs_bp
     from .routes.attendance import attendance_bp
+    from .routes.attendance_integrity import attendance_integrity_bp
     from .routes.attendance_stats import attendance_stats_bp
     from .routes.attendance_stats_ui import attendance_stats_ui_bp
     from .routes.auth import auth_bp
@@ -91,6 +92,7 @@ def create_app(config=None):
     app.register_blueprint(devices_bp, url_prefix="/devices")
     app.register_blueprint(apidocs_bp, url_prefix="/api")
     app.register_blueprint(attendance_bp, url_prefix="/attendance")
+    app.register_blueprint(attendance_integrity_bp, url_prefix="/api/attendance")
     app.register_blueprint(attendance_stats_bp, url_prefix="/api/attendance")
     app.register_blueprint(attendance_stats_ui_bp, url_prefix="/reportes")
     app.register_blueprint(employees_bp, url_prefix="/api/employees")

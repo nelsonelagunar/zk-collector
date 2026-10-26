@@ -173,7 +173,7 @@ def compute_attendance_stats(
         cursor = conn.cursor()
         cursor.execute(
             "SELECT user_id, timestamp, status, device_ip FROM attendance_records "
-            "WHERE substr(timestamp, 1, 10) BETWEEN ? AND ?",
+            "WHERE substr(timestamp, 1, 10) BETWEEN ? AND ? AND annulled = 0",
             (start.isoformat(), end.isoformat()),
         )
         for row in cursor.fetchall():
