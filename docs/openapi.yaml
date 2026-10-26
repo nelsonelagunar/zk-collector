@@ -435,6 +435,7 @@ paths:
         departamento o empresa. Reglas completas en docs/attendance_stats.md.
       security:
         - bearerAuth: []
+        - sessionCookie: []
       parameters:
         - { name: start_date, in: query, schema: { type: string, format: date } }
         - { name: end_date, in: query, schema: { type: string, format: date } }
@@ -508,6 +509,7 @@ paths:
       description: Same filters as /api/attendance/stats. Adds a TOTAL row.
       security:
         - bearerAuth: []
+        - sessionCookie: []
       parameters:
         - { name: start_date, in: query, schema: { type: string, format: date } }
         - { name: end_date, in: query, schema: { type: string, format: date } }
@@ -545,7 +547,12 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      description: Bearer token (Authorization header), same scheme as /api/medical-leaves.
+      bearerFormat: JWT
+      description: >-
+        JWT access token (HS256) signed with the same WEBGUI_SECRET_KEY used by
+        POST /auth/login and verified by Auth.verify_access_token (payload
+        type=access, 30 min expiry). Any other/invalid/expired token responds
+        401 (MYK-443). Refresh tokens are NOT accepted as access tokens.
   parameters:
     deviceId:
       name: id

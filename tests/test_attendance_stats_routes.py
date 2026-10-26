@@ -10,6 +10,7 @@ from flask import Flask
 from openpyxl import load_workbook
 
 from src.buffer.repository import BufferRepository
+from src.webgui.auth import Auth
 from src.webgui.database import Database
 from src.webgui.routes.attendance_stats import attendance_stats_bp
 
@@ -17,7 +18,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 MIGRATIONS_DIR = REPO_ROOT / "migrations"
 MIGRATION_CHAIN = ("001_initial_schema.sql", "002_employees.sql", "003_medical_leaves.sql")
 
-AUTH_HEADER = {"Authorization": "Bearer test-token"}
+# JWT real firmado con el mismo secreto de la app (MYK-443: el middleware valida)
+AUTH_HEADER = {
+    "Authorization": "Bearer "
+    + Auth("test-secret-key").generate_tokens(1, "admin", "admin")["access_token"]
+}
 START, END = "2026-10-05", "2026-10-09"
 
 CSV_CONTENT_TYPE = "text/csv; charset=utf-8"
@@ -41,6 +46,7 @@ def _build_app(tmp_path: Path) -> Flask:
     app.config["TESTING"] = True
     app.config["SECRET_KEY"] = "test-secret-key"
     app.db = Database(db_path)
+    app.auth = Auth(app.config["SECRET_KEY"])
     app.buffer_repo = BufferRepository(tmp_path / "data" / "buffer.db")
     app.register_blueprint(attendance_stats_bp, url_prefix="/api/attendance")
     return app

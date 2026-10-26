@@ -13,6 +13,7 @@ import pytest
 from flask import Flask
 
 from src.webgui.alerts import AlertEngine
+from src.webgui.auth import Auth
 from src.webgui.database import Database
 from src.webgui.routes.alerts import alerts_bp
 
@@ -36,6 +37,7 @@ def _build_app(tmp_path, *migration_names):
     app.config["TESTING"] = True
     app.config["SECRET_KEY"] = "test-secret-key"
     app.db = Database(db_path)
+    app.auth = Auth(app.config["SECRET_KEY"])
     app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
     return app
 
@@ -70,7 +72,9 @@ def client(tmp_path):
             ('{"n": 2, "m_days": 5, "work_start": "09:00"}',),
         )
     client = app.test_client()
-    client.environ_base["HTTP_AUTHORIZATION"] = "Bearer test-token"
+    # JWT real (MYK-443): api_auth_required valida la firma con Auth
+    token = Auth("test-secret-key").generate_tokens(1, "admin", "admin")["access_token"]
+    client.environ_base["HTTP_AUTHORIZATION"] = f"Bearer {token}"
     return client
 
 
