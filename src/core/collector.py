@@ -6,6 +6,7 @@ import logging
 import os
 import time
 from datetime import datetime
+from typing import Any
 
 from src.buffer.repository import BufferRepository
 from src.core.config import Config
@@ -60,6 +61,9 @@ class AttendanceCollector:
         # Dispositivos
         self.devices_config = self.config.get("devices", [])
         self.zk_clients: dict[str, ZKClient] = {}
+        # Huso por dispositivo (MYK-420): device.timezone -> config timezone
+        # global; None deja que el buffer localice con su default.
+        self.client_timezones: dict[str, Any] = {}
 
         # Estado
         self.last_poll: datetime | None = None
@@ -84,6 +88,7 @@ class AttendanceCollector:
                 ommit_ping=device.get("ommit_ping", False),
             )
             self.zk_clients[ip] = client
+            self.client_timezones[ip] = device.get("timezone") or self.config.get("timezone")
             logger.info(f"Dispositivo configurado: {ip}")
 
     def poll_devices(self):
@@ -104,7 +109,11 @@ class AttendanceCollector:
                     continue
 
                 # Obtener registros
-                attendances = client.get_attendance(clear_after_read=False, disable_device=True)
+                attendances = client.get_attendance(
+                    clear_after_read=False,
+                    disable_device=True,
+                    timezone=self.client_timezones.get(ip),
+                )
 
                 if attendances:
                     # Guardar en buffer

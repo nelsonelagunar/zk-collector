@@ -190,7 +190,7 @@ class TestAttendanceCollector:
         # Verify calls
         mock_client1.connect.assert_called_once_with(max_retries=3, retry_delay=2.0)
         mock_client1.get_attendance.assert_called_once_with(
-            clear_after_read=False, disable_device=True
+            clear_after_read=False, disable_device=True, timezone=None
         )
         mock_client1.disconnect.assert_called_once()
 

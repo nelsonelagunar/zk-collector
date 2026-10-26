@@ -122,7 +122,7 @@ class ZKClient:
                 self.zk = None
 
     def get_attendance(
-        self, clear_after_read: bool = False, disable_device: bool = True
+        self, clear_after_read: bool = False, disable_device: bool = True, timezone: Any = None
     ) -> list[AttendanceRecord] | None:
         """
         Obtener registros de asistencia del dispositivo
@@ -130,6 +130,8 @@ class ZKClient:
         Args:
             clear_after_read: Si True, borra los registros después de leer
             disable_device: Si True, deshabilita el dispositivo durante la lectura
+            timezone: Huso IANA del dispositivo para localizar timestamps naive
+                del firmware (MYK-420)
 
         Returns:
             Lista de AttendanceRecord o None si hay error
@@ -152,7 +154,7 @@ class ZKClient:
 
             # Convertir a AttendanceRecord
             records = [
-                AttendanceRecord.from_zk_attendance(attendance, self.ip)
+                AttendanceRecord.from_zk_attendance(attendance, self.ip, timezone)
                 for attendance in attendances
             ]
 

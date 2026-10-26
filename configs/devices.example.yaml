@@ -1,5 +1,9 @@
 # Ejemplo de configuración de dispositivos
 # Usar como referencia para agregar múltiples dispositivos
+#
+# timezone (opcional, IANA): huso del reloj del dispositivo para localizar
+# timestamps naive del firmware (MYK-420). Si se omite usa la config global
+# `timezone` (system_config.timezone, default America/Mexico_City).
 
 devices:
   # Entrada Principal
@@ -9,6 +13,15 @@ devices:
     password: 0
     name: "Entrada Principal"
     enabled: true
+
+  # Sucursal Tijuana (huso Pacifico)
+  - ip: "192.168.1.105"
+    port: 4370
+    timeout: 5
+    password: 0
+    name: "Sucursal Tijuana"
+    enabled: true
+    timezone: "America/Tijuana"
 
   # Salida Emergencia
   - ip: "192.168.1.102"

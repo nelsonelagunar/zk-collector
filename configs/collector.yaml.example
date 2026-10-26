@@ -56,6 +56,13 @@ poll_interval_seconds: 300  # 5 minutos (mín: 60, máx: 3600)
 sync_interval_seconds: 60   # 1 minuto (mín: 10, máx: 600)
 
 #-------------------------------------------------------------------------------
+# Zona horaria (MYK-420)
+#-------------------------------------------------------------------------------
+# Huso IANA usado para localizar los timestamps naive del firmware.
+# Default si se omite: America/Mexico_City (system_config.timezone manda en WebGUI).
+# timezone: America/Mexico_City
+
+#-------------------------------------------------------------------------------
 # Buffer Local
 #-------------------------------------------------------------------------------
 buffer:

@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from ..utils.timezones import coerce_timezone, ensure_aware
 from .models import AttendanceRecordDB
 
 logger = logging.getLogger(__name__)
@@ -30,9 +31,12 @@ class BufferRepository:
     - Conexión thread-safe
     """
 
-    def __init__(self, db_path: Path, max_records: int = 10000):
+    def __init__(self, db_path: Path, max_records: int = 10000, default_timezone=None):
         self.db_path = Path(db_path)
         self.max_records = max_records
+        # Huso usado para localizar timestamps naive del firmware antes de
+        # persistir (MYK-420): todo registro queda ISO-8601 con offset.
+        self.default_tz = coerce_timezone(default_timezone)
         self._init_database()
 
     @contextmanager
@@ -160,9 +164,7 @@ class BufferRepository:
                 [
                     (
                         r.user_id,
-                        r.timestamp.isoformat()
-                        if hasattr(r.timestamp, "isoformat")
-                        else str(r.timestamp),
+                        self._serialize_timestamp(r.timestamp),
                         r.status,
                         r.device_ip,
                         r.punch_type,
@@ -182,6 +184,21 @@ class BufferRepository:
                 f"({len(records) - inserted} duplicados ignorados)"
             )
             return inserted
+
+    def _serialize_timestamp(self, timestamp: Any) -> str:
+        """
+        Serializa a ISO-8601 con offset (MYK-420).
+
+        - datetime aware: conserva el offset del dispositivo.
+        - datetime naive (firmware): se localiza con default_timezone.
+        - cualquier otro valor: str() tal cual (legacy).
+        """
+        if isinstance(timestamp, datetime):
+            aware = ensure_aware(timestamp, self.default_tz)
+            return aware.isoformat()
+        if hasattr(timestamp, "isoformat"):
+            return str(timestamp.isoformat())
+        return str(timestamp)
 
     def get_unsynced_records(self, limit: int = 1000) -> list[dict]:
         """

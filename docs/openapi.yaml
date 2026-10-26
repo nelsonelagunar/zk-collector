@@ -774,7 +774,7 @@ components:
         id: { type: integer }
         device_id: { type: integer }
         user_id: { type: string }
-        timestamp: { type: string, format: date-time }
+        timestamp: { type: string, format: date-time, description: ISO-8601 with UTC offset, presented in the work center local timezone (system_config.timezone, MYK-420) }
         punch_type: { type: string, enum: [check_in, check_out] }
         synced: { type: boolean }
     Company:

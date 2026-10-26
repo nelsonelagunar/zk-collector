@@ -29,7 +29,9 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
+from ..utils.timezones import coerce_timezone, ensure_aware, get_system_timezone, parse_timestamp
 from .database import Database
 
 DEFAULT_WORK_START = "09:00:00"
@@ -83,17 +85,18 @@ def _business_days(start: date, end: date) -> list[date]:
     return days
 
 
-def _normalize_timestamp(value: object) -> datetime | None:
-    """Acepta 'YYYY-MM-DD', 'YYYY-MM-DD HH:MM:SS', ISO con 'T' y sin segundos."""
-    if isinstance(value, datetime):
-        return value
-    text = str(value if value is not None else "").strip().replace("T", " ")
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
-        try:
-            return datetime.strptime(text, fmt)
-        except ValueError:
-            continue
-    return None
+def _normalize_timestamp(value: object, tz: ZoneInfo | None = None) -> datetime | None:
+    """Acepta 'YYYY-MM-DD', 'YYYY-MM-DD HH:MM:SS', ISO con 'T' y sin segundos.
+
+    Con tz (MYK-420): convierte a la hora local del centro de trabajo; los
+    naive se asumen en tz. Sin tz devuelve el parseo directo (fechas/dates).
+    """
+    parsed = parse_timestamp(value)
+    if parsed is None:
+        return None
+    if tz is not None:
+        return ensure_aware(parsed, tz).astimezone(tz)
+    return parsed
 
 
 def _pct(part: int, total: int) -> float | None:
@@ -130,6 +133,9 @@ def compute_attendance_stats(
     if start > end:
         raise StatsValidationError("start_date no puede ser posterior a end_date")
     work_start_t = parse_work_start(work_start)
+    # Hora local del centro de trabajo (MYK-420): dias y primer entrada se computan
+    # en el huso configurado, no en el offset original de cada marcada.
+    stats_tz = coerce_timezone(get_system_timezone(db))
 
     # 1. Colaboradores activos con filtros
     query = (
@@ -177,7 +183,7 @@ def compute_attendance_stats(
             (start.isoformat(), end.isoformat()),
         )
         for row in cursor.fetchall():
-            parsed = _normalize_timestamp(row["timestamp"])
+            parsed = _normalize_timestamp(row["timestamp"], stats_tz)
             if parsed is None:
                 continue
             serial = serial_by_ip.get(row["device_ip"])
