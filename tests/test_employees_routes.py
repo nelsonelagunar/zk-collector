@@ -21,7 +21,12 @@ def _build_app(tmp_path: Path) -> Flask:
     db_path = tmp_path / "webgui.db"
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA foreign_keys = ON")
-    _apply_migrations(conn, "001_initial_schema.sql", "002_employees.sql")
+    _apply_migrations(
+        conn,
+        "001_initial_schema.sql",
+        "002_employees.sql",
+        "011_employee_labor_data.sql",
+    )
     conn.close()
 
     app = Flask(__name__)
@@ -159,3 +164,107 @@ class TestDeviceLinks:
         payload = {"device_serial": "SN1", "device_user_id": "u1"}
         assert client.post(f"/api/employees/{emp_id}/device-links", json=payload).status_code == 201
         assert client.post(f"/api/employees/{emp_id}/device-links", json=payload).status_code == 409
+
+
+# --- MYK-423: datos laborales (validacion CURP/RFC/NSS/tipo jornada + export) ---
+
+VALID_CURP = "GARC850101HDFRRL09"
+VALID_RFC_FISICA = "GARC850101H45"
+VALID_NSS = "12345678901"
+
+
+class TestLaborDataValidation:
+    def test_create_with_labor_data(self, client):
+        resp = _create(
+            client,
+            "L100",
+            "Ana",
+            "Lopez",
+            curp=VALID_CURP,
+            rfc=VALID_RFC_FISICA,
+            nss=VALID_NSS,
+            tipo_jornada="diurna",
+            turno="matutino",
+        )
+        assert resp.status_code == 201
+        emp = resp.get_json()["employee"]
+        assert emp["curp"] == VALID_CURP
+        assert emp["rfc"] == VALID_RFC_FISICA
+        assert emp["nss"] == VALID_NSS
+        assert emp["tipo_jornada"] == "diurna"
+        assert emp["turno"] == "matutino"
+
+    def test_create_normalizes_lowercase_curp(self, client):
+        resp = _create(client, "L101", curp=VALID_CURP.lower())
+        assert resp.status_code == 201
+        assert resp.get_json()["employee"]["curp"] == VALID_CURP
+
+    def test_create_rejects_malformed_curp(self, client):
+        resp = _create(client, "L102", curp="GARC850101HDF")
+        assert resp.status_code == 400
+        assert "curp" in resp.get_json()["error"]
+
+    def test_create_rejects_curp_with_unknown_entity(self, client):
+        resp = _create(client, "L103", curp="GARC850101HXXRRL09")
+        assert resp.status_code == 400
+        assert "curp" in resp.get_json()["error"]
+
+    def test_create_rejects_malformed_rfc(self, client):
+        resp = _create(client, "L104", rfc="GARC")
+        assert resp.status_code == 400
+        assert "rfc" in resp.get_json()["error"]
+
+    def test_create_rejects_bad_nss(self, client):
+        resp = _create(client, "L105", nss="1234567890")
+        assert resp.status_code == 400
+        assert "nss" in resp.get_json()["error"]
+
+    def test_create_rejects_bad_tipo_jornada(self, client):
+        resp = _create(client, "L106", tipo_jornada="vespertina")
+        assert resp.status_code == 400
+        assert "tipo_jornada" in resp.get_json()["error"]
+
+    def test_create_accepts_moral_rfc_12(self, client):
+        resp = _create(client, "L107", rfc="ABC850101XYZ")
+        assert resp.status_code == 201
+        assert resp.get_json()["employee"]["rfc"] == "ABC850101XYZ"
+
+    def test_update_rejects_malformed_curp(self, client):
+        emp_id = _create(client, "L108").get_json()["employee"]["id"]
+        resp = client.put(f"/api/employees/{emp_id}", json={"curp": "no-es-una-curp"})
+        assert resp.status_code == 400
+        assert "curp" in resp.get_json()["error"]
+
+    def test_update_accepts_valid_curp(self, client):
+        emp_id = _create(client, "L109").get_json()["employee"]["id"]
+        resp = client.put(f"/api/employees/{emp_id}", json={"curp": VALID_CURP})
+        assert resp.status_code == 200
+        assert resp.get_json()["employee"]["curp"] == VALID_CURP
+
+    def test_empty_labor_fields_are_ignored(self, client):
+        resp = _create(client, "L110", curp="", rfc="", nss="", tipo_jornada="", turno="")
+        assert resp.status_code == 201
+        emp = resp.get_json()["employee"]
+        assert emp["curp"] is None
+        assert emp["rfc"] is None
+        assert emp["nss"] is None
+        assert emp["tipo_jornada"] is None
+        assert emp["turno"] is None
+
+
+class TestEmployeesExport:
+    def test_export_includes_curp_and_rfc(self, client):
+        assert _create(client, "L200", curp=VALID_CURP, rfc=VALID_RFC_FISICA).status_code == 201
+        resp = client.get("/api/employees/export")
+        assert resp.status_code == 200
+        text = resp.get_data(as_text=True)
+        assert "curp" in text
+        assert "rfc" in text
+        assert VALID_CURP in text
+        assert VALID_RFC_FISICA in text
+
+    def test_export_respects_status_filter(self, client):
+        assert _create(client, "L201", curp=VALID_CURP).status_code == 201
+        resp = client.get("/api/employees/export?status=inactive")
+        assert resp.status_code == 200
+        assert VALID_CURP not in resp.get_data(as_text=True)
