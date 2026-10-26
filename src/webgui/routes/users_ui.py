@@ -20,10 +20,9 @@ from flask import (
 
 from ..database import Database
 from ..middleware.auth import admin_required, login_required
+from ..permissions import ALLOWED_ROLES
 
 users_ui_bp = Blueprint("users_ui", __name__)
-
-VALID_ROLES = ("admin", "user")
 
 
 @users_ui_bp.route("/", strict_slashes=False)
@@ -52,7 +51,9 @@ def create_user_ui():
         username = request.form.get("username", "").strip()
         email = request.form.get("email", "").strip()
         full_name = request.form.get("full_name", "").strip()
-        role = request.form.get("role", "user")
+        # Catalogo cerrado del ADR-001; 'user' legacy ya no es rol valido
+        # (la migracion 008 normaliza los rows existentes a 'auditor').
+        role = request.form.get("role", "auditor")
         password = request.form.get("password", "")
 
         errors = []
@@ -60,7 +61,7 @@ def create_user_ui():
             errors.append("El usuario es requerido")
         if len(password) < 8:
             errors.append("La contrasena debe tener al menos 8 caracteres")
-        if role not in VALID_ROLES:
+        if role not in ALLOWED_ROLES:
             errors.append("Rol invalido")
         if username and db.fetch_one("SELECT id FROM users WHERE username = ?", (username,)):
             errors.append("Ese usuario ya existe")
