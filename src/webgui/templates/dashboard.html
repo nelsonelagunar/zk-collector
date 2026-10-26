@@ -33,7 +33,7 @@
                                 Total Dispositivos
                             </dt>
                             <dd class="text-lg font-medium text-gray-900">
-                                {{ stats.get('devices_total', 0) }}
+                                {{ stats.get(devices_total, 0) }}
                             </dd>
                         </dl>
                     </div>
@@ -56,7 +56,7 @@
                                 En Línea
                             </dt>
                             <dd class="text-lg font-medium text-green-600">
-                                {{ stats.get('devices_online', 0) }}
+                                {{ stats.get(devices_online, 0) }}
                             </dd>
                         </dl>
                     </div>
@@ -79,7 +79,7 @@
                                 Registros Pendientes
                             </dt>
                             <dd class="text-lg font-medium text-yellow-600">
-                                {{ stats.get('pending_records', 0) }}
+                                {{ stats.get(pending_records, 0) }}
                             </dd>
                         </dl>
                     </div>
@@ -111,22 +111,28 @@
         </div>
     </div>
 
-    <!-- Acciones rápidas -->
+    <!-- Acciones rápidas por rol (misma matriz del menu: nav_sections) -->
+    {% set quick_sections = nav_sections | rejectattr("key", "equalto", "dashboard") | list %}
+    {% if quick_sections %}
     <div class="bg-white shadow rounded-lg mb-6">
         <div class="px-5 py-4 border-b border-gray-200">
             <h3 class="text-lg leading-6 font-medium text-gray-900">Acciones Rápidas</h3>
         </div>
         <div class="px-5 py-4">
             <div class="flex flex-wrap gap-4">
+                {% if can("devices:write") and "devices" in (nav_sections | map(attribute="key") | list) %}
                 <a href="/devices/new" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
                     <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                     </svg>
                     Nuevo Dispositivo
                 </a>
-                <a href="/devices" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                    Ver Todos
+                {% endif %}
+                {% for section in quick_sections %}
+                <a href="{{ section.href }}" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    {{ section.label }}
                 </a>
+                {% endfor %}
                 <button class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                     <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -136,8 +142,10 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
-    <!-- Dispositivos recientes -->
+    <!-- Dispositivos recientes (solo roles con seccion dispositivos) -->
+    {% if "devices" in (nav_sections | map(attribute="key") | list) %}
     <div class="bg-white shadow rounded-lg">
         <div class="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
             <h3 class="text-lg leading-6 font-medium text-gray-900">Dispositivos Recientes</h3>
@@ -180,5 +188,6 @@
             </li>
         </ul>
     </div>
+    {% endif %}
 </div>
 {% endblock %}

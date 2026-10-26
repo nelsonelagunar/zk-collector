@@ -82,7 +82,8 @@ def test_create_user_requires_admin(user_role_client):
         "/users/new",
         data={"username": "sin.permiso", "role": "auditor", "password": "PasswordSegura99"},
     )
-    assert resp.status_code == 302
+    # MYK-416: POST en seccion users:manage sin permiso devuelve 403 (no redirect)
+    assert resp.status_code == 403
     assert _count_users(app, "sin.permiso") == 0
 
 
