@@ -153,3 +153,19 @@ Lecciones de MYK-227 (5 runs perdidos). Aplican a CUALQUIER agente:
   (`Database._run_migrations`); el Dockerfile la deja ON, pytest/dev quedan sin seed.
   Idempotente por guards de llave natural (employee_code/username UNIQUE, links PK,
   devices por address). Tests: `tests/test_demo_seed.py`, `tests/test_nav_routing.py`.
+
+## API Auth (MYK-443)
+
+- `api_auth_required` (`src/webgui/middleware/auth.py`) valida de verdad desde MYK-443:
+  sesión WebGUI activa (`user_id` en session, para los fetch same-origin del dashboard)
+  O Bearer JWT firmado con `WEBGUI_SECRET_KEY` via `Auth.verify_access_token`
+  (`type=access`, HS256). Todo lo demas responde 401 `{"error": ...}` (shape intacto).
+  Fail-closed si la app no tiene `app.auth` (create_app siempre lo setea, server.py:70).
+- Todos los blueprints API usan el decorador: `/api/employees` (anadido en MYK-443,
+  antes estaba SIN decorador), `/api/medical-leaves`, `/api/attendance/stats`,
+  `/api/alerts`. Los templates NUNCA mandan token falso: la cookie de sesión autentica.
+- NO existe endpoint de emisión de JWT (login es solo sesión); mint externo =
+  `Auth(secret).generate_tokens(user_id, username, role)`. Refresh tokens no sirven
+  como access. Tests: `tests/test_api_auth_middleware.py` (401/200 por blueprint).
+- Los endpoints JSON internos de UI (`/devices/api/*`, `/attendance/api/*`,
+  `/colaboradores/api/*`, `/reportes/api/*`) quedaron SIN auth — seguimiento aparte.

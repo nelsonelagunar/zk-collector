@@ -6,13 +6,18 @@ from pathlib import Path
 import pytest
 from flask import Flask
 
+from src.webgui.auth import Auth
 from src.webgui.database import Database
 from src.webgui.routes.medical_leaves import medical_leaves_bp
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[1] / "migrations"
 MIGRATION_CHAIN = ("001_initial_schema.sql", "002_employees.sql", "003_medical_leaves.sql")
 
-AUTH_HEADER = {"Authorization": "Bearer test-token"}
+# JWT real firmado con el mismo secreto de la app (MYK-443: el middleware valida)
+AUTH_HEADER = {
+    "Authorization": "Bearer "
+    + Auth("test-secret-key").generate_tokens(1, "admin", "admin")["access_token"]
+}
 
 
 def _apply_migrations(conn: sqlite3.Connection) -> None:
@@ -31,6 +36,7 @@ def _build_app(tmp_path: Path) -> Flask:
     app.config["TESTING"] = True
     app.config["SECRET_KEY"] = "test-secret-key"
     app.db = Database(db_path)
+    app.auth = Auth(app.config["SECRET_KEY"])
     app.register_blueprint(medical_leaves_bp, url_prefix="/api/medical-leaves")
     return app
 

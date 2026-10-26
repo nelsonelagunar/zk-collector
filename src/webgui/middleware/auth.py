@@ -4,7 +4,7 @@ Middleware de Autenticación - JWT Validation
 
 from functools import wraps
 
-from flask import flash, jsonify, redirect, request, session, url_for
+from flask import current_app, flash, g, jsonify, redirect, request, session, url_for
 
 
 def login_required(f):
@@ -44,12 +44,23 @@ def admin_required(f):
 
 def api_auth_required(f):
     """
-    Decorador para APIs que requieren autenticación JWT
+    Decorador para APIs que requieren autenticación JWT (MYK-443).
+
+    Acepta cualquiera de las dos credenciales:
+    - Sesión WebGUI activa (``user_id`` en session) — llamadas del propio
+      WebGUI desde el browser (fetch same-origin con cookie de sesión).
+    - Bearer JWT válido firmado con el mismo secreto que el login
+      (``Auth.verify_access_token``, payload ``type == "access"``).
+    Todo lo demás responde 401. Fail-closed si la app no tiene ``auth``.
     """
 
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Verificar header Authorization
+        # 1) Sesión WebGUI (browser fetch del propio dashboard)
+        if "user_id" in session:
+            return f(*args, **kwargs)
+
+        # 2) Bearer JWT (consumidores externos de la API)
         auth_header = request.headers.get("Authorization")
 
         if not auth_header:
@@ -63,8 +74,15 @@ def api_auth_required(f):
         except ValueError:
             return jsonify({"error": "Invalid authorization format"}), 401
 
-        # TODO: Validar token con Auth class
-        # Por ahora, pasar al siguiente
+        auth_instance = getattr(current_app, "auth", None)
+        if auth_instance is None:
+            return jsonify({"error": "Authentication is not configured"}), 401
+
+        payload = auth_instance.verify_access_token(token)
+        if payload is None:
+            return jsonify({"error": "Invalid or expired token"}), 401
+
+        g.api_user = payload
         return f(*args, **kwargs)
 
     return decorated_function

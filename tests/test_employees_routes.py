@@ -35,7 +35,13 @@ def _build_app(tmp_path: Path) -> Flask:
 @pytest.fixture
 def client(tmp_path: Path):
     app = _build_app(tmp_path)
-    return app.test_client()
+    client = app.test_client()
+    # MYK-443: /api/employees requiere auth — sesión WebGUI válida
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "admin"
+        sess["role"] = "admin"
+    return client
 
 
 def _create(client, code="E001", first="Ana", last="Lopez", **extra):

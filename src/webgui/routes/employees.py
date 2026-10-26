@@ -8,6 +8,8 @@ import sqlite3
 
 from flask import Blueprint, current_app, jsonify, request
 
+from ..middleware.auth import api_auth_required
+
 employees_bp = Blueprint("employees", __name__)
 
 REQUIRED_FIELDS = ("employee_code", "first_name", "last_name")
@@ -55,6 +57,7 @@ def _validate_payload(data: dict, partial: bool = False) -> list[str]:
 
 
 @employees_bp.route("/", methods=["GET"])
+@api_auth_required
 def list_employees():
     """Lista paginada de colaboradores con filtros status/department/search."""
     db = _db()
@@ -110,6 +113,7 @@ def list_employees():
 
 
 @employees_bp.route("/", methods=["POST"])
+@api_auth_required
 def create_employee():
     """Crear colaborador."""
     data = request.get_json(silent=True) or {}
@@ -130,6 +134,7 @@ def create_employee():
 
 
 @employees_bp.route("/<int:employee_id>", methods=["GET"])
+@api_auth_required
 def get_employee(employee_id: int):
     """Obtener colaborador por id."""
     db = _db()
@@ -140,6 +145,7 @@ def get_employee(employee_id: int):
 
 
 @employees_bp.route("/<int:employee_id>", methods=["PUT"])
+@api_auth_required
 def update_employee(employee_id: int):
     """Actualizar colaborador (parcial)."""
     db = _db()
@@ -164,6 +170,7 @@ def update_employee(employee_id: int):
 
 
 @employees_bp.route("/<int:employee_id>", methods=["DELETE"])
+@api_auth_required
 def delete_employee(employee_id: int):
     """Baja lógica (soft-delete → status inactive)."""
     db = _db()
@@ -175,6 +182,7 @@ def delete_employee(employee_id: int):
 
 
 @employees_bp.route("/<int:employee_id>/device-links", methods=["POST"])
+@api_auth_required
 def link_device(employee_id: int):
     """Asociar device_serial + device_user_id al colaborador."""
     db = _db()
@@ -206,6 +214,7 @@ def link_device(employee_id: int):
 
 
 @employees_bp.route("/<int:employee_id>/device-links", methods=["DELETE"])
+@api_auth_required
 def unlink_device(employee_id: int):
     """Desasociar device_serial + device_user_id del colaborador."""
     db = _db()
@@ -227,6 +236,7 @@ def unlink_device(employee_id: int):
 
 
 @employees_bp.route("/<int:employee_id>/device-links", methods=["GET"])
+@api_auth_required
 def list_device_links(employee_id: int):
     """Listar dispositivos vinculados al colaborador."""
     db = _db()
