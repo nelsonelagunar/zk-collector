@@ -116,7 +116,7 @@ class Database:
         cursor = conn.cursor()
         
         # Check if devices table exists
-        cursor.execute("SELECT name FROM sqlite_master WHERE type=table AND name=devices")
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='devices'")
         if not cursor.fetchone():
             return  # Table doesnt exist yet, migrations will create it correctly
         
