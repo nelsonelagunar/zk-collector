@@ -419,6 +419,87 @@ class TestBufferChain:
         assert repo.add_records([_record()]) == 1
         assert repo.verify_integrity()["valid"] is True
 
+    def test_add_records_coerces_int_user_id(self, repo):
+        """Minor review MYK-442: un caller con user_id int no debe sellar mal
+        la fila (la columna TEXT la convertiria y el hash quedaria sobre int)."""
+        record = AttendanceRecordDB(
+            user_id=101,  # type: ignore[arg-type]
+            timestamp=datetime(2026, 10, 5, 9, 0, 0),
+            status=0,
+            device_ip="10.0.0.5",
+            punch_type="entrada",
+        )
+        assert repo.add_records([record]) == 1
+        rows = _fetch_rows(repo, "SELECT user_id FROM attendance_records")
+        assert rows[0]["user_id"] == "101"
+        assert repo.verify_integrity()["valid"] is True
+
+
+# ---------------------------------------------------------------------------
+# Purga automatica vs alteracion (MYK-442 review, hallazgo 2)
+# ---------------------------------------------------------------------------
+
+
+class TestPurgeGapClassification:
+    def test_age_purge_leaves_recorded_gap_not_false_alarm(self, repo):
+        """H2 review: la purga de sincronizados >30d elimina filas selladas;
+        el verificador clasifica el hueco (recorded_purge_gaps) en vez de dar
+        falso positivo perpetuo de ALTERACION."""
+        old = _record(user_id="101", ts=datetime(2026, 9, 1, 9, 0, 0))
+        assert repo.add_records([old]) == 1
+        repo.mark_as_synced([1])
+        # El siguiente add_records dispara la purga de sincronizados >30d
+        assert repo.add_records([_record(user_id="102")]) == 1
+
+        report = repo.verify_integrity()
+        assert report["valid"] is True
+        assert report["failure_count"] == 0
+        assert report["purged_records"] == 1
+        assert report["recorded_purge_gaps"] == [
+            {
+                "id": 2,
+                "reason": "recorded_purge_gap",
+                "detail": "hueco por purga registrada en bitacora (actor='purge')",
+                "gap_from": 1,
+                "gap_to": 1,
+            }
+        ]
+        purge_audit = _fetch_rows(
+            repo, "SELECT * FROM attendance_audit_log WHERE actor = 'purge'"
+        )
+        assert len(purge_audit) == 1
+        assert purge_audit[0]["record_id"] == 1
+
+    def test_capacity_purge_classified_but_direct_delete_still_flags(self, tmp_path):
+        """El desborde de capacidad tambien deja hueco clasificado; un DELETE
+        directo (sin bitacora actor='purge') sigue siendo posible ALTERACION (AC3)."""
+        repo = BufferRepository(tmp_path / "data" / "buffer.db", max_records=2)
+        assert (
+            repo.add_records(
+                [
+                    _record(user_id="101", ts=datetime(2026, 10, 5, 8, 0, 0)),
+                    _record(user_id="102", ts=datetime(2026, 10, 5, 9, 0, 0)),
+                ]
+            )
+            == 2
+        )
+        # Desborda: la purga elimina la mas antigua (id 1) y lo deja en bitacora
+        assert repo.add_records([_record(user_id="103", ts=datetime(2026, 10, 5, 10, 0, 0))]) == 1
+
+        report = repo.verify_integrity()
+        assert report["valid"] is True
+        assert report["purged_records"] == 1
+        assert report["recorded_purge_gaps"][0]["id"] == 2
+
+        # DELETE directo: la fila siguiente queda en hueco NO registrado
+        with repo.get_connection() as conn:
+            conn.execute("DELETE FROM attendance_records WHERE id = 2")
+        report = repo.verify_integrity()
+        assert report["valid"] is False
+        assert report["first_failure"]["id"] == 3
+        assert report["first_failure"]["reason"] == "prev_hash_mismatch"
+        assert report["recorded_purge_gaps"] == []
+
 
 # ---------------------------------------------------------------------------
 # Endpoints admin: /api/attendance/integrity y correcciones

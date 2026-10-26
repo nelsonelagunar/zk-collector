@@ -55,7 +55,8 @@ Listados, exportaciones y stats excluyen registros anulados; la bitácora es el 
 
 - `GET /api/attendance/integrity` — reporte: `valid`, `algorithm`, `records_checked`,
   `failure_count`, `failures` (≤50), `first_failure`, `audit_entries`, `recent_audit` (10),
-  `annulled_records`. Devuelve 200 aunque la cadena esté rota: el veredicto va en `valid`.
+  `annulled_records`, `purged_records`, `recorded_purge_gaps`. Devuelve 200 aunque la
+  cadena esté rota: el veredicto va en `valid`.
 - `POST /api/attendance/records/{id}/correction` — body JSON con al menos un campo
   corregible (`timestamp` ISO-8601, `status`, `punch_type`, `device_ip`) + `reason`
   obligatorio. Respuesta 200 con `corrected_id`; 409 si ya está anulado o colisiona con
@@ -81,5 +82,15 @@ corrección; el `reason` es obligatorio en el formulario.
   trabajo futuro de MYK-410): un atacante con acceso SQL completo podría re-sellar;
   la bitácora append-only y los triggers de auditoría siguen dejando rastro de que
   hubo UPDATE/DELETE.
+- La purga automática del buffer (`_cleanup_old_records`: sincronizados >30 días y
+  desborde de capacidad) elimina filas **selladas** y deja huecos permanentes en la
+  cadena. Para que el verificador no dé falso positivo perpetuo, cada id purgado se
+  registra en bitácora con `actor='purge'` **antes** de borrarlo y `verify_integrity`
+  clasifica esos huecos aparte (`recorded_purge_gaps`, `purged_records`) sin invalidar
+  `valid`. Un DELETE fuera de la purga solo deja la entrada del trigger
+  (`actor='trigger'`) y sigue reportándose como posible ALTERACIÓN (AC 3). Residual:
+  no se puede distinguir una alteración de la fila inmediatamente posterior a un hueco
+  de purga (el fallo hereda la clasificación del hueco). MYK-419 (retención legal ≥730d)
+  elimina de raíz el borrado automático.
 - La anulación no se propaga al sync cloud (la fila corregida se sincroniza como nueva).
 - `clear_all` (operación manual) elimina registros; cada DELETE queda en bitácora.

@@ -60,13 +60,18 @@ class AlertEngine:
     # ------------------------------------------------------------------
 
     def _attendance_records(self) -> list[dict]:
-        """Registros de asistencia del buffer DB (si esta disponible)."""
+        """Registros de asistencia ACTIVOS del buffer DB (si esta disponible).
+
+        MYK-442 review: `annulled = 0` excluye las marcadas anuladas por
+        correccion; sin el filtro una correccion alimenta el AlertEngine dos
+        veces (original obsoleto + fila corregida).
+        """
         if self.buffer_repo is None:
             return []
         try:
             with self.buffer_repo.get_connection() as conn:
                 rows = conn.execute(
-                    "SELECT user_id, timestamp, status FROM attendance_records"
+                    "SELECT user_id, timestamp, status FROM attendance_records WHERE annulled = 0"
                 ).fetchall()
             return [dict(r) for r in rows]  # type: ignore[no-any-return]
         except Exception as exc:  # pragma: no cover - defensivo
