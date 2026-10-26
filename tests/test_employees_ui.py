@@ -33,7 +33,12 @@ def _build_app(tmp_path: Path) -> Flask:
 
 @pytest.fixture
 def client(tmp_path: Path):
-    return _build_app(tmp_path).test_client()
+    app = _build_app(tmp_path)
+    test_client = app.test_client()
+    # MYK-451: las rutas de este blueprint requieren sesion/JWT.
+    with test_client.session_transaction() as session:
+        session["user_id"] = 1
+    return test_client
 
 
 def _seed_device(db, name="Reloj Entrada", address="192.168.1.10", serial="SN123456"):

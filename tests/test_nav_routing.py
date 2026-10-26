@@ -59,9 +59,19 @@ def test_section_routes_accept_both_slash_variants(logged_client):
 
 
 def test_protected_sections_redirect_anonymous_to_login(webgui_app):
-    """Sin sesion, usuarios/configuracion/perfil redirigen al login (no 404)."""
+    """Sin sesion, las secciones del navbar redirigen al login (no 404)."""
     client = webgui_app.test_client()
-    for path in ("/users", "/settings", "/profile"):
+    for path in (
+        "/users",
+        "/settings",
+        "/profile",
+        # MYK-451: dispositivos/asistencia/colaboradores/reportes ahora
+        # tambien requieren sesion (antes publicas).
+        "/devices",
+        "/attendance",
+        "/colaboradores",
+        "/reportes",
+    ):
         resp = client.get(path)
         assert resp.status_code == 302, f"{path} devolvio {resp.status_code} sin sesion"
         assert "/auth/login" in resp.headers["Location"]

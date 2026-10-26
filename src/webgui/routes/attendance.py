@@ -19,6 +19,8 @@ from flask import (
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 
+from ..middleware.auth import api_auth_required, login_required
+
 attendance_bp = Blueprint("attendance", __name__)
 
 
@@ -81,12 +83,14 @@ def resolve_employee_names(db, rows) -> dict[tuple[str, str], str]:
 
 
 @attendance_bp.route("/", strict_slashes=False)
+@login_required
 def list_attendance():
     """Página principal de asistencia - renderiza template"""
     return render_template("attendance/list.html")
 
 
 @attendance_bp.route("/api/devices")
+@api_auth_required
 def api_devices():
     """API para obtener lista de dispositivos para el select de filtro"""
     db = get_webgui_db()
@@ -99,6 +103,7 @@ def api_devices():
 
 
 @attendance_bp.route("/api/attendance")
+@api_auth_required
 def api_attendance():
     """
     API paginada con filtros para registros de asistencia
@@ -245,6 +250,7 @@ def api_attendance():
 
 
 @attendance_bp.route("/attendance/stats")
+@api_auth_required
 def attendance_stats():
     """Estadísticas rápidas de asistencia"""
     buffer_repo = get_buffer_repo()
@@ -317,6 +323,7 @@ def _build_attendance_query(params: dict) -> tuple[str, list]:
 
 
 @attendance_bp.route("/export")
+@api_auth_required
 def export_attendance():
     """
     Exportar registros de asistencia a CSV o Excel
