@@ -198,3 +198,36 @@ Lecciones de MYK-227 (5 runs perdidos). Aplican a CUALQUIER agente:
   `users` debe validar contra `ALLOWED_ROLES` (`/users/new` ya lo hace).
 - Decoradores `require()`/`api_require()` y aplicacion por blueprint: issues hijos de
   MYK-406 (middleware, blueprint application, API usuarios) — NO implementados en MYK-412.
+
+## Middleware RBAC (MYK-413)
+
+- `require(*perms)` — rutas UI (sesión): sesión verificada como `login_required` y
+  `has_permission(session["role"], perm)` para TODOS los permisos (AND). Sin sesión ->
+  redirect al login; sin permiso -> flash + redirect a `/`. Roles desconocidos deniegan.
+- `api_require(*perms)` — APIs: sesión WebGUI (`user_id`) O Bearer JWT verificado con
+  `Auth.verify_access_token` (HS256, `type=access`, fail-closed sin `app.auth`). Rol desde
+  `session["role"]` o claim `role` del payload. 401 credencial ausente/inválida/expirada,
+  403 `{"error": "Insufficient permissions"}` sin permiso (JSON). Multi-permiso = AND.
+- `g.api_user` SOLO se setea en el path JWT: handlers decorados que atienden también
+  sesión NO deben leerlo directo (usar `getattr(g, "api_user", None)` o el rol de sesión).
+- `api_auth_required` es alias deprecated de `api_require()` sin permisos (mismo
+  comportamiento byte a byte que MYK-443); se elimina tras migrar usos (MYK-414).
+  `admin_required` deprecated en favor de `require("users:manage"|"settings:manage")`.
+- Aplicación por blueprint: MYK-414; API CRUD usuarios + OpenAPI: MYK-415.
+  Tests: `tests/test_rbac_middleware.py` (33, parametrizados por rol).
+
+## API Auth (MYK-443)
+
+- `api_auth_required` (`src/webgui/middleware/auth.py`) valida de verdad desde MYK-443:
+  sesión WebGUI activa (`user_id` en session, para los fetch same-origin del dashboard)
+  O Bearer JWT firmado con `WEBGUI_SECRET_KEY` via `Auth.verify_access_token`
+  (`type=access`, HS256). Todo lo demas responde 401 `{"error": ...}` (shape intacto).
+  Fail-closed si la app no tiene `app.auth` (create_app siempre lo setea, server.py:70).
+- Todos los blueprints API usan el decorador: `/api/employees` (anadido en MYK-443,
+  antes estaba SIN decorador), `/api/medical-leaves`, `/api/attendance/stats`,
+  `/api/alerts`. Los templates NUNCA mandan token falso: la cookie de sesión autentica.
+- NO existe endpoint de emisión de JWT (login es solo sesión); mint externo =
+  `Auth(secret).generate_tokens(user_id, username, role)`. Refresh tokens no sirven
+  como access. Tests: `tests/test_api_auth_middleware.py` (401/200 por blueprint).
+- Los endpoints JSON internos de UI (`/devices/api/*`, `/attendance/api/*`,
+  `/colaboradores/api/*`, `/reportes/api/*`) quedaron SIN auth — seguimiento aparte.

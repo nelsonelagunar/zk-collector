@@ -134,9 +134,7 @@ function expedienteApp(employeeId) {
                 per_page: this.pagination.per_page
             });
             try {
-                const response = await fetch('/api/medical-leaves/?' + params.toString(), {
-                    headers: { 'Authorization': 'Bearer webgui' }
-                });
+                const response = await fetch('/api/medical-leaves/?' + params.toString());
                 if (!response.ok) throw new Error('HTTP ' + response.status);
                 const data = await response.json();
                 this.leaves = data.leaves || [];
@@ -166,7 +164,7 @@ function expedienteApp(employeeId) {
             try {
                 const response = await fetch('/api/medical-leaves/', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer webgui' },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         employee_id: this.employeeId,
                         leave_type: this.form.leave_type,
@@ -192,8 +190,7 @@ function expedienteApp(employeeId) {
             if (!confirm('¿Cancelar la incapacidad del ' + leave.start_date + ' al ' + leave.end_date + '?')) return;
             try {
                 const response = await fetch('/api/medical-leaves/' + leave.id, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': 'Bearer webgui' }
+                    method: 'DELETE'
                 });
                 if (!response.ok) {
                     const data = await response.json();
