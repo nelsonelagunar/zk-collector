@@ -5,13 +5,15 @@
 - Testes de rutas API: listar, marcar leida/resuelta, preferencias.
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from sqlite3 import Connection
 from unittest.mock import Mock
 
 import pytest
 from flask import Flask
 
+from src.buffer.models import AttendanceRecordDB
+from src.buffer.repository import BufferRepository
 from src.webgui.alerts import AlertEngine
 from src.webgui.auth import Auth
 from src.webgui.database import Database
@@ -165,6 +167,46 @@ class TestAusenciaSinJustificar:
 # ----------------------------------------------------------------------
 # Rutas API
 # ----------------------------------------------------------------------
+
+
+class TestAttendanceRecordsSource:
+    def test_excluye_marcadas_anuladas(self, tmp_path):
+        """MYK-442 review: el AlertEngine no debe alimentarse de anuladas por
+        correccion (sino la correccion cuenta doble)."""
+        repo = BufferRepository(tmp_path / "buffer.db")
+        now = datetime.now()
+        assert (
+            repo.add_records(
+                [
+                    AttendanceRecordDB(
+                        user_id="101",
+                        timestamp=now,
+                        status=0,
+                        device_ip="10.0.0.5",
+                        punch_type="entrada",
+                    ),
+                    AttendanceRecordDB(
+                        user_id="102",
+                        timestamp=now,
+                        status=0,
+                        device_ip="10.0.0.5",
+                        punch_type="entrada",
+                    ),
+                ]
+            )
+            == 2
+        )
+        # Correccion: anula la de 102 (columna no atestiguada, como el flujo real)
+        with repo.get_connection() as conn:
+            conn.execute("UPDATE attendance_records SET annulled = 1 WHERE user_id = '102'")
+
+        engine = AlertEngine(Mock(), buffer_repo=repo)
+        records = engine._attendance_records()
+        assert [r["user_id"] for r in records] == ["101"]
+
+    def test_sin_buffer_repo_devuelve_vacio(self):
+        engine = AlertEngine(Mock())
+        assert engine._attendance_records() == []
 
 
 class TestRunAll:
