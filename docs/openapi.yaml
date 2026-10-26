@@ -20,6 +20,7 @@ tags:
   - name: attendance
   - name: sync
   - name: health
+  - name: companies
 paths:
   /health:
     get:
@@ -537,6 +538,158 @@ paths:
                 type: object
                 properties:
                   error: { type: string }
+  /api/companies/:
+    get:
+      tags: [companies]
+      summary: Lista razones sociales (MYK-411)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: status, in: query, description: 'Filtro opcional; sin el devuelve todas (activas e inactivas)', schema: { type: string, enum: [active, inactive] } }
+      responses:
+        '200':
+          description: Lista de razones sociales
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  companies:
+                    type: array
+                    items: { $ref: '#/components/schemas/Company' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [companies]
+      summary: Crea una razon social (MYK-411)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CompanyInput' }
+      responses:
+        '201':
+          description: Razon social creada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { company: { $ref: '#/components/schemas/Company' } }
+        '400': { description: Error de validacion }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { description: RFC ya existe }
+  /api/companies/{company_id}:
+    get:
+      tags: [companies]
+      summary: Obtiene una razon social por id (MYK-411)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { $ref: '#/components/parameters/companyId' }
+      responses:
+        '200':
+          description: Razon social encontrada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { company: { $ref: '#/components/schemas/Company' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [companies]
+      summary: Actualiza una razon social (parcial) (MYK-411)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { $ref: '#/components/parameters/companyId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CompanyInput' }
+      responses:
+        '200':
+          description: Razon social actualizada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { company: { $ref: '#/components/schemas/Company' } }
+        '400': { description: Error de validacion }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: RFC ya existe }
+    delete:
+      tags: [companies]
+      summary: Baja logica de razon social (status inactive) (MYK-411)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { $ref: '#/components/parameters/companyId' }
+      responses:
+        '200':
+          description: Razon social dada de baja
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/companies/{company_id}/devices:
+    get:
+      tags: [companies]
+      summary: Relojes checadores vinculados a la razon social (MYK-411)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { $ref: '#/components/parameters/companyId' }
+      responses:
+        '200':
+          description: Lista de relojes vinculados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  devices:
+                    type: array
+                    items: { $ref: '#/components/schemas/CompanyDeviceLink' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [companies]
+      summary: Liga un reloj checador a la razon social (transferencia 1:N) (MYK-411)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { $ref: '#/components/parameters/companyId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_serial]
+              properties: { device_serial: { type: string } }
+      responses:
+        '201':
+          description: Reloj ligado (transferido si era de otra razon social)
+        '400': { description: device_serial requerido }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Razon social o dispositivo no encontrado }
+        '409': { description: Conflicto de vinculacion }
+  /api/companies/{company_id}/devices/{device_serial}:
+    delete:
+      tags: [companies]
+      summary: Desliga un reloj checador de la razon social (MYK-411)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { $ref: '#/components/parameters/companyId' }
+        - { name: device_serial, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Vínculo eliminado
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Vínculo no encontrado }
 components:
   securitySchemes:
     sessionCookie:
@@ -554,6 +707,11 @@ components:
         type=access, 30 min expiry). Any other/invalid/expired token responds
         401 (MYK-443). Refresh tokens are NOT accepted as access tokens.
   parameters:
+    companyId:
+      name: company_id
+      in: path
+      required: true
+      schema: { type: integer }
     deviceId:
       name: id
       in: path
@@ -562,6 +720,14 @@ components:
   responses:
     NotFound:
       description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+    Unauthorized:
+      description: Bearer token requerido
       content:
         application/json:
           schema:
@@ -603,3 +769,33 @@ components:
         timestamp: { type: string, format: date-time }
         punch_type: { type: string, enum: [check_in, check_out] }
         synced: { type: boolean }
+    Company:
+      type: object
+      properties:
+        id: { type: integer }
+        razon_social: { type: string }
+        rfc: { type: string, nullable: true }
+        imss_registro_patronal: { type: string, nullable: true }
+        domicilio_fiscal: { type: string, nullable: true }
+        status: { type: string, enum: [active, inactive] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CompanyInput:
+      type: object
+      required: [razon_social]
+      properties:
+        razon_social: { type: string }
+        rfc: { type: string, description: Opcional; unico cuando se captura (indice parcial) }
+        imss_registro_patronal: { type: string, description: Registro patronal IMSS }
+        domicilio_fiscal: { type: string }
+    CompanyDeviceLink:
+      type: object
+      properties:
+        id: { type: integer }
+        company_id: { type: integer }
+        device_serial: { type: string }
+        device_name: { type: string, nullable: true }
+        location: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }

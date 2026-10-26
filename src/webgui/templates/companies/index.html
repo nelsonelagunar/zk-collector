@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}Razón Social - Attendance Collector{% endblock %}
+{% block extra_head %}<style>[x-cloak]{display:none!important}</style>{% endblock %}
+{% macro input(id, label, model, type='text', required=False) %}
+<div><label for="{{ id }}" class="block text-sm font-medium text-gray-700 mb-1">{{ label }}</label><input type="{{ type }}" id="{{ id }}" x-model="{{ model }}" {% if required %}required{% endif %} class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></div>
+{% endmacro %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" x-data="companiesApp()">
+    <div class="mb-6"><h2 class="text-2xl font-bold text-gray-900">Razón Social</h2><p class="mt-1 text-sm text-gray-500">Empresas del grupo y su vínculo con relojes checadores (1:N: un reloj pertenece a una sola empresa)</p></div>
+    <div x-show="errorMessage" x-cloak class="mb-4 rounded-md bg-red-50 border border-red-200 p-4" role="alert"><p class="text-sm text-red-800" x-text="errorMessage"></p></div>
+
+    <form class="bg-white shadow sm:rounded-lg mb-6" @submit.prevent="saveCompany()">
+        <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between"><h3 class="text-sm font-semibold text-gray-900" x-text="formMode === 'create' ? 'Nueva razón social' : 'Editar razón social'"></h3><button type="button" @click="resetForm()" class="text-sm text-gray-500 hover:text-gray-700">Limpiar</button></div>
+        <div class="p-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {{ input('razon_social', 'Razón social', 'form.razon_social', required=True) }}
+                {{ input('rfc', 'RFC', 'form.rfc') }}
+                {{ input('imss_registro_patronal', 'Registro patronal IMSS', 'form.imss_registro_patronal') }}
+                {{ input('domicilio_fiscal', 'Domicilio fiscal', 'form.domicilio_fiscal') }}
+            </div>
+        </div>
+        <div class="px-4 py-3 bg-gray-50 border-t border-gray-200 flex justify-end rounded-b-lg"><button type="submit" :disabled="saving" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"><span x-show="!saving" x-text="formMode === 'create' ? 'Guardar razón social' : 'Actualizar razón social'"></span><span x-show="saving">Guardando...</span></button></div>
+    </form>
+
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50"><tr>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Razón social</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RFC</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registro IMSS</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                    <th scope="col" class="relative px-6 py-3"><span class="sr-only">Acciones</span></th>
+                </tr></thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <template x-for="company in companies" :key="company.id">
+                        <tr class="hover:bg-gray-50" :class="selectedId === company.id ? 'bg-blue-50' : ''">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"><button type="button" @click="selectCompany(company)" class="text-left font-medium text-blue-700 hover:text-blue-900" x-text="company.razon_social"></button></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600" x-text="company.rfc || '—'"></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600" x-text="company.imss_registro_patronal || '—'"></td>
+                            <td class="px-6 py-4 whitespace-nowrap"><span x-show="company.status === 'active'" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Activa</span><span x-show="company.status === 'inactive'" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Inactiva</span></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><button type="button" @click="openEdit(company)" class="text-blue-600 hover:text-blue-900 mr-3">Editar</button><button type="button" x-show="company.status === 'active'" @click="deleteCompany(company)" class="text-red-600 hover:text-red-900">Baja</button></td>
+                        </tr>
+                    </template>
+                    <tr x-show="companies.length === 0"><td colspan="5" class="px-6 py-10 text-center text-sm text-gray-500">No hay razones sociales registradas.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="bg-white shadow sm:rounded-lg" x-show="selected">
+        <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-gray-900">Relojes checadores de <span x-text="selected ? selected.razon_social : ''"></span></h3>
+            <span class="text-xs text-gray-500">Ligar un reloj que ya tiene dueña transfiere la propiedad</span>
+        </div>
+        <div class="p-4 space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div class="md:col-span-2"><label for="link_device" class="block text-sm font-medium text-gray-700 mb-1">Reloj disponible</label><select id="link_device" x-model="link.device_serial" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"><option value="">Selecciona un reloj</option><template x-for="device in availableDevices" :key="device.serial_number"><option :value="device.serial_number" x-text="device.name + ' (' + device.serial_number + ')' + (device.razon_social ? ' — actualmente: ' + device.razon_social : '')"></option></template></select></div>
+                <button type="button" @click="linkDevice()" :disabled="!link.device_serial" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-40">Ligar reloj</button>
+            </div>
+            <div class="overflow-x-auto border border-gray-200 rounded-md">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50"><tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reloj</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial</th>
+                        <th scope="col" class="relative px-6 py-3"><span class="sr-only">Acciones</span></th>
+                    </tr></thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <template x-for="device in companyDevices" :key="device.serial_number || device.device_serial">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" x-text="device.device_name || '—'"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600" x-text="device.device_serial"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><button type="button" @click="unlinkDevice(device.device_serial)" class="text-red-600 hover:text-red-900">Desligar</button></td>
+                            </tr>
+                        </template>
+                        <tr x-show="companyDevices.length === 0"><td colspan="3" class="px-6 py-8 text-center text-sm text-gray-500">Sin relojes ligados.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_scripts %}
+<script>
+function companiesApp() {
+    return {
+        companies: [],
+        devices: [],
+        companyDevices: [],
+        selected: null,
+        selectedId: null,
+        errorMessage: '',
+        formMode: 'create',
+        saving: false,
+        form: { id: null, razon_social: '', rfc: '', imss_registro_patronal: '', domicilio_fiscal: '' },
+        link: { device_serial: '' },
+
+        init() { this.loadCompanies(); this.loadDevices(); },
+
+        get availableDevices() {
+            return this.devices.filter(d => !this.selected || d.company_id === null || d.company_id !== this.selected.id);
+        },
+
+        async loadCompanies() {
+            this.errorMessage = '';
+            try {
+                const response = await fetch('/api/companies/', { headers: { 'Authorization': 'Bearer webgui' } });
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const data = await response.json();
+                this.companies = data.companies || [];
+                if (this.selectedId) {
+                    this.selected = this.companies.find(c => c.id === this.selectedId) || null;
+                }
+            } catch (e) { this.errorMessage = 'Error al cargar razones sociales: ' + e.message; }
+        },
+
+        async loadDevices() {
+            try {
+                const response = await fetch('/configuracion/razon-social/api/devices');
+                const data = await response.json();
+                this.devices = data.devices || [];
+            } catch (e) { console.error('Error loading devices:', e); }
+        },
+
+        async loadCompanyDevices() {
+            this.companyDevices = [];
+            if (!this.selected) return;
+            try {
+                const response = await fetch('/api/companies/' + this.selected.id + '/devices', { headers: { 'Authorization': 'Bearer webgui' } });
+                const data = await response.json();
+                this.companyDevices = data.devices || [];
+            } catch (e) { console.error('Error loading company devices:', e); }
+        },
+
+        selectCompany(company) {
+            this.selected = company;
+            this.selectedId = company.id;
+            this.link.device_serial = '';
+            this.loadCompanyDevices();
+        },
+
+        openEdit(company) {
+            this.formMode = 'edit';
+            this.form = { id: company.id, razon_social: company.razon_social, rfc: company.rfc || '', imss_registro_patronal: company.imss_registro_patronal || '', domicilio_fiscal: company.domicilio_fiscal || '' };
+        },
+
+        resetForm() {
+            this.formMode = 'create';
+            this.form = { id: null, razon_social: '', rfc: '', imss_registro_patronal: '', domicilio_fiscal: '' };
+        },
+
+        async saveCompany() {
+            this.errorMessage = '';
+            this.saving = true;
+            const url = this.form.id ? '/api/companies/' + this.form.id : '/api/companies/';
+            try {
+                const response = await fetch(url, {
+                    method: this.form.id ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer webgui' },
+                    body: JSON.stringify(this.form)
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status));
+                this.resetForm();
+                await this.loadCompanies();
+            } catch (e) { this.errorMessage = 'Error al guardar: ' + e.message; }
+            this.saving = false;
+        },
+
+        async deleteCompany(company) {
+            this.errorMessage = '';
+            try {
+                const response = await fetch('/api/companies/' + company.id, { method: 'DELETE', headers: { 'Authorization': 'Bearer webgui' } });
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                if (this.selectedId === company.id) { this.selected = null; this.selectedId = null; this.companyDevices = []; }
+                await this.loadCompanies();
+                await this.loadDevices();
+            } catch (e) { this.errorMessage = 'Error al dar de baja: ' + e.message; }
+        },
+
+        async linkDevice() {
+            this.errorMessage = '';
+            try {
+                const response = await fetch('/api/companies/' + this.selected.id + '/devices', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer webgui' },
+                    body: JSON.stringify({ device_serial: this.link.device_serial })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status));
+                this.link.device_serial = '';
+                await this.loadCompanyDevices();
+                await this.loadDevices();
+            } catch (e) { this.errorMessage = 'Error al ligar reloj: ' + e.message; }
+        },
+
+        async unlinkDevice(deviceSerial) {
+            this.errorMessage = '';
+            try {
+                const response = await fetch('/api/companies/' + this.selected.id + '/devices/' + encodeURIComponent(deviceSerial), { method: 'DELETE', headers: { 'Authorization': 'Bearer webgui' } });
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                await this.loadCompanyDevices();
+                await this.loadDevices();
+            } catch (e) { this.errorMessage = 'Error al desligar reloj: ' + e.message; }
+        }
+    };
+}
+</script>
+{% endblock %}
