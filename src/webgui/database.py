@@ -247,3 +247,88 @@ class Database:
         """,
             (device_serial, device_user_id),
         )
+
+    # Métodos específicos para razones sociales (empresas) — MYK-405, migration 008
+    def get_company_by_id(self, company_id: int) -> dict | None:
+        """Obtener empresa por ID"""
+        return self.fetch_one("SELECT * FROM companies WHERE id = ?", (company_id,))
+
+    def get_company_by_rfc(self, rfc: str) -> dict | None:
+        """Obtener empresa activa por RFC"""
+        return self.fetch_one("SELECT * FROM companies WHERE rfc = ? AND status = 'active'", (rfc,))
+
+    def get_companies(self, status: str | None = None) -> list[dict]:
+        """Obtener lista de empresas con filtro opcional de status"""
+        if status:
+            return self.fetch_all(
+                "SELECT * FROM companies WHERE status = ? ORDER BY razon_social", (status,)
+            )
+        return self.fetch_all("SELECT * FROM companies ORDER BY razon_social")
+
+    def create_company(self, company_data: dict) -> int:
+        """Crear nueva empresa (razon social); razon_social es obligatorio."""
+        return self.insert("companies", company_data)
+
+    def update_company(self, company_id: int, company_data: dict) -> int:
+        """Actualizar empresa existente; refresca updated_at."""
+        company_data = dict(company_data)
+        company_data["updated_at"] = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        return self.update("companies", company_data, "id = ?", (company_id,))
+
+    def delete_company(self, company_id: int) -> int:
+        """Eliminar empresa (soft delete mediante status); conserva vinculos."""
+        return self.update(
+            "companies",
+            {
+                "status": "inactive",
+                "updated_at": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S"),
+            },
+            "id = ?",
+            (company_id,),
+        )
+
+    # Métodos específicos para el vinculo empresa <-> reloj checador
+    def link_device_to_company(self, company_id: int, device_serial: str) -> int:
+        """Vincular reloj a empresa (1:N): upsert — re-vincular transfiere la propiedad."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO company_devices (company_id, device_serial)
+                VALUES (?, ?)
+                ON CONFLICT(device_serial) DO UPDATE SET
+                    company_id = excluded.company_id,
+                    updated_at = excluded.updated_at
+            """,
+                (company_id, device_serial),
+            )
+            return cursor.lastrowid if cursor.lastrowid is not None else 0
+
+    def unlink_device_from_company(self, device_serial: str) -> int:
+        """Desvincular reloj de su empresa"""
+        return self.delete("company_devices", "device_serial = ?", (device_serial,))
+
+    def get_devices_for_company(self, company_id: int) -> list[dict]:
+        """Obtener relojes vinculados a una empresa"""
+        return self.fetch_all(
+            """
+            SELECT cd.*, d.name as device_name, d.location, d.address
+            FROM company_devices cd
+            LEFT JOIN devices d ON cd.device_serial = d.serial_number
+            WHERE cd.company_id = ?
+            ORDER BY cd.device_serial
+        """,
+            (company_id,),
+        )
+
+    def get_company_for_device(self, device_serial: str) -> dict | None:
+        """Obtener la empresa propietaria de un reloj (1:N: maximo una)"""
+        return self.fetch_one(
+            """
+            SELECT c.*, cd.device_serial
+            FROM company_devices cd
+            JOIN companies c ON cd.company_id = c.id
+            WHERE cd.device_serial = ?
+        """,
+            (device_serial,),
+        )
