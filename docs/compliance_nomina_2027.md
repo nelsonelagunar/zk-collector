@@ -118,12 +118,12 @@ obligación del registro de jornada es autónoma y cubre exactamente el gap anal
 | 7 | Nómina/recibos | ➖ Fuera de alcance | grep `nomina|recibo|payroll` en `src/`, `migrations/`, `configs/`: 0 hits | Confirmado ausente; correcto según ADR-001 |
 | 8 | Identidad del trabajador | ⚠️ Parcial | `migrations/002_employees.sql:5-19`: employee_code, nombre, email, depto, puesto — **sin CURP, sin RFC, sin NSS** | Los identificadores que la autoridad y la nómina esperan no existen en el modelo |
 
-Inventario de migraciones vigente en master (2026-10-27): `001`–`008` y `011`, más
-`buffer/010_attendance_integrity.sql`. La numeración por slot **no es única** — colisiones
-heredadas: dos `005` (`alerts`, `landing_leads`), cuatro `008` (`companies`, `rbac_roles`,
-`retention_days`, `timezone_config`) y dos `011` (`add_attendance_buffer`,
-`employee_labor_data`). Citar una migración siempre por **nombre de archivo**, nunca solo
-por número.
+Inventario de migraciones vigente en master (2026-10-27, 517bd5a): `001`–`009` y `011`,
+más `buffer/010_attendance_integrity.sql`. La numeración por slot **no es única** —
+colisiones heredadas: dos `005` (`alerts`, `landing_leads`), cuatro `008` (`companies`,
+`rbac_roles`, `retention_days`, `timezone_config`) y dos `011` (`add_attendance_buffer`,
+`employee_labor_data`); `009_employee_portal_pin` (MYK-425) no tiene colisión. Citar una
+migración siempre por **nombre de archivo**, nunca solo por número.
 
 ## 5. Issues hijos propuestos
 
