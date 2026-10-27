@@ -33,7 +33,7 @@
                                 Total Dispositivos
                             </dt>
                             <dd class="text-lg font-medium text-gray-900">
-                                {{ stats.get(devices_total, 0) }}
+                                {{ stats.get('devices_total', 0) }}
                             </dd>
                         </dl>
                     </div>
@@ -56,7 +56,7 @@
                                 En Línea
                             </dt>
                             <dd class="text-lg font-medium text-green-600">
-                                {{ stats.get(devices_online, 0) }}
+                                {{ stats.get('devices_online', 0) }}
                             </dd>
                         </dl>
                     </div>
@@ -79,7 +79,7 @@
                                 Registros Pendientes
                             </dt>
                             <dd class="text-lg font-medium text-yellow-600">
-                                {{ stats.get(pending_records, 0) }}
+                                {{ stats.get('pending_records', 0) }}
                             </dd>
                         </dl>
                     </div>
