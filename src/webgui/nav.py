@@ -33,13 +33,24 @@ SECTIONS: dict[str, NavSection] = {
     "devices": NavSection("devices", "Dispositivos", "/devices"),
     "users": NavSection("users", "Usuarios", "/users"),
     "settings": NavSection("settings", "Configuración", "/settings"),
+    "companies": NavSection("companies", "Razón Social", "/configuracion/razon-social"),
 }
 
-# Matriz menu por rol (MYK-416): admin ve todo; rrhh colaboradores+reportes
-# (incapacidades viven en el expediente del colaborador); supervisor
-# reportes+asistencia; auditor solo reportes. Dashboard (inicio) para todos.
+# Matriz menu por rol (MYK-416): admin ve todo (incluida Razon Social, MYK-411);
+# rrhh colaboradores+reportes (incapacidades viven en el expediente del
+# colaborador); supervisor reportes+asistencia; auditor solo reportes.
+# Dashboard (inicio) para todos.
 MENU_BY_ROLE: dict[str, tuple[str, ...]] = {
-    "admin": ("dashboard", "attendance", "reports", "employees", "devices", "users", "settings"),
+    "admin": (
+        "dashboard",
+        "attendance",
+        "reports",
+        "employees",
+        "devices",
+        "users",
+        "companies",
+        "settings",
+    ),
     "rrhh": ("dashboard", "employees", "reports"),
     "supervisor": ("dashboard", "reports", "attendance"),
     "auditor": ("dashboard", "reports"),
