@@ -12,7 +12,9 @@ artículo 132 de la LFT**: obligación de toda persona empleadora de **registrar
 electrónica la jornada laboral de cada persona trabajadora**, incluyendo **horario de inicio y
 finalización**, y de **proporcionarlo a la autoridad cuando se le requiera**. La STPS expedirá
 las disposiciones de carácter general que determinen ámbito de aplicación y excepciones — es
-esa reglamentación secundaria (esperada hacia 2027) la que fijará el detalle técnico.
+esa reglamentación secundaria la que fijará el detalle técnico. Conforme al **transitorio
+Quinto del propio decreto (DOF 01-05-2026)**, las disposiciones de la STPS derivadas de la
+132-XXXIV **entran en vigor el 1 de enero de 2027** — fecha firme, no estimación.
 
 zk-collector **ya captura el dato crudo** (marcaciones biometricas con entrada/salida por
 colaborador), pero hoy **no cumple** los requisitos de conservación (804-III), no garantiza
@@ -116,20 +118,27 @@ obligación del registro de jornada es autónoma y cubre exactamente el gap anal
 | 7 | Nómina/recibos | ➖ Fuera de alcance | grep `nomina|recibo|payroll` en `src/`, `migrations/`, `configs/`: 0 hits | Confirmado ausente; correcto según ADR-001 |
 | 8 | Identidad del trabajador | ⚠️ Parcial | `migrations/002_employees.sql:5-19`: employee_code, nombre, email, depto, puesto — **sin CURP, sin RFC, sin NSS** | Los identificadores que la autoridad y la nómina esperan no existen en el modelo |
 
-Numeración de migraciones vigente: `001`–`004` → las nuevas comienzan en `005`.
+Inventario de migraciones vigente en master (2026-10-27): `001`–`008` y `011`, más
+`buffer/010_attendance_integrity.sql`. La numeración por slot **no es única** — colisiones
+heredadas: dos `005` (`alerts`, `landing_leads`), cuatro `008` (`companies`, `rbac_roles`,
+`retention_days`, `timezone_config`) y dos `011` (`add_attendance_buffer`,
+`employee_labor_data`). Citar una migración siempre por **nombre de archivo**, nunca solo
+por número.
 
 ## 5. Issues hijos propuestos
 
 Cada issue se crea como hijo de MYK-410/MYK-403 con criterios de aceptación verificables
 (estándar MYK-73). IDs reales se comentan en el issue del board.
 
-1. **TZ-1 — Sello de tiempo con zona horaria y deriva de reloj** (migration `005`):
+1. **TZ-1 — Sello de tiempo con zona horaria y deriva de reloj** (implementado: MYK-420,
+   `migrations/008_timezone_config.sql`):
    columnas `utc_timestamp`/`tz_offset`/`device_clock_drift` en `attendance_records`;
    el collector compara `get_time()` del dispositivo contra el servidor en cada ciclo y
    registra la deriva; UI/API muestra hora del centro de México.
    *Aceptación*: marcada en dispositivo con reloj desviado >N min genera alerta en log y
    campo `device_clock_drift`; toda exportación incluye `utc_timestamp` ISO-8601 con offset.
-2. **CT-1 — Entidad centro de trabajo y sello en cada marcada** (migration `005`):
+2. **CT-1 — Entidad centro de trabajo y sello en cada marcada** (pendiente; sin migración
+   en master a 2026-10-27):
    tabla `work_centers` (nombre, RFC patrón, registro patronal IMSS, dirección) y FK
    `device.work_center_id`; `attendance_records.work_center_id` estampado al capturar.
    *Aceptación*: una marcada consultada/exportada incluye el centro de trabajo sin join por
@@ -150,10 +159,15 @@ Cada issue se crea como hijo de MYK-410/MYK-403 con criterios de aceptación ver
    existan) en CSV/XLSX + JSON, reutilizando `compute_report` (MYK-241) para no bifurcar
    cifras; endpoint self-service para que el trabajador consulte su propio registro
    (soporta "acordado entre trabajador y empleador" y el requisito de plena prueba).
+   Dependencia de plena prueba: la exportación debe ser una **constancia verificable**
+   (hash de verificación incluido + verificador incluido) — trackeada en **MYK-437** y
+   construida sobre el hash chain de **MYK-422** (IN-1); sin esa constancia, EX-1 queda
+   corto frente al requisito de integridad (sección 4, item 5).
    *Aceptación*: export incluye hora del centro + UTC + centro de trabajo + identidad;
    test compara dashboard vs API vs export (patrón MYK-242); criterio: re-validar campos
    contra disposiciones STPS cuando se publiquen.
-6. **ID-1 — Identidad fiscal del colaborador** (migration `006`): columnas `curp`, `rfc`,
+6. **ID-1 — Identidad fiscal del colaborador** (implementado: MYK-423,
+   `migrations/011_employee_labor_data.sql`): columnas `curp`, `rfc`,
    `nss` (opcionales) en `employees` + campos en formularios WebGUI y OpenAPI.
    *Aceptación*: alta/edición persiste y valida formato CURP/RFC; export de EX-1 los incluye
    cuando existen.
