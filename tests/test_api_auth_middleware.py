@@ -32,7 +32,7 @@ BLUEPRINTS = {
         employees_bp,
         "/api/employees",
         "/api/employees/",
-        ("001_initial_schema.sql", "002_employees.sql"),
+        ("001_initial_schema.sql", "002_employees.sql", "011_employee_labor_data.sql"),
     ),
     "attendance_stats": (
         attendance_stats_bp,
@@ -151,3 +151,42 @@ class TestApiAuthRequired:
         resp = client.get(path, headers=_bearer_header())
         assert resp.status_code == 401
         assert resp.get_json() == {"error": "Authentication is not configured"}
+
+
+class TestExportRouteRequiresAuth:
+    """GET /api/employees/export expone CURP/RFC/NSS (MYK-423): debe exigir
+    @api_auth_required igual que el resto del blueprint (MYK-467).
+
+    Regression: antes del fix, sin sesion ni token devolvia 200 con el CSV
+    completo de colaboradores.
+    """
+
+    def _client(self):
+        app = _build_app("employees")
+        return app.test_client()
+
+    def test_export_missing_header_401(self):
+        resp = self._client().get("/api/employees/export")
+        assert resp.status_code == 401
+        assert resp.get_json() == {"error": "Authorization header required"}
+
+    def test_export_garbage_token_401(self):
+        resp = self._client().get(
+            "/api/employees/export", headers={"Authorization": "Bearer garbage"}
+        )
+        assert resp.status_code == 401
+
+    def test_export_valid_token_200(self):
+        resp = self._client().get("/api/employees/export", headers=_bearer_header())
+        assert resp.status_code == 200
+        assert resp.headers["Content-Type"].startswith("text/csv")
+
+    def test_export_webgui_session_200(self):
+        client = self._client()
+        with client.session_transaction() as sess:
+            sess["user_id"] = 1
+            sess["username"] = "admin"
+            sess["role"] = "admin"
+        resp = client.get("/api/employees/export")
+        assert resp.status_code == 200
+        assert resp.headers["Content-Type"].startswith("text/csv")
