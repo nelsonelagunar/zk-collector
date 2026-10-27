@@ -94,6 +94,24 @@
 
 - Research canónico: `docs/compliance_nomina_2027.md`. Registro electrónico de jornada MX (NOM-035, LFT, CST, SAT). Backlog MYK-426–438.
 
+## Portal del trabajador /mi-asistencia (MYK-425, migration 009)
+
+- Lectura-unica de marcas y horas extra del PROPIO empleado (LFT 132-XVII).
+  Login: `employee_code` + PIN (hash Argon2id en `employees.pin_hash`,
+  migracion `009_employee_portal_pin.sql`). Sesion propia (`portal_employee_id`),
+  independiente de la sesion admin (`user_id`).
+- Aislamiento duro: queries solo via pares `(device_ip, device_user_id)` de
+  `employee_device_links` del empleado; query param `employee_id` ajeno -> 403
+  (HTML y JSON). Rate limit PIN: 5 fallos / 15 min por codigo; mensaje generico
+  unico (anti-enumeracion).
+- Computo: worked = ultima-primer marca del dia; extra = max(0, worked-8h) (LFT 61/66);
+  retardos vs `ATTENDANCE_WORK_START` (mismo criterio MYK-241). Periodo max 92 dias.
+- RRHH/admin gestiona PINs desde el expediente (`/colaboradores/expediente/<id>/pin/generar|limpiar`,
+  `admin_required`); el PIN se muestra UNA vez via flash, jamas se re-consulta.
+- Aviso de privacidad obligatorio enlazado (datos biometricos = sensibles LFPDPPP):
+  `/mi-asistencia/aviso-privacidad`. Docs: `docs/mi_asistencia.md`; tests:
+  `tests/test_mi_asistencia.py`.
+
 ---
 
 *Actualizado con cada merge a master. Source of truth para agents.*
