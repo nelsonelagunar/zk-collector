@@ -74,6 +74,11 @@
 
 - `/api/attendance/stats` y `/attendance/api/attendance` devuelven ISO-8601 con offset (`America/Mexico_City` default). Collector guarda UTC; WebGUI convierte a zona configurada. Tests: `tests/test_attendance_stats.py`.
 
+## Sync Horaria de Relojes (MYK-421)
+
+- `src/core/clock_sync.py`: `sync_device_clock()` compara `get_time()` vs hora servidor en cada poll (wired en `poll_devices`); deriva > `clock_sync.threshold_seconds` (default 60, `configs/collector.yaml.example` + schema) → `set_time()` + alerta WARNING por log (patrón "alerta por log", MYK-419). AC test: mock 5min se corrige y alerta — `tests/test_clock_sync.py`.
+- Alerta en tabla `alerts` del WebGUI requiere schema (`employee_id NOT NULL` FK + CHECK en `alert_rules.type`) y escritura cross-proceso a webgui.db — fuera del slice; pendiente decisión PM si se quiere persistencia en tabla.
+
 ## Reportes Full-Width (MYK-404 items 1-2)
 
 - Todas las secciones de reportes usan ancho completo + responsive. CSS en `templates/reports/stats.html`. Tests: `tests/test_nav_routing.py` incluye checks de layout.
