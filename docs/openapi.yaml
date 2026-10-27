@@ -22,6 +22,7 @@ tags:
   - name: health
   - name: companies
   - name: portal
+  - name: users
 paths:
   /health:
     get:
@@ -791,6 +792,109 @@ paths:
           description: Not authenticated (portal session required)
         '403':
           description: employee_id param different from the session employee
+  /api/users:
+    get:
+      tags: [users]
+      summary: Lista usuarios WebGUI (MYK-415, requiere users:manage)
+      description: Nunca expone password_hash. Acepta Bearer JWT (rol admin) o sesión WebGUI con users:manage.
+      security:
+        - bearerAuth: []
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Lista de usuarios
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [users]
+      summary: Crea un usuario WebGUI (MYK-415, requiere users:manage)
+      security:
+        - bearerAuth: []
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserInput' }
+      responses:
+        '201':
+          description: Usuario creado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { user: { $ref: '#/components/schemas/User' } }
+        '400': { description: 'Validación: username requerido, rol fuera de catálogo (admin|rrhh|supervisor|auditor), password débil (mín. 12, mayúscula, minúscula, número, especial)' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: Username o email ya existe }
+  /api/users/{user_id}:
+    patch:
+      tags: [users]
+      summary: Actualiza un usuario (parcial) — email, full_name, role, is_active (MYK-415)
+      description: >-
+        Rol validado contra el catálogo cerrado del ADR-001. Regla de
+        seguridad: nunca degradar (role != admin) ni desactivar (is_active=0)
+        al último admin activo — 409. El caller no puede desactivar su
+        propia cuenta — 409. El cambio de rol aplica en la sesión tras
+        re-login y en la API al expirar el access token (30 min).
+      security:
+        - bearerAuth: []
+        - sessionCookie: []
+      parameters:
+        - { $ref: '#/components/parameters/userId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserPatch' }
+      responses:
+        '200':
+          description: Usuario actualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { user: { $ref: '#/components/schemas/User' } }
+        '400': { description: 'Sin campos actualizables, rol fuera de catálogo o is_active no boolean' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'Último admin activo (degradar/desactivar), auto-desactivación o email ya en uso' }
+    delete:
+      tags: [users]
+      summary: 'Baja lógica de usuario (soft: is_active=0; el row persiste) (MYK-415)'
+      description: >-
+        Nunca borra el row (auditoría). 409 si el usuario es el último
+        admin activo o si el caller se da de baja a sí mismo.
+      security:
+        - bearerAuth: []
+        - sessionCookie: []
+      parameters:
+        - { $ref: '#/components/parameters/userId' }
+      responses:
+        '200':
+          description: Usuario desactivado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Último admin activo o auto-desactivación }
+
 components:
   securitySchemes:
     sessionCookie:
@@ -823,6 +927,11 @@ components:
       in: path
       required: true
       schema: { type: integer }
+    userId:
+      name: user_id
+      in: path
+      required: true
+      schema: { type: integer }
   responses:
     NotFound:
       description: Resource not found
@@ -840,6 +949,14 @@ components:
             type: object
             properties:
               error: { type: string }
+    Forbidden:
+      description: Credencial válida sin el permiso users:manage (roles rrhh/supervisor/auditor)
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string, example: Insufficient permissions }
   schemas:
     PasswordResetRequestResult:
       type: object
@@ -905,3 +1022,32 @@ components:
         address: { type: string, nullable: true }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+    User:
+      type: object
+      description: Usuario WebGUI. password_hash nunca se expone (ADR-001, MYK-415).
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        email: { type: string, format: email, nullable: true }
+        full_name: { type: string, nullable: true }
+        role: { type: string, enum: [admin, rrhh, supervisor, auditor] }
+        is_active: { type: boolean }
+        last_login: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+    UserInput:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, description: Único (UNIQUE) }
+        email: { type: string, format: email, description: Opcional; único cuando se captura }
+        full_name: { type: string }
+        role: { type: string, enum: [admin, rrhh, supervisor, auditor], default: auditor, description: Catálogo cerrado ADR-001 }
+        password: { type: string, format: password, description: 'Validada con Auth.validate_password_strength: mín. 12 caracteres, mayúscula, minúscula, número y especial; se guarda hasheada (Argon2id)' }
+    UserPatch:
+      type: object
+      minProperties: 1
+      properties:
+        email: { type: string, format: email }
+        full_name: { type: string }
+        role: { type: string, enum: [admin, rrhh, supervisor, auditor] }
+        is_active: { type: boolean }

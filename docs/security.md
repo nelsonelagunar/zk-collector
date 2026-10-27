@@ -387,6 +387,49 @@ def login():
     ...
 ```
 
+### RBAC: Roles y Permisos (ADR-001)
+
+Authorization is enforced by role (RBAC) on every route, via the
+`require()` / `api_require()` decorators (`src/webgui/middleware/auth.py`).
+Roles are a closed catalog (`src/webgui/permissions.py` — `ALLOWED_ROLES`);
+legacy values are normalized to `auditor` by `migrations/008_rbac_roles.sql`.
+Unknown roles deny everything (fail-closed).
+
+| Rol | Alcance |
+|---|---|
+| `admin` | Control total: usuarios, dispositivos, configuración, datos |
+| `rrhh` | ABC de colaboradores, incapacidades y reportes |
+| `supervisor` | Lectura de asistencia y reportes |
+| `auditor` | Solo lectura: reportes y logs |
+
+Permission matrix (`recurso:acción`, `has_permission(role, perm)`):
+
+| Permiso | admin | rrhh | supervisor | auditor |
+|---|:--:|:--:|:--:|:--:|
+| devices:read / write / sync | ✅ | ❌ | ❌ | ❌ |
+| employees:read / write | ✅ | ✅ | read | read |
+| medical_leaves:read / write | ✅ | ✅ | read | read |
+| attendance:read, reports:read / export | ✅ | ✅ | ✅ | ✅ |
+| users:manage, settings:manage | ✅ | ❌ | ❌ | ❌ |
+| audit:read | ✅ | ❌ | ❌ | ✅ |
+
+**Role-change semantics:** the role is taken from the credential (session
+claim or JWT claim), not re-queried per request. A role change applies in
+the WebGUI after **re-login** (session) and in the API when the access
+token expires (**30 min** — `Auth.token_expiry_minutes`). Accept and
+document this window; do not add per-request DB lookups.
+
+**User management API** (`/api/users`, requires `users:manage`, MYK-415):
+
+- Full CRUD contract in `docs/openapi.yaml` (schemas `User`/`UserInput`/`UserPatch`,
+  401/403 documented).
+- Role validated against `ALLOWED_ROLES` on every write path; passwords hashed
+  with Argon2id and checked by `Auth.validate_password_strength`.
+- `DELETE` is a soft delete (`is_active = 0`); rows are never removed.
+- **Last-admin rule:** the last active `admin` can never be demoted or
+  deactivated (PATCH and DELETE return `409`), and a caller cannot deactivate
+  their own account — prevents lockout of the appliance.
+
 ### Input Validation
 
 All API endpoints validate input:
@@ -598,5 +641,5 @@ Include:
 
 ---
 
-*Last updated: 2026-01-15*
-*Version: 1.0.0*
+*Last updated: 2026-10-27*
+*Version: 1.1.0*
