@@ -154,12 +154,19 @@ Time between cloud sync attempts. Only applies if `platform.url` is configured.
 | Field | Type | Default |
 |-------|------|---------|
 | `max_records` | integer | 10000 |
-| `retention_days` | integer | 730 |
+| `retention_days` | integer | 790 (min 730, LFT 804-III) |
 
-Legal retention (MYK-419, LFT 804-III): records are NEVER deleted automatically.
-Deletion is manual-only via `purge_synced_older_than()` and always leaves an
-entry in the `retention_audit` bitácora. Overflow compacts synced records only;
-unsynced records are never deleted.
+Legal retention (MYK-419/428, LFT 804-III): records are NEVER deleted
+automatically. `retention_days` defaults to 26 months (790 days — last year
+plus one year after termination, plus margin) and cannot go below the 730-day
+legal floor (validated at config load). Deletion is manual-only (opt-in) via
+`purge_synced_older_than()` / `purge_archived_older_than()` and REQUIRES a
+verified JSON export (`export_path`) BEFORE anything is deleted; every purge
+leaves an entry in the `retention_audit` bitácora. Buffer overflow does not
+delete: it archives synced records to `attendance_archive` (still queryable
+via `get_archived_records()`). Unsynced and failed records are never deleted
+or archived; failed records (exhausted sync attempts) stay flagged
+`sync_failed=1` and inspectable via `get_failed_records()`.
 
 ##### logging
 

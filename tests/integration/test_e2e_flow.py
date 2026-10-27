@@ -301,6 +301,99 @@ class TestE2EFlow:
         assert history[0]["status"] == "success"
         assert history[0]["duration_seconds"] == 2.5
 
+    # ===== TEST 3b: RT-1 Retención LFT 804-III (MYK-428) =====
+    def test_retention_archive_purge_rt1(self, buffer_repo, tmp_path):
+        """RT-1 AC1+AC2: 25 meses consultables con default; purga solo tras export"""
+        import json
+        from datetime import timedelta
+
+        now = datetime.now()
+        # AC1: registro de hace 25 meses (~760d) < default 790d (26 meses)
+        mid = AttendanceRecord(
+            user_id="mid25m",
+            timestamp=now - timedelta(days=760),
+            status=0,
+            device_ip="192.168.1.101",
+        )
+        old_fill = [
+            AttendanceRecord(
+                user_id=f"old800d{i}",
+                timestamp=now - timedelta(days=800, hours=-i),
+                status=0,
+                device_ip="192.168.1.101",
+            )
+            for i in range(10)
+        ]
+        buffer_repo.add_records(old_fill + [mid])
+        unsynced = buffer_repo.get_unsynced_records(limit=100)
+        assert len(unsynced) == 11
+        buffer_repo.mark_as_synced([r["id"] for r in unsynced])
+
+        # Overflow (tope 10k simulado con max 5): ARCHIVA, no borra
+        buffer_repo.max_records = 5
+        buffer_repo.add_records(
+            [AttendanceRecord(user_id="nuevo", timestamp=now, status=0, device_ip="192.168.1.101")]
+        )
+        stats = buffer_repo.get_stats()
+        assert stats["archived_records"] == 7  # los 7 synced más viejos (800d)
+        assert stats["total_records"] == 5
+
+        # Purga opt-in SIN export previo: no procede
+        with pytest.raises(ValueError):
+            buffer_repo.purge_archived_older_than(
+                days=790, reason="auditoría anual", operator="dba"
+            )
+
+        # AC2: export previo fallido -> nada se borra
+        blocker = tmp_path / "blocker"
+        blocker.write_text("no dir")
+        with pytest.raises(OSError):
+            buffer_repo.purge_archived_older_than(
+                days=790,
+                reason="auditoría anual",
+                operator="dba",
+                export_path=str(blocker / "x" / "p.json"),
+            )
+        assert buffer_repo.get_stats()["archived_records"] == 7
+
+        # AC2: export previo exitoso -> la purga procede SOLO sobre archivados
+        export = tmp_path / "rt1_purge.json"
+        deleted = buffer_repo.purge_archived_older_than(
+            days=790,
+            reason="auditoría anual",
+            operator="dba",
+            export_path=str(export),
+        )
+        assert deleted == 7
+        assert buffer_repo.get_stats()["archived_records"] == 0
+        with open(export, encoding="utf-8") as f:
+            payload = json.load(f)
+        assert payload["count"] == 7
+        audit = [a for a in buffer_repo.get_retention_audit() if a["action"] == "purge_archived"]
+        assert audit[0]["records_deleted"] == 7
+        assert audit[0]["export_path"] == str(export)
+
+        # AC1 (camino archivo): 25m archivado sobrevive purga al DEFAULT 790d
+        buffer_repo.max_records = 1
+        buffer_repo.add_records(
+            [AttendanceRecord(user_id="otro", timestamp=now, status=0, device_ip="192.168.1.101")]
+        )
+        stats = buffer_repo.get_stats()
+        assert stats["archived_records"] == 4  # 3×800d + mid25m
+        assert stats["pending_sync"] == 2  # nuevo y otro jamás tocados
+
+        export2 = tmp_path / "rt1_purge2.json"
+        deleted2 = buffer_repo.purge_archived_older_than(
+            days=790,
+            reason="auditoría anual",
+            operator="dba",
+            export_path=str(export2),
+        )
+        assert deleted2 == 3  # solo los de 800d; el de 760d queda
+        survivors = buffer_repo.get_archived_records()
+        assert len(survivors) == 1
+        assert survivors[0]["user_id"] == "mid25m"  # consultable a 25 meses
+
     # ===== TEST 4: Attendance API Endpoints =====
     def test_attendance_api_endpoint_structure(self):
         """Test: Verify attendance API endpoint functions exist"""

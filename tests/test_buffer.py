@@ -139,15 +139,21 @@ class TestBufferRepository:
 
         synced_records = [
             AttendanceRecordDB(
-                user_id=f"s{i}", timestamp=old_ts + timedelta(hours=i),
-                status=0, device_ip="192.168.1.101", punch_type="entrada",
+                user_id=f"s{i}",
+                timestamp=old_ts + timedelta(hours=i),
+                status=0,
+                device_ip="192.168.1.101",
+                punch_type="entrada",
             )
             for i in range(60)
         ]
         pending_records = [
             AttendanceRecordDB(
-                user_id=f"p{i}", timestamp=new_ts + timedelta(hours=i),
-                status=0, device_ip="192.168.1.101", punch_type="entrada",
+                user_id=f"p{i}",
+                timestamp=new_ts + timedelta(hours=i),
+                status=0,
+                device_ip="192.168.1.101",
+                punch_type="entrada",
             )
             for i in range(50)
         ]
@@ -162,8 +168,11 @@ class TestBufferRepository:
         temp_db.add_records(
             [
                 AttendanceRecordDB(
-                    user_id="extra", timestamp=datetime.now(),
-                    status=0, device_ip="192.168.1.101", punch_type="entrada",
+                    user_id="extra",
+                    timestamp=datetime.now(),
+                    status=0,
+                    device_ip="192.168.1.101",
+                    punch_type="entrada",
                 )
             ]
         )
@@ -179,7 +188,9 @@ class TestBufferRepository:
         old = AttendanceRecordDB(
             user_id="veterano",
             timestamp=datetime.now() - timedelta(days=40),
-            status=0, device_ip="192.168.1.101", punch_type="entrada",
+            status=0,
+            device_ip="192.168.1.101",
+            punch_type="entrada",
         )
         temp_db.add_records([old])
         temp_db.mark_as_synced([temp_db.get_unsynced_records()[0]["id"]])
@@ -188,8 +199,11 @@ class TestBufferRepository:
         temp_db.add_records(
             [
                 AttendanceRecordDB(
-                    user_id="nuevo", timestamp=datetime.now(),
-                    status=0, device_ip="192.168.1.101", punch_type="entrada",
+                    user_id="nuevo",
+                    timestamp=datetime.now(),
+                    status=0,
+                    device_ip="192.168.1.101",
+                    punch_type="entrada",
                 )
             ]
         )
@@ -206,8 +220,11 @@ class TestBufferRepository:
         base = datetime.now() - timedelta(days=1)
         records = [
             AttendanceRecordDB(
-                user_id=f"u{i}", timestamp=base + timedelta(seconds=i),
-                status=0, device_ip="192.168.1.101", punch_type="entrada",
+                user_id=f"u{i}",
+                timestamp=base + timedelta(seconds=i),
+                status=0,
+                device_ip="192.168.1.101",
+                punch_type="entrada",
             )
             for i in range(10001)
         ]
@@ -221,22 +238,31 @@ class TestBufferRepository:
         unsynced = repo.get_unsynced_records(limit=20000)
         assert len(unsynced) == 10001
 
-    def test_manual_purge_synced_older_than(self, temp_db):
-        """MYK-419: purge manual solo sync>days, con bitácora obligatoria"""
+    def test_manual_purge_synced_older_than(self, temp_db, tmp_path):
+        """MYK-419/428: purge manual solo sync>days, con export previo y bitácora"""
         now = datetime.now()
         temp_db.add_records(
             [
                 AttendanceRecordDB(
-                    user_id="viejo_sync", timestamp=now - timedelta(days=800),
-                    status=0, device_ip="192.168.1.101", punch_type="entrada",
+                    user_id="viejo_sync",
+                    timestamp=now - timedelta(days=800),
+                    status=0,
+                    device_ip="192.168.1.101",
+                    punch_type="entrada",
                 ),
                 AttendanceRecordDB(
-                    user_id="reciente_sync", timestamp=now - timedelta(days=100),
-                    status=0, device_ip="192.168.1.101", punch_type="entrada",
+                    user_id="reciente_sync",
+                    timestamp=now - timedelta(days=100),
+                    status=0,
+                    device_ip="192.168.1.101",
+                    punch_type="entrada",
                 ),
                 AttendanceRecordDB(
-                    user_id="viejo_pendiente", timestamp=now - timedelta(days=800),
-                    status=0, device_ip="192.168.1.101", punch_type="entrada",
+                    user_id="viejo_pendiente",
+                    timestamp=now - timedelta(days=800),
+                    status=0,
+                    device_ip="192.168.1.101",
+                    punch_type="entrada",
                 ),
             ]
         )
@@ -244,8 +270,12 @@ class TestBufferRepository:
         ids = {r["user_id"]: r["id"] for r in unsynced}
         temp_db.mark_as_synced([ids["viejo_sync"], ids["reciente_sync"]])
 
+        export = tmp_path / "exports" / "purge.json"
         deleted = temp_db.purge_synced_older_than(
-            days=730, reason="purga anual auditada", operator="dba"
+            days=730,
+            reason="purga anual auditada",
+            operator="dba",
+            export_path=str(export),
         )
 
         assert deleted == 1
@@ -259,25 +289,248 @@ class TestBufferRepository:
         assert audit[0]["records_deleted"] == 1
         assert audit[0]["operator"] == "dba"
         assert "purga anual" in audit[0]["reason"]
+        # MYK-428: exportación previa verificada y evidenciada en bitácora
+        assert audit[0]["export_path"] == str(export)
+        assert export.exists()
+        import json
 
-    def test_manual_purge_requires_reason_and_operator(self, temp_db):
-        """MYK-419: sin reason/operator no hay borrado manual (bitácora obligatoria)"""
+        with open(export, encoding="utf-8") as f:
+            payload = json.load(f)
+        assert payload["count"] == 1
+        assert payload["records"][0]["user_id"] == "viejo_sync"
+
+    def test_manual_purge_requires_reason_and_operator(self, temp_db, tmp_path):
+        """MYK-419/428: sin reason/operator/export no hay borrado manual"""
         temp_db.add_records(
             [
                 AttendanceRecordDB(
-                    user_id="x", timestamp=datetime.now() - timedelta(days=999),
-                    status=0, device_ip="192.168.1.101", punch_type="entrada",
+                    user_id="x",
+                    timestamp=datetime.now() - timedelta(days=999),
+                    status=0,
+                    device_ip="192.168.1.101",
+                    punch_type="entrada",
                 )
             ]
         )
         temp_db.mark_as_synced([temp_db.get_unsynced_records()[0]["id"]])
 
+        export = str(tmp_path / "purge.json")
         with pytest.raises(ValueError):
-            temp_db.purge_synced_older_than(days=730, reason="", operator="dba")
+            temp_db.purge_synced_older_than(days=730, reason="", operator="dba", export_path=export)
         with pytest.raises(ValueError):
-            temp_db.purge_synced_older_than(days=730, reason="ok", operator="")
+            temp_db.purge_synced_older_than(days=730, reason="ok", operator="", export_path=export)
+        # MYK-428: exportación previa OBLIGATORIA
+        with pytest.raises(ValueError):
+            temp_db.purge_synced_older_than(days=730, reason="ok", operator="dba")
         assert temp_db.get_stats()["total_records"] == 1
         assert temp_db.get_retention_audit() == []
+
+    def test_purge_aborts_when_export_fails(self, temp_db, tmp_path):
+        """MYK-428 AC2: si la exportación falla, la purga NO borra nada"""
+        temp_db.add_records(
+            [
+                AttendanceRecordDB(
+                    user_id="v",
+                    timestamp=datetime.now() - timedelta(days=800),
+                    status=0,
+                    device_ip="192.168.1.101",
+                    punch_type="entrada",
+                )
+            ]
+        )
+        temp_db.mark_as_synced([temp_db.get_unsynced_records()[0]["id"]])
+
+        # La ruta de export cruza un archivo (no un directorio) -> OSError
+        blocker = tmp_path / "blocker"
+        blocker.write_text("no soy un directorio")
+        with pytest.raises(OSError):
+            temp_db.purge_synced_older_than(
+                days=730,
+                reason="ok",
+                operator="dba",
+                export_path=str(blocker / "sub" / "purge.json"),
+            )
+        assert temp_db.get_stats()["total_records"] == 1
+        assert temp_db.get_retention_audit() == []
+
+    def test_failed_records_kept_not_fake_synced(self, temp_db):
+        """MYK-428: tras max intentos queda sync_failed=1 (NUNCA synced=1)"""
+        temp_db.add_records(
+            [
+                AttendanceRecordDB(
+                    user_id="f",
+                    timestamp=datetime.now() - timedelta(days=10),
+                    status=0,
+                    device_ip="192.168.1.101",
+                    punch_type="entrada",
+                )
+            ]
+        )
+        rid = temp_db.get_unsynced_records()[0]["id"]
+
+        for _ in range(5):
+            temp_db.mark_sync_failed([rid], max_attempts=5)
+
+        # Fuera de la cola de sync (no reintenta en bucle)...
+        assert temp_db.get_unsynced_records() == []
+        # ...pero VIVO, consultable y contabilizado como fallido
+        failed = temp_db.get_failed_records()
+        assert len(failed) == 1
+        assert failed[0]["sync_attempts"] == 5
+        stats = temp_db.get_stats()
+        assert stats["failed_sync"] == 1
+        assert stats["pending_sync"] == 0
+        assert stats["synced"] == 0
+        with temp_db.get_connection() as conn:
+            row = conn.execute(
+                "SELECT synced, sync_failed FROM attendance_records WHERE id = ?",
+                (rid,),
+            ).fetchone()
+        assert row["synced"] == 0
+        assert row["sync_failed"] == 1
+
+    def test_failed_records_never_archived_on_overflow(self, temp_db):
+        """MYK-428: el overflow no archiva ni borra registros fallidos"""
+        base = datetime.now() - timedelta(days=100)
+        records = [
+            AttendanceRecordDB(
+                user_id=f"u{i}",
+                timestamp=base + timedelta(seconds=i),
+                status=0,
+                device_ip="192.168.1.101",
+                punch_type="entrada",
+            )
+            for i in range(99)
+        ]
+        temp_db.add_records(records)
+        rid = temp_db.get_unsynced_records()[0]["id"]
+        for _ in range(5):
+            temp_db.mark_sync_failed([rid], max_attempts=5)
+
+        # Forzar overflow: nada es synced -> ni fallidos ni pendientes se tocan
+        temp_db.max_records = 50
+        temp_db.add_records(
+            [
+                AttendanceRecordDB(
+                    user_id="extra",
+                    timestamp=datetime.now(),
+                    status=0,
+                    device_ip="192.168.1.101",
+                    punch_type="entrada",
+                )
+            ]
+        )
+
+        stats = temp_db.get_stats()
+        assert stats["total_records"] == 100  # nada compactado: nada elegible
+        assert stats["archived_records"] == 0
+        assert stats["failed_sync"] == 1
+        assert len(temp_db.get_failed_records()) == 1
+
+    def test_capacity_overflow_archives_synced(self, temp_db):
+        """MYK-428: overflow ARCHIVA synced viejos (no los borra)"""
+        old_ts = datetime.now() - timedelta(days=100)
+        synced = [
+            AttendanceRecordDB(
+                user_id=f"s{i}",
+                timestamp=old_ts + timedelta(hours=i),
+                status=0,
+                device_ip="192.168.1.101",
+                punch_type="entrada",
+            )
+            for i in range(20)
+        ]
+        pending = [
+            AttendanceRecordDB(
+                user_id=f"p{i}",
+                timestamp=datetime.now() - timedelta(days=1),
+                status=0,
+                device_ip="192.168.1.101",
+                punch_type="entrada",
+            )
+            for i in range(10)
+        ]
+        temp_db.add_records(synced + pending)
+        unsynced = temp_db.get_unsynced_records(limit=1000)
+        temp_db.mark_as_synced([r["id"] for r in unsynced[:20]])
+
+        temp_db.max_records = 30
+        temp_db.add_records(
+            [
+                AttendanceRecordDB(
+                    user_id="extra",
+                    timestamp=datetime.now(),
+                    status=0,
+                    device_ip="192.168.1.101",
+                    punch_type="entrada",
+                )
+            ]
+        )
+
+        stats = temp_db.get_stats()
+        # 31 registros, max 30: 1 synced archivado, cero borrados
+        assert stats["total_records"] == 30
+        assert stats["archived_records"] == 1
+        assert stats["pending_sync"] == 11
+        archived = temp_db.get_archived_records()
+        assert len(archived) == 1
+        assert archived[0]["source_id"] is not None
+        assert archived[0]["archive_reason"] == "capacity_overflow"
+        audit = temp_db.get_retention_audit()
+        assert audit[0]["action"] == "archive_overflow"
+
+    def test_purge_archived_requires_export_and_only_touches_archive(self, temp_db, tmp_path):
+        """MYK-428: purga conformante = solo archivados, export previo"""
+        old_ts = datetime.now() - timedelta(days=800)
+        synced = [
+            AttendanceRecordDB(
+                user_id=f"s{i}",
+                timestamp=old_ts + timedelta(hours=i),
+                status=0,
+                device_ip="192.168.1.101",
+                punch_type="entrada",
+            )
+            for i in range(3)
+        ]
+        temp_db.add_records(synced)
+        temp_db.mark_as_synced([r["id"] for r in temp_db.get_unsynced_records()])
+        # Forzar archive: bajar max_records y re-agregar dispara _enforce_capacity
+        temp_db.max_records = 2
+        temp_db.add_records(
+            [
+                AttendanceRecordDB(
+                    user_id="nuevo",
+                    timestamp=datetime.now(),
+                    status=0,
+                    device_ip="192.168.1.101",
+                    punch_type="entrada",
+                )
+            ]
+        )
+        assert temp_db.get_stats()["archived_records"] == 2
+
+        with pytest.raises(ValueError):
+            temp_db.purge_archived_older_than(days=730, reason="ok", operator="dba")
+
+        export = tmp_path / "archived_purge.json"
+        deleted = temp_db.purge_archived_older_than(
+            days=730,
+            reason="purga archivados",
+            operator="dba",
+            export_path=str(export),
+        )
+        assert deleted == 2
+        assert temp_db.get_archived_records() == []
+        audit = temp_db.get_retention_audit()
+        purge_rows = [a for a in audit if a["action"] == "purge_archived"]
+        assert purge_rows[0]["records_deleted"] == 2
+        assert purge_rows[0]["export_path"] == str(export)
+        assert export.exists()
+        import json
+
+        with open(export, encoding="utf-8") as f:
+            payload = json.load(f)
+        assert payload["count"] == 2
 
     def test_log_sync(self, temp_db):
         """Test de log de sincronización"""

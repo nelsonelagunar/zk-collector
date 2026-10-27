@@ -69,9 +69,13 @@ buffer:
   # Máximo de registros a mantener en buffer
   max_records: 10000
   
-  # Días mínimos de retención legal (LFT 804-III, MYK-419).
-  # El borrado es SOLO manual con bitácora; nunca automático.
-  retention_days: 730
+  # Días de retención legal (LFT 804-III, MYK-419/428).
+  # Default 26 meses (790d): último año + 1 año tras baja + margen.
+  # Mínimo legal 730d (validado al cargar la config).
+  # El borrado es SOLO manual (opt-in) con exportación previa verificada
+  # y bitácora (retention_audit); NUNCA automático. El overflow no borra:
+  # archiva los sincronizados en attendance_archive (siguen consultables).
+  retention_days: 790
 
 #-------------------------------------------------------------------------------
 # Logging

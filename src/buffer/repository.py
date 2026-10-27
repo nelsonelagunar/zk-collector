@@ -3,9 +3,11 @@ Repositorio para Buffer Local SQLite
 Manejo de registros de asistencia en disco
 """
 
+import json
 import logging
+import os
 import sqlite3
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -23,10 +25,12 @@ class BufferRepository:
     Características:
     - Almacenamiento offline (hasta 10,000 registros)
     - Cola de sincronización pendiente
-    - Retención legal LFT 804-III: SIN borrado automático por antigüedad;
-      el borrado es manual (purge_synced_older_than) con entrada en bitácora
-      (tabla retention_audit). El overflow solo compacta registros ya
-      sincronizados: los pendientes NUNCA se borran.
+    - Retención legal LFT 804-III (MYK-419/428): SIN borrado automático por
+      antigüedad. El overflow ARCHIVA registros ya sincronizados (tabla
+      attendance_archive) en lugar de borrarlos; los pendientes y los fallidos
+      NUNCA se borran ni archivan. El borrado es manual (opt-in), SOLO tras
+      exportación previa verificada (purge_synced_older_than /
+      purge_archived_older_than), con entrada en bitácora (retention_audit).
     - Transacciones atómicas
     - Conexión thread-safe
     """
@@ -69,11 +73,20 @@ class BufferRepository:
                     punch_type TEXT,
                     synced BOOLEAN DEFAULT 0,
                     sync_attempts INTEGER DEFAULT 0,
+                    sync_failed BOOLEAN DEFAULT 0,
                     last_sync_attempt DATETIME,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+
+            # Bases existentes (pre-MYK-428): añadir sync_failed en caliente.
+            # SQLite no soporta IF NOT EXISTS en ALTER: se tolera el error de
+            # columna duplicada.
+            with suppress(sqlite3.OperationalError):
+                cursor.execute(
+                    "ALTER TABLE attendance_records ADD COLUMN sync_failed BOOLEAN DEFAULT 0"
+                )
 
             # Índices para rendimiento
             cursor.execute("""
@@ -120,8 +133,43 @@ class BufferRepository:
                 )
             """)
 
+            # Archivo de registros (MYK-428, LFT 804-III): el overflow mueve
+            # aquí los registros sincronizados en vez de borrarlos. Siguen
+            # consultables (get_archived_records) y solo salen por purga
+            # manual con exportación previa (purge_archived_older_than).
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS attendance_archive (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source_id INTEGER NOT NULL,
+                    user_id TEXT NOT NULL,
+                    timestamp DATETIME NOT NULL,
+                    status INTEGER NOT NULL,
+                    device_ip TEXT NOT NULL,
+                    punch_type TEXT,
+                    synced BOOLEAN DEFAULT 0,
+                    sync_attempts INTEGER DEFAULT 0,
+                    sync_failed BOOLEAN DEFAULT 0,
+                    last_sync_attempt DATETIME,
+                    created_at DATETIME,
+                    updated_at DATETIME,
+                    archived_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    archive_reason TEXT
+                )
+            """)
+
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_archive_timestamp
+                ON attendance_archive(timestamp)
+            """)
+
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_archive_user_id
+                ON attendance_archive(user_id)
+            """)
+
             # Bitácora de retención (MYK-419, LFT 804-III): todo borrado de
             # registros de asistencia es manual y debe quedar registrado aquí.
+            # MYK-428: export_path evidencia la exportación previa a la purga.
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS retention_audit (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -130,9 +178,14 @@ class BufferRepository:
                     records_deleted INTEGER NOT NULL,
                     cutoff_date TEXT,
                     reason TEXT,
-                    operator TEXT
+                    operator TEXT,
+                    export_path TEXT
                 )
             """)
+
+            # Bases existentes (pre-MYK-428): añadir export_path en caliente.
+            with suppress(sqlite3.OperationalError):
+                cursor.execute("ALTER TABLE retention_audit ADD COLUMN export_path TEXT")
 
             logger.info(f"Base de datos inicializada: {self.db_path}")
 
@@ -217,7 +270,7 @@ class BufferRepository:
                 """
                 SELECT id, user_id, timestamp, status, device_ip, punch_type
                 FROM attendance_records
-                WHERE synced = 0
+                WHERE synced = 0 AND (sync_failed = 0 OR sync_failed IS NULL)
                 ORDER BY timestamp ASC, id ASC
                 LIMIT ?
             """,
@@ -271,11 +324,12 @@ class BufferRepository:
 
     def mark_sync_failed(self, record_ids: list[int], max_attempts: int = 5):
         """
-        Marcar registros como fallidos en sincronización
+        Registrar intento de sincronización fallido.
 
-        Args:
-            record_ids: IDs de registros
-            max_attempts: Máximo de intentos antes de descartar
+        MYK-428 (LFT 804-III): tras agotar `max_attempts` el registro queda
+        marcado `sync_failed=1` (NUNCA `synced=1`): permanece en el buffer,
+        consultable y a salvo de archivo/purga. Sale de la cola de sync para
+        no reintentar en bucle; se revisa con get_failed_records().
         """
         if not record_ids:
             return
@@ -289,7 +343,7 @@ class BufferRepository:
                 UPDATE attendance_records
                 SET sync_attempts = sync_attempts + 1,
                     last_sync_attempt = CURRENT_TIMESTAMP,
-                    synced = CASE
+                    sync_failed = CASE
                         WHEN sync_attempts + 1 >= ? THEN 1
                         ELSE 0
                     END
@@ -298,14 +352,39 @@ class BufferRepository:
                 [max_attempts] + record_ids,
             )
 
+    def get_failed_records(self, limit: int = 1000) -> list[dict]:
+        """
+        Registros que agotaron sus intentos de sync (sync_failed=1).
+
+        MYK-428: son datos con valor legal; se conservan hasta resolución
+        manual (nunca se archivan ni purgan por antigüedad).
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute(
+                """
+                SELECT id, user_id, timestamp, status, device_ip, punch_type,
+                       sync_attempts, last_sync_attempt
+                FROM attendance_records
+                WHERE sync_failed = 1
+                ORDER BY last_sync_attempt DESC, id DESC
+                LIMIT ?
+            """,
+                (limit,),
+            )
+
+            return [dict(row) for row in cursor.fetchall()]
+
     def _enforce_capacity(self, conn):
         """
-        Compacción del buffer al exceder max_records.
+        Archive-and-purge al exceder max_records (MYK-428, LFT 804-III).
 
-        LFT 804-III: el overflow SOLO compacta registros ya sincronizados
-        (respaldados en la plataforma). Los registros pendientes (synced=0)
-        NUNCA se borran: si siguen sobrando tras compactar, se conserva todo
-        y se alerta por log para restaurar el sync.
+        El overflow ARCHIVA los registros ya sincronizados más antiguos
+        (INSERT INTO attendance_archive + DELETE, misma transacción) en
+        lugar de borrarlos: siguen consultables y solo salen por purga
+        manual con exportación previa. Los pendientes (synced=0) y los
+        fallidos (sync_failed=1) NUNCA se tocan.
         """
         cursor = conn.cursor()
 
@@ -318,22 +397,59 @@ class BufferRepository:
         excess = count - self.max_records
         cursor.execute(
             """
+            INSERT INTO attendance_archive
+                (source_id, user_id, timestamp, status, device_ip, punch_type,
+                 synced, sync_attempts, sync_failed, last_sync_attempt,
+                 created_at, updated_at, archive_reason)
+            SELECT id, user_id, timestamp, status, device_ip, punch_type,
+                   synced, sync_attempts, sync_failed, last_sync_attempt,
+                   created_at, updated_at, 'capacity_overflow'
+            FROM attendance_records
+            WHERE synced = 1 AND (sync_failed = 0 OR sync_failed IS NULL)
+            ORDER BY timestamp ASC
+            LIMIT ?
+        """,
+            (excess,),
+        )
+        archived = cursor.rowcount if cursor.rowcount is not None else 0
+
+        cursor.execute(
+            """
             DELETE FROM attendance_records
             WHERE id IN (
                 SELECT id FROM attendance_records
-                WHERE synced = 1
+                WHERE synced = 1 AND (sync_failed = 0 OR sync_failed IS NULL)
                 ORDER BY timestamp ASC
                 LIMIT ?
             )
         """,
             (excess,),
         )
-        compacted = cursor.rowcount if cursor.rowcount is not None else 0
 
-        if compacted > 0:
-            logger.info(f"Capacidad excedida: {compacted} registros sincronizados compactados")
+        if archived > 0:
+            cursor.execute(
+                """
+                INSERT INTO retention_audit
+                    (action, records_deleted, reason, operator)
+                VALUES ('archive_overflow', 0, ?, 'system')
+            """,
+                (
+                    f"Capacidad excedida: {archived} registros sincronizados "
+                    f"archivados en attendance_archive (max_records="
+                    f"{self.max_records})",
+                ),
+            )
+            logger.info(
+                f"Capacidad excedida: {archived} registros sincronizados "
+                f"archivados (no borrados) en attendance_archive"
+            )
 
-        cursor.execute("SELECT COUNT(*) FROM attendance_records WHERE synced = 0")
+        cursor.execute(
+            """
+            SELECT COUNT(*) FROM attendance_records
+            WHERE synced = 0 AND (sync_failed = 0 OR sync_failed IS NULL)
+        """
+        )
         pending = cursor.fetchone()[0]
         if pending > self.max_records:
             logger.critical(
@@ -342,13 +458,49 @@ class BufferRepository:
                 f"restaurar el sync para drenar el buffer."
             )
 
-    def purge_synced_older_than(self, days: int, reason: str, operator: str) -> int:
+    @staticmethod
+    def _export_records_to_json(records: list[dict], export_path: str, cutoff_date: str) -> int:
         """
-        Borrado MANUAL de registros sincronizados más antiguos que `days` días.
+        Exportar registros a JSON y VERIFICAR la escritura (MYK-428).
 
-        LFT 804-III (MYK-419): única vía de borrado por antigüedad. Nunca
-        borra pendientes de sync. Requiere `reason` y `operator` no vacíos y
-        deja entrada obligatoria en la bitácora (retention_audit).
+        La exportación exitosa es precondición de toda purga (LFT 804-III:
+        archive-and-purge). Escribe, fsync y relee para verificar que el
+        archivo contiene exactamente los registros a purgar; cualquier
+        fallo levanta RuntimeError ANTES de que la purga borre algo.
+        """
+        if not export_path or not str(export_path).strip():
+            raise ValueError("export_path obligatorio: la purga requiere exportación previa")
+
+        path = Path(str(export_path).strip())
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "exported_at": datetime.now().isoformat(),
+            "cutoff_date": cutoff_date,
+            "count": len(records),
+            "records": records,
+        }
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2, default=str)
+            f.flush()
+            os.fsync(f.fileno())
+
+        with open(path, encoding="utf-8") as f:
+            verify = json.load(f)
+        if verify.get("count") != len(records) or len(verify.get("records", [])) != len(records):
+            raise RuntimeError(
+                f"Exportación verificada fallida en {path}: se esperaban {len(records)} registros"
+            )
+        return len(records)
+
+    def purge_synced_older_than(
+        self, days: int, reason: str, operator: str, export_path: str | None = None
+    ) -> int:
+        """
+        Borrado MANUAL (opt-in) de registros sincronizados más antiguos que
+        `days` días. MYK-428 (LFT 804-III): requiere exportación previa
+        verificada (`export_path`); si la exportación falla NO se borra nada.
+        Nunca borra pendientes ni fallidos. Requiere `reason` y `operator`
+        no vacíos y deja entrada obligatoria en la bitácora (retention_audit).
 
         Returns:
             Número de registros eliminados
@@ -359,16 +511,34 @@ class BufferRepository:
             raise ValueError("operator obligatorio: borrado manual requiere bitácora")
         if days < 0:
             raise ValueError("days no puede ser negativo")
+        if not export_path or not str(export_path).strip():
+            raise ValueError(
+                "export_path obligatorio: la purga requiere exportación previa (MYK-428)"
+            )
 
         cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
+            # Exportación previa OBLIGATORIA: falla -> excepción -> nada borrado
+            cursor.execute(
+                """
+                SELECT * FROM attendance_records
+                WHERE synced = 1 AND (sync_failed = 0 OR sync_failed IS NULL)
+                  AND timestamp < ?
+                ORDER BY timestamp ASC
+            """,
+                (cutoff_date,),
+            )
+            to_purge = [dict(row) for row in cursor.fetchall()]
+            self._export_records_to_json(to_purge, export_path, cutoff_date)
+
             cursor.execute(
                 """
                 DELETE FROM attendance_records
-                WHERE synced = 1 AND timestamp < ?
+                WHERE synced = 1 AND (sync_failed = 0 OR sync_failed IS NULL)
+                  AND timestamp < ?
             """,
                 (cutoff_date,),
             )
@@ -377,18 +547,102 @@ class BufferRepository:
             cursor.execute(
                 """
                 INSERT INTO retention_audit
-                (action, records_deleted, cutoff_date, reason, operator)
-                VALUES ('purge_synced', ?, ?, ?, ?)
+                (action, records_deleted, cutoff_date, reason, operator, export_path)
+                VALUES ('purge_synced', ?, ?, ?, ?, ?)
             """,
-                (deleted, cutoff_date, reason.strip(), operator.strip()),
+                (deleted, cutoff_date, reason.strip(), operator.strip(), str(export_path)),
             )
 
             if deleted > 0:
                 logger.warning(
                     f"Borrado manual: {deleted} registros sincronizados < {cutoff_date} "
-                    f"por {operator}: {reason}"
+                    f"por {operator}: {reason} (export: {export_path})"
                 )
             return deleted
+
+    def purge_archived_older_than(
+        self, days: int, reason: str, operator: str, export_path: str | None = None
+    ) -> int:
+        """
+        Borrado MANUAL (opt-in) SOLO de registros ARCHIVADOS más antiguos que
+        `days` días. MYK-428 (LFT 804-III): es la única purga conformante del
+        flujo archive-and-purge (overflow archiva -> esta purga elimina tras
+        exportación previa verificada). Si la exportación falla NO se borra
+        nada. Requiere `reason`/`operator` y deja bitácora (retention_audit).
+
+        Returns:
+            Número de registros eliminados del archivo
+        """
+        if not reason or not reason.strip():
+            raise ValueError("reason obligatorio: borrado manual requiere bitácora")
+        if not operator or not operator.strip():
+            raise ValueError("operator obligatorio: borrado manual requiere bitácora")
+        if days < 0:
+            raise ValueError("days no puede ser negativo")
+        if not export_path or not str(export_path).strip():
+            raise ValueError(
+                "export_path obligatorio: la purga requiere exportación previa (MYK-428)"
+            )
+
+        cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Exportación previa OBLIGATORIA: falla -> excepción -> nada borrado
+            cursor.execute(
+                """
+                SELECT * FROM attendance_archive
+                WHERE timestamp < ?
+                ORDER BY timestamp ASC
+            """,
+                (cutoff_date,),
+            )
+            to_purge = [dict(row) for row in cursor.fetchall()]
+            self._export_records_to_json(to_purge, export_path, cutoff_date)
+
+            cursor.execute(
+                """
+                DELETE FROM attendance_archive
+                WHERE timestamp < ?
+            """,
+                (cutoff_date,),
+            )
+            deleted = cursor.rowcount if cursor.rowcount is not None else 0
+
+            cursor.execute(
+                """
+                INSERT INTO retention_audit
+                (action, records_deleted, cutoff_date, reason, operator, export_path)
+                VALUES ('purge_archived', ?, ?, ?, ?, ?)
+            """,
+                (deleted, cutoff_date, reason.strip(), operator.strip(), str(export_path)),
+            )
+
+            if deleted > 0:
+                logger.warning(
+                    f"Borrado manual: {deleted} registros archivados < {cutoff_date} "
+                    f"por {operator}: {reason} (export: {export_path})"
+                )
+            return deleted
+
+    def get_archived_records(self, limit: int = 1000, user_id: str | None = None) -> list[dict]:
+        """
+        Registros archivados (attendance_archive), consultables para
+        cumplimiento (LFT 804-III: el archivado no es borrado).
+        """
+        query = "SELECT * FROM attendance_archive"
+        params: list[Any] = []
+        if user_id:
+            query += " WHERE user_id = ?"
+            params.append(user_id)
+        query += " ORDER BY timestamp ASC, id ASC LIMIT ?"
+        params.append(limit)
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return [dict(row) for row in cursor.fetchall()]
 
     def get_retention_audit(self, limit: int = 50) -> list[dict]:
         """
@@ -422,13 +676,31 @@ class BufferRepository:
             cursor.execute("SELECT COUNT(*) FROM attendance_records")
             total = cursor.fetchone()[0]
 
-            # Pendientes de sync
-            cursor.execute("SELECT COUNT(*) FROM attendance_records WHERE synced = 0")
+            # Pendientes de sync (excluye fallidos: no se reintentan)
+            cursor.execute(
+                """
+                SELECT COUNT(*) FROM attendance_records
+                WHERE synced = 0 AND (sync_failed = 0 OR sync_failed IS NULL)
+            """
+            )
             pending = cursor.fetchone()[0]
+
+            # Fallidos (agotaron intentos): se conservan, no se reintentan
+            cursor.execute("SELECT COUNT(*) FROM attendance_records WHERE sync_failed = 1")
+            failed = cursor.fetchone()[0]
+
+            # Sincronizados de verdad (backup en plataforma)
+            cursor.execute("SELECT COUNT(*) FROM attendance_records WHERE synced = 1")
+            synced = cursor.fetchone()[0]
+
+            # Archivados (overflow): consultables, salen solo por purga manual
+            cursor.execute("SELECT COUNT(*) FROM attendance_archive")
+            archived = cursor.fetchone()[0]
 
             # Más antiguo pendiente
             cursor.execute("""
-                SELECT MIN(timestamp) FROM attendance_records WHERE synced = 0
+                SELECT MIN(timestamp) FROM attendance_records
+                WHERE synced = 0 AND (sync_failed = 0 OR sync_failed IS NULL)
             """)
             oldest_pending = cursor.fetchone()[0]
 
@@ -439,7 +711,9 @@ class BufferRepository:
             return {
                 "total_records": total,
                 "pending_sync": pending,
-                "synced": total - pending,
+                "synced": synced,
+                "failed_sync": failed,
+                "archived_records": archived,
                 "oldest_pending": oldest_pending,
                 "newest_record": newest,
                 "max_records": self.max_records,
@@ -491,13 +765,17 @@ class BufferRepository:
         """Limpiar todos los registros (usar con precaución).
 
         Borrado manual destructivo: queda registrado en la bitácora
-        (retention_audit) por LFT 804-III (MYK-419).
+        (retention_audit) por LFT 804-III (MYK-419). MYK-428: incluye el
+        archivo (attendance_archive) — también son registros de asistencia.
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM attendance_records")
             total = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM attendance_archive")
+            archived = cursor.fetchone()[0]
             cursor.execute("DELETE FROM attendance_records")
+            cursor.execute("DELETE FROM attendance_archive")
             cursor.execute("DELETE FROM sync_log")
             cursor.execute(
                 """
@@ -505,6 +783,11 @@ class BufferRepository:
                 (action, records_deleted, reason, operator)
                 VALUES ('clear_all', ?, ?, ?)
             """,
-                (total, "clear_all(): borrado manual completo del buffer", "unknown"),
+                (
+                    total + archived,
+                    f"clear_all(): borrado manual completo del buffer "
+                    f"({archived} venían del archivo attendance_archive)",
+                    "unknown",
+                ),
             )
             logger.warning("Todos los registros del buffer han sido eliminados")

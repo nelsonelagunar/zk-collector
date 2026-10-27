@@ -66,9 +66,11 @@
 
 - `src/buffer/integrity.py`: `compute_hash_chain(prev_hash, record) -> sha256`. `buffer_attendance_hashchain` tabla + trigger en migracion `buffer/010_attendance_integrity.sql`. Endpoint `/api/attendance/integrity` verifica cadena completa. Tests: `tests/test_attendance_integrity.py`.
 
-## Retención Legal (MYK-419)
+## Retención Legal (MYK-419/428)
 
-- `configs/collector.yaml.example` + `configs/collector.schema.json`: `retention_days` (default 730, min 730). Buffer repo borra solo > retention y con hash validado. Tests: `tests/test_buffer.py`, `tests/test_config.py`, `tests/integration/test_e2e_flow.py`.
+- `configs/collector.yaml.example` + `configs/collector.schema.json`: `retention_days` (default 790 = 26 meses, min 730 validado en `_validate`). Borrado SOLO manual (opt-in) con exportación JSON previa verificada (`export_path`) y bitácora `retention_audit` (con `export_path`).
+- MYK-428 archive-and-purge: overflow NO borra — archiva synced viejos en `attendance_archive` (consultables via `get_archived_records`, audit `archive_overflow`); purga conformante = `purge_archived_older_than` (solo archivados, export primero). `mark_sync_failed` tras 5 intentos marca `sync_failed=1` (NUNCA `synced=1`): quedan fuera de la cola y se revisan con `get_failed_records`; nunca archivados/purgados.
+- Tests: `tests/test_buffer.py`, `tests/integration/test_e2e_flow.py` (RT-1), `tests/test_config.py`.
 
 ## Timestamps TZ (MYK-420)
 

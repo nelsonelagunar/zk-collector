@@ -62,8 +62,10 @@ class Config:
             "fields": {
                 "max_records": {"type": "integer", "default": 10000},
                 # MYK-419 (LFT 804-III): retención legal mínima 730 días.
-                # El borrado es manual con bitácora; nunca automático.
-                "retention_days": {"type": "integer", "default": 730},
+                # MYK-428: default 26 meses (790d) = último año + 1 año tras
+                # baja + margen. El borrado es manual (opt-in) con bitácora y
+                # exportación previa; nunca automático.
+                "retention_days": {"type": "integer", "default": 790, "min": 730},
             },
         },
         "logging": {
@@ -104,7 +106,7 @@ class Config:
             "poll_interval_seconds": 300,
             "sync_interval_seconds": 60,
             "sync_enabled": False,
-            "buffer": {"max_records": 10000, "retention_days": 730},
+            "buffer": {"max_records": 10000, "retention_days": 790},
             "logging": {"level": "INFO"},
         }
         return cfg
@@ -184,6 +186,14 @@ class Config:
         for i, device in enumerate(self.config["devices"]):
             if not ip_pattern.match(device.get("ip", "")):
                 raise ConfigError(f"Dispositivo {i + 1}: IP inválida")
+
+        # MYK-428 (LFT 804-III): piso legal de retención 730 días.
+        retention_days = self.config.get("buffer", {}).get("retention_days")
+        if retention_days is not None and retention_days < 730:
+            raise ConfigError(
+                f"buffer.retention_days={retention_days} viola el mínimo legal "
+                f"de 730 días (LFT 804-III, MYK-428)"
+            )
 
     def get(self, key: str, default: Any = None) -> Any:
         """
