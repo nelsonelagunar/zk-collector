@@ -2,8 +2,10 @@
 
 Exposes read-only tools over the existing REST/JSON endpoints of the
 WebGUI (attendance stats, punches, devices, employees) so AI agents can
-query the platform. The server authenticates every API call with a token
-from the environment and never exposes secrets to the model.
+query the platform. The server authenticates every API call with a WebGUI
+access JWT — either supplied via ZK_COLLECTOR_API_TOKEN or minted from the
+shared HS256 secret and auto-refreshed — and never exposes secrets to the
+model.
 
 Install with the optional extra: ``pip install zk-collector[mcp]``.
 Run with: ``zk-collector-mcp`` (stdio, default) or ``python -m src.mcp_server``.

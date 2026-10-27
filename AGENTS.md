@@ -60,7 +60,7 @@
 
 ## MCP Server (MYK-408)
 
-- `src/mcp_server/` → `zk-collector-mcp` (entry point). Transporte stdio (default, sin puertos) u HTTP opt-in `ZK_COLLECTOR_MCP_HTTP=1` bind 127.0.0.1:9248. Solo lectura: `attendance_stats`, `list_punches`, `list_devices`, `list_employees` via Bearer a WebGUI. Token en `ZK_COLLECTOR_API_TOKEN`. Tests: `tests/test_mcp_server.py`.
+- `src/mcp_server/` → `zk-collector-mcp` (entry point). Transporte stdio (default, sin puertos) u HTTP opt-in `ZK_COLLECTOR_MCP_HTTP=1` bind 127.0.0.1:9248 (no-loopback rechazado salvo `ZK_COLLECTOR_MCP_ALLOW_REMOTE_BIND=1`). Solo lectura: `attendance_stats`, `list_punches`, `list_devices`, `list_employees` via Bearer a WebGUI. Auth: JWT HS256 `type=access` (MYK-443, sin PAT) — modo `static` (`ZK_COLLECTOR_API_TOKEN`, JWT minteado externo) o `minted` (`ZK_COLLECTOR_JWT_SECRET`/`WEBGUI_SECRET_KEY`, auto-refresh + re-mint único en 401; `src/mcp_server/tokens.py`). Tests: `tests/test_mcp_server.py`.
 
 ## Hash Chain (MYK-422)
 
