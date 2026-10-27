@@ -32,6 +32,7 @@ SECTIONS: dict[str, NavSection] = {
     "employees": NavSection("employees", "Colaboradores", "/colaboradores"),
     "devices": NavSection("devices", "Dispositivos", "/devices"),
     "users": NavSection("users", "Usuarios", "/users"),
+    "companies": NavSection("companies", "Razón Social", "/configuracion/razon-social"),
     "settings": NavSection("settings", "Configuración", "/settings"),
 }
 
@@ -39,7 +40,16 @@ SECTIONS: dict[str, NavSection] = {
 # (incapacidades viven en el expediente del colaborador); supervisor
 # reportes+asistencia; auditor solo reportes. Dashboard (inicio) para todos.
 MENU_BY_ROLE: dict[str, tuple[str, ...]] = {
-    "admin": ("dashboard", "attendance", "reports", "employees", "devices", "users", "settings"),
+    "admin": (
+        "dashboard",
+        "attendance",
+        "reports",
+        "employees",
+        "devices",
+        "users",
+        "companies",
+        "settings",
+    ),
     "rrhh": ("dashboard", "employees", "reports"),
     "supervisor": ("dashboard", "reports", "attendance"),
     "auditor": ("dashboard", "reports"),

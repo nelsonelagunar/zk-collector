@@ -78,6 +78,11 @@ def create_app(config=None):
     def utility_processor():
         return {"now": datetime.now}
 
+    # Contexto RBAC del menu/badge (MYK-416): nav_sections, role_badge, can()
+    from .nav import rbac_nav_context
+
+    app.context_processor(rbac_nav_context)
+
     from .routes.alerts import alerts_bp
     from .routes.apidocs import apidocs_bp
     from .routes.attendance import attendance_bp
@@ -90,6 +95,7 @@ def create_app(config=None):
     from .routes.devices import devices_bp
     from .routes.employees import employees_bp
     from .routes.employees_ui import employees_ui_bp
+    from .routes.errors_ui import errors_ui_bp
     from .routes.landing import landing_bp
     from .routes.medical_leaves import medical_leaves_bp
     from .routes.profile_ui import profile_bp
@@ -113,6 +119,8 @@ def create_app(config=None):
     app.register_blueprint(companies_bp, url_prefix="/api/companies")
     app.register_blueprint(companies_ui_bp, url_prefix="/configuracion/razon-social")
     app.register_blueprint(profile_bp, url_prefix="/profile")
+    # Pagina 403 amigable de require() (MYK-416)
+    app.register_blueprint(errors_ui_bp)
 
     # Nombre de la empresa (system_config) para reportes/agrupaciones (MYK-377)
     company = app.db.fetch_one("SELECT value FROM system_config WHERE key = 'company_name'")
