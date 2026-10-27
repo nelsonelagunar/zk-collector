@@ -118,7 +118,7 @@ def build_export_response(report: dict, format_type: str) -> Response:
 
 
 @attendance_stats_bp.route("/stats")
-@api_auth_required
+@api_auth_required(required_scope="read")
 def stats_report():
     """Reporte de asistencia (presentes/ausentes/retardos/incapacidades/vacaciones)."""
     try:
@@ -129,7 +129,7 @@ def stats_report():
 
 
 @attendance_stats_bp.route("/stats/export")
-@api_auth_required
+@api_auth_required(required_scope="read")
 def stats_export():
     """Exportar el reporte de asistencia a CSV o Excel con los mismos filtros."""
     try:

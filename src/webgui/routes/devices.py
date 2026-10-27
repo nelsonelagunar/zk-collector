@@ -39,7 +39,7 @@ def _user_field(user, attr, default=""):
 
 
 @devices_bp.route("/<int:device_id>/sync-users", methods=["POST"])
-@api_auth_required
+@api_auth_required(required_scope="write")
 def sync_users(device_id):
     """Sincronizar usuarios desde el dispositivo ZKTeco a la base de datos WebGUI"""
     db = current_app.db
@@ -134,7 +134,7 @@ def sync_users(device_id):
 
 
 @devices_bp.route("/api/device-users")
-@api_auth_required
+@api_auth_required(required_scope="read")
 def api_device_users():
     """API para obtener lista de usuarios de un dispositivo"""
     db = current_app.db
@@ -162,7 +162,7 @@ def api_device_users():
 
 
 @devices_bp.route("/api/device-users/stats")
-@api_auth_required
+@api_auth_required(required_scope="read")
 def api_device_users_stats():
     """API para obtener estadísticas de usuarios de un dispositivo"""
     db = current_app.db
@@ -292,7 +292,7 @@ def delete_device(device_id):
 
 
 @devices_bp.route("/<int:device_id>/test")
-@api_auth_required
+@api_auth_required(required_scope="write")
 def test_device(device_id):
     """Probar conexión con dispositivo - API endpoint"""
     db = current_app.db
@@ -354,7 +354,7 @@ def test_device(device_id):
 
 
 @devices_bp.route("/api/devices/test", methods=["POST"])
-@api_auth_required
+@api_auth_required(required_scope="write")
 def api_test_device():
     """API endpoint para test de conexión desde el form"""
     data = request.get_json()

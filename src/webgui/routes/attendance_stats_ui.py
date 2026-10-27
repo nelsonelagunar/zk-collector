@@ -68,7 +68,7 @@ def stats_dashboard():
 
 
 @attendance_stats_ui_bp.route("/api/stats")
-@api_auth_required
+@api_auth_required(required_scope="read")
 def stats_json():
     """Reporte JSON con los mismos filtros que /api/attendance/stats."""
     try:
@@ -79,7 +79,7 @@ def stats_json():
 
 
 @attendance_stats_ui_bp.route("/export")
-@api_auth_required
+@api_auth_required(required_scope="read")
 def stats_export():
     """Exportar el reporte del dashboard a CSV o Excel (mismos filtros)."""
     try:

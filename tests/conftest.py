@@ -10,6 +10,16 @@ import pytest
 from flask import Flask
 
 
+@pytest.fixture(autouse=True)
+def _reset_api_rate_limit():
+    """Rate limit in-memory de Bearer (MYK-407): limpio entre tests."""
+    from src.webgui.middleware.auth import reset_rate_limit_store
+
+    reset_rate_limit_store()
+    yield
+    reset_rate_limit_store()
+
+
 @pytest.fixture
 def app():
     """Flask app para tests que requieren contexto de aplicación"""

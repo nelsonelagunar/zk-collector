@@ -54,7 +54,7 @@ def _clean_fields(data):
 
 
 @companies_bp.route("/", methods=["GET"])
-@api_auth_required
+@api_auth_required(required_scope="read")
 def list_companies():
     """Lista de razones sociales con filtro opcional status=active|inactive."""
     status = request.args.get("status", "").strip()
@@ -63,7 +63,7 @@ def list_companies():
 
 
 @companies_bp.route("/", methods=["POST"])
-@api_auth_required
+@api_auth_required(required_scope="write")
 def create_company():
     """Crear razon social. razon_social requerido; RFC unico cuando se captura."""
     data = request.get_json(silent=True) or {}
@@ -84,7 +84,7 @@ def create_company():
 
 
 @companies_bp.route("/<int:company_id>", methods=["GET"])
-@api_auth_required
+@api_auth_required(required_scope="read")
 def get_company(company_id):
     """Obtener razon social por id (incluye inactivas)."""
     company = _db().get_company_by_id(company_id)
@@ -94,7 +94,7 @@ def get_company(company_id):
 
 
 @companies_bp.route("/<int:company_id>", methods=["PUT"])
-@api_auth_required
+@api_auth_required(required_scope="write")
 def update_company(company_id):
     """Actualizar razon social (parcial)."""
     if not _db().get_company_by_id(company_id):
@@ -118,7 +118,7 @@ def update_company(company_id):
 
 
 @companies_bp.route("/<int:company_id>", methods=["DELETE"])
-@api_auth_required
+@api_auth_required(required_scope="write")
 def delete_company(company_id):
     """Baja logica (soft delete -> status inactive); conserva vinculos."""
     if not _db().get_company_by_id(company_id):
@@ -129,7 +129,7 @@ def delete_company(company_id):
 
 
 @companies_bp.route("/<int:company_id>/devices", methods=["GET"])
-@api_auth_required
+@api_auth_required(required_scope="read")
 def list_company_devices(company_id):
     """Relojes checadores vinculados a la razon social."""
     if not _db().get_company_by_id(company_id):
@@ -140,7 +140,7 @@ def list_company_devices(company_id):
 
 
 @companies_bp.route("/<int:company_id>/devices", methods=["POST"])
-@api_auth_required
+@api_auth_required(required_scope="write")
 def link_device(company_id):
     """Ligar reloj checador a la razon social.
 
@@ -172,7 +172,7 @@ def link_device(company_id):
 
 
 @companies_bp.route("/<int:company_id>/devices/<device_serial>", methods=["DELETE"])
-@api_auth_required
+@api_auth_required(required_scope="write")
 def unlink_device(company_id, device_serial):
     """Desligar reloj checador de la razon social."""
     if not _db().get_company_by_id(company_id):

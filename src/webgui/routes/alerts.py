@@ -30,7 +30,7 @@ def _engine():
 
 
 @alerts_bp.route("/", methods=["GET"])
-@api_auth_required
+@api_auth_required(required_scope="read")
 def list_alerts():
     """Lista de alertas con filtros opcionales (status, employee_id, event_type)."""
     db = _db()
@@ -64,7 +64,7 @@ def list_alerts():
 
 
 @alerts_bp.route("/evaluate", methods=["POST"])
-@api_auth_required
+@api_auth_required(required_scope="write")
 def evaluate_alerts():
     """Ejecuta todas las reglas habilitadas y persiste/envia las alertas."""
     results = _engine().run_all()
@@ -73,7 +73,7 @@ def evaluate_alerts():
 
 
 @alerts_bp.route("/<int:alert_id>/read", methods=["PATCH"])
-@api_auth_required
+@api_auth_required(required_scope="write")
 def mark_read(alert_id: int):
     """Marca una alerta como leída."""
     db = _db()
@@ -84,7 +84,7 @@ def mark_read(alert_id: int):
 
 
 @alerts_bp.route("/<int:alert_id>/resolved", methods=["PATCH"])
-@api_auth_required
+@api_auth_required(required_scope="write")
 def mark_resolved(alert_id: int):
     """Marca una alerta como resuelta."""
     db = _db()
@@ -95,7 +95,7 @@ def mark_resolved(alert_id: int):
 
 
 @alerts_bp.route("/preferences", methods=["GET"])
-@api_auth_required
+@api_auth_required(required_scope="read")
 def list_preferences():
     """Lista preferencias de notificacion por usuario y tipo de alerta."""
     db = _db()
@@ -110,7 +110,7 @@ def list_preferences():
 
 
 @alerts_bp.route("/preferences", methods=["POST"])
-@api_auth_required
+@api_auth_required(required_scope="write")
 def set_preference():
     """Establece/actualiza la preferencia de notificacion de un usuario."""
     db = _db()
