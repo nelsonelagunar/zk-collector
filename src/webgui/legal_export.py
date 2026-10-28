@@ -295,10 +295,10 @@ def build_legal_rows(
                         (device_ip, user_id, lo.isoformat(), hi.isoformat()),
                     ).fetchall()
                 for row in rows:
-                    local_dt: datetime | None = to_local(row["timestamp"], tz)
-                    if local_dt is None:
+                    row_dt: datetime | None = to_local(row["timestamp"], tz)
+                    if row_dt is None:
                         continue
-                    by_day[local_dt.date()].append(local_dt)
+                    by_day[row_dt.date()].append(row_dt)
             ordinaria, doble, triple = jornada_semana(by_day)
             jornada_lookup[(person_key, iso_year, iso_week)] = (
                 fmt_hours(ordinaria),
