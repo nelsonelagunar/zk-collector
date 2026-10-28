@@ -307,7 +307,10 @@ class TestOldBufferSchema:
         """Stats must still work with new buffer.db that has annulled column."""
         # buffer_repo fixture creates table without annulled, so add it manually
         with buffer_repo.get_connection() as conn:
-            conn.execute("ALTER TABLE attendance_records ADD COLUMN annulled BOOLEAN NOT NULL DEFAULT 0")
+            conn.execute(
+                "ALTER TABLE attendance_records ADD COLUMN "
+                "annulled BOOLEAN NOT NULL DEFAULT 0"
+            )
         report = _stats(db, buffer_repo, employee_id=seeded["ana_id"])
         ana = report["rows"][0]
         assert ana["employee_name"] == "Ana Lopez"

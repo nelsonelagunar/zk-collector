@@ -15,7 +15,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 MIGRATIONS_SRC = REPO_ROOT / "migrations"
 
 SECRET = "test-secret-key"
-AUTH_HEADER = {"Authorization": f"Bearer {Auth(SECRET).generate_tokens(1, 'admin', 'admin')['access_token']}"}
+AUTH_HEADER = {
+    "Authorization": (
+        f"Bearer {Auth(SECRET).generate_tokens(1, 'admin', 'admin')['access_token']}"
+    )
+}
 
 
 def _build_app(tmp_path: Path) -> Flask:

@@ -21,7 +21,6 @@ from flask import Flask
 
 from src.buffer.models import AttendanceRecordDB
 from src.buffer.repository import BufferRepository
-from src.webgui.auth import Auth
 from src.utils.timezones import (
     DEFAULT_TIMEZONE,
     coerce_timezone,
@@ -29,6 +28,7 @@ from src.utils.timezones import (
     parse_timestamp,
     to_local_iso,
 )
+from src.webgui.auth import Auth
 from src.webgui.database import Database
 from src.webgui.routes.attendance import attendance_bp
 from src.zk_client.attendance import AttendanceRecord
