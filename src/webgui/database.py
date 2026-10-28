@@ -472,9 +472,11 @@ class Database:
         """Obtener relojes vinculados a una empresa"""
         return self.fetch_all(
             """
-            SELECT cd.*, d.name as device_name, d.location, d.address
+            SELECT cd.*, d.name as device_name, d.location, d.address, d.work_center_id,
+                   wc.nombre as work_center_nombre
             FROM company_devices cd
             LEFT JOIN devices d ON cd.device_serial = d.serial_number
+            LEFT JOIN work_centers wc ON d.work_center_id = wc.id
             WHERE cd.company_id = ?
             ORDER BY cd.device_serial
         """,
@@ -492,3 +494,35 @@ class Database:
         """,
             (device_serial,),
         )
+
+    # Metodos para work_centers (CT-1, MYK-427)
+    def get_work_center_by_id(self, work_center_id: int) -> dict | None:
+        """Obtener centro de trabajo por ID"""
+        return self.fetch_one("SELECT * FROM work_centers WHERE id = ?", (work_center_id,))
+
+    def get_work_centers(self) -> list[dict]:
+        """Obtener lista de centros de trabajo"""
+        return self.fetch_all("SELECT * FROM work_centers ORDER BY nombre")
+
+    def create_work_center(self, work_center_data: dict) -> int:
+        """Crear nuevo centro de trabajo"""
+        return self.insert("work_centers", work_center_data)
+
+    def update_work_center(self, work_center_id: int, work_center_data: dict) -> int:
+        """Actualizar centro de trabajo existente; refresca updated_at."""
+        work_center_data = dict(work_center_data)
+        work_center_data["updated_at"] = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        return self.update("work_centers", work_center_data, "id = ?", (work_center_id,))
+
+    def delete_work_center(self, work_center_id: int) -> int:
+        """Eliminar centro de trabajo (hard delete, solo si no hay dispositivos vinculados)"""
+        # Verificar que no hay dispositivos vinculados
+        devices = self.fetch_all(
+            "SELECT COUNT(*) as count FROM devices WHERE work_center_id = ?",
+            (work_center_id,),
+        )
+        if devices and devices[0]["count"] > 0:
+            raise ValueError(
+                "No se puede eliminar: hay dispositivos vinculados a este centro de trabajo"
+            )
+        return self.delete("work_centers", "id = ?", (work_center_id,))

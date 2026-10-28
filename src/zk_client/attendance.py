@@ -20,6 +20,7 @@ class AttendanceRecord:
         status: Estado del registro (0=entrada, 1=salida, etc.)
         device_ip: IP del dispositivo que registró
         punch_type: Tipo de marcado (derivado de status)
+        work_center: Centro de trabajo estampado al capturar (CT-1)
     """
 
     user_id: str
@@ -27,6 +28,7 @@ class AttendanceRecord:
     status: int
     device_ip: str
     punch_type: str = field(init=False)
+    work_center: str | None = None
 
     def __post_init__(self):
         """Derivar punch_type del status"""
@@ -56,7 +58,8 @@ class AttendanceRecord:
 
     @classmethod
     def from_zk_attendance(
-        cls, attendance: Any, device_ip: str, timezone: Any = None
+        cls, attendance: Any, device_ip: str, timezone: Any = None,
+        work_center: str | None = None,
     ) -> "AttendanceRecord":
         """
         Crear AttendanceRecord desde objeto pyzk
@@ -66,6 +69,7 @@ class AttendanceRecord:
             device_ip: IP del dispositivo
             timezone: Huso IANA del dispositivo (MYK-420); el firmware entrega
                 datetimes naive (hora de pared del reloj) y se localizan aqui.
+            work_center: Centro de trabajo asociado al dispositivo (CT-1).
 
         Returns:
             AttendanceRecord instance
@@ -78,6 +82,7 @@ class AttendanceRecord:
             timestamp=timestamp,
             status=attendance.status,
             device_ip=device_ip,
+            work_center=work_center,
         )
 
     def to_dict(self) -> dict:
@@ -88,6 +93,7 @@ class AttendanceRecord:
             "status": self.status,
             "device_ip": self.device_ip,
             "punch_type": self.punch_type,
+            "work_center": self.work_center,
         }
 
     def __str__(self) -> str:

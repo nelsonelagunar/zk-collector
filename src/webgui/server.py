@@ -103,9 +103,11 @@ def create_app(config=None):
     from .routes.settings_ui import settings_ui_bp
     from .routes.users import users_api_bp
     from .routes.users_ui import users_ui_bp
+    from .routes.work_centers import work_centers_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(devices_bp, url_prefix="/devices")
+    app.register_blueprint(work_centers_bp)
     app.register_blueprint(apidocs_bp, url_prefix="/api")
     app.register_blueprint(attendance_bp, url_prefix="/attendance")
     app.register_blueprint(api_buffer_bp, url_prefix="/api/buffer")

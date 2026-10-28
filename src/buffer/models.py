@@ -17,6 +17,7 @@ class AttendanceRecordDB:
     punch_type: str
     synced: bool = False
     sync_attempts: int = 0
+    work_center: str | None = None
 
     def to_dict(self) -> dict:
         """Convertir a diccionario"""
@@ -30,4 +31,5 @@ class AttendanceRecordDB:
             "punch_type": self.punch_type,
             "synced": self.synced,
             "sync_attempts": self.sync_attempts,
+            "work_center": self.work_center,
         }
