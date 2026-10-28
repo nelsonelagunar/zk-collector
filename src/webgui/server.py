@@ -57,7 +57,37 @@ def create_app(config=None):
 
     # BufferRepository para attendance_records (buffer.db, SQLite local)
     buffer_db_path = Path(os.environ.get("BUFFER_DB_PATH", "/opt/attendance/data/buffer.db"))
-    app.buffer_repo = BufferRepository(buffer_db_path)
+
+    # Config de retención (MYK-505): leer de collector.yaml si existe
+    import yaml
+
+    collector_config_path = os.environ.get(
+        "COLLECTOR_CONFIG_PATH", "/etc/attendance/collector.yaml"
+    )
+    retention_days = 30
+    config_source = "default"
+    config_path_display = None
+    if Path(collector_config_path).exists():
+        try:
+            with open(collector_config_path, encoding="utf-8") as f:
+                collector_config = yaml.safe_load(f)
+                has_buffer = collector_config and "buffer" in collector_config
+                has_cleanup = has_buffer and "cleanup_days" in collector_config["buffer"]
+                if has_cleanup:
+                    retention_days = int(collector_config["buffer"]["cleanup_days"])
+                    config_source = "archivo"
+                    config_path_display = collector_config_path
+        except Exception as exc:
+            logger.warning(
+                f"No se pudo leer retención de {collector_config_path}: {exc}"
+            )
+
+    app.buffer_repo = BufferRepository(
+        buffer_db_path,
+        retention_days=retention_days,
+        config_source=config_source,
+        config_path=config_path_display,
+    )
 
     # Motor de alertas HR-6 + Mailer (reutiliza SMTP de system_config)
     smtp_rows = app.db.fetch_all("SELECT key, value FROM system_config WHERE key LIKE 'smtp_%'")
@@ -74,6 +104,7 @@ def create_app(config=None):
         return {"now": datetime.now}
 
     from .routes.alerts import alerts_bp
+    from .routes.api_buffer import api_buffer_bp
     from .routes.api_devices import api_devices_bp
     from .routes.api_tokens import api_tokens_bp
     from .routes.apidocs import apidocs_bp
@@ -98,6 +129,7 @@ def create_app(config=None):
     app.register_blueprint(employees_bp, url_prefix="/api/employees")
     app.register_blueprint(api_devices_bp, url_prefix="/api/devices")
     app.register_blueprint(api_tokens_bp, url_prefix="/auth/api/tokens")
+    app.register_blueprint(api_buffer_bp, url_prefix="/api/buffer")
     app.register_blueprint(employees_ui_bp, url_prefix="/colaboradores")
     app.register_blueprint(medical_leaves_bp, url_prefix="/api/medical-leaves")
     app.register_blueprint(users_ui_bp, url_prefix="/users")

@@ -830,7 +830,51 @@ paths:
                 type: object
                 properties:
                   error: { type: string }
-components:
+  /api/buffer/retention:
+    get:
+      tags: [attendance]
+      summary: Retención efectiva del collector para QA (MYK-505)
+      description: >-
+        Devuelve la retención efectiva (retention_days) del runtime,
+        fuente de configuración (default|archivo+path), total de registros
+        y últimas entradas del log de retención. Requiere token Bearer
+        (PAT o JWT de sesión) con scope read.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Retención efectiva del collector
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  retention_days:
+                    type: integer
+                    description: Días de retención efectiva del runtime
+                  config_source:
+                    type: string
+                    enum: [default, archivo]
+                    description: Fuente de la configuración de retención
+                  config_path:
+                    type: string
+                    nullable: true
+                    description: Ruta del archivo de configuración si fuente es archivo
+                  total_records:
+                    type: integer
+                  pending_sync:
+                    type: integer
+                  retention_audit:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        timestamp: { type: string, format: date-time }
+                        records_synced: { type: integer }
+                        records_failed: { type: integer }
+                        status: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   securitySchemes:
     sessionCookie:
       type: apiKey

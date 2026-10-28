@@ -22,14 +22,24 @@ class BufferRepository:
     Características:
     - Almacenamiento offline (hasta 10,000 registros)
     - Cola de sincronización pendiente
-    - Limpieza automática (30 días)
+    - Limpieza automática (configurable, default 30 días)
     - Transacciones atómicas
     - Conexión thread-safe
     """
 
-    def __init__(self, db_path: Path, max_records: int = 10000):
+    def __init__(
+        self,
+        db_path: Path,
+        max_records: int = 10000,
+        retention_days: int = 30,
+        config_source: str = "default",
+        config_path: str | None = None,
+    ):
         self.db_path = Path(db_path)
         self.max_records = max_records
+        self.retention_days = retention_days
+        self.config_source = config_source
+        self.config_path = config_path
         self._init_database()
 
     @contextmanager
@@ -263,18 +273,20 @@ class BufferRepository:
                 [max_attempts] + record_ids,
             )
 
-    def _cleanup_old_records(self, conn, days: int = 30):
+    def _cleanup_old_records(self, conn, days: int | None = None):
         """
         Limpiar registros antiguos
 
         Args:
             conn: Conexión SQLite
-            days: Días a mantener
+            days: Días a mantener (default: self.retention_days)
         """
         cursor = conn.cursor()
 
+        cleanup_days = days if days is not None else self.retention_days
+
         # Eliminar registros sincronizados mayores a N días
-        cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
+        cutoff_date = (datetime.now() - timedelta(days=cleanup_days)).isoformat()
 
         cursor.execute(
             """
@@ -344,7 +356,34 @@ class BufferRepository:
                 "newest_record": newest,
                 "max_records": self.max_records,
                 "usage_percent": (total / self.max_records * 100) if self.max_records > 0 else 0,
+                "retention_days": self.retention_days,
+                "config_source": self.config_source,
+                "config_path": self.config_path,
             }
+
+    def get_retention_audit(self, limit: int = 10) -> list[dict]:
+        """
+        Obtener entradas del log de retención (sync_log)
+
+        Args:
+            limit: Máximo de entradas a retornar
+
+        Returns:
+            Lista de entradas de auditoría de retención
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute(
+                """
+                SELECT * FROM sync_log
+                ORDER BY timestamp DESC
+                LIMIT ?
+            """,
+                (limit,),
+            )
+
+            return [dict(row) for row in cursor.fetchall()]
 
     def log_sync(
         self,

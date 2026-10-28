@@ -22,6 +22,7 @@ Generado: 2026-10-28 | Ref: feature/myk-407-api-tokens-endpoints (9ac8f18)
 | attendance | `/api/attendance` | GET | Bearer (PAT/JWT) | read | Registros de asistencia paginados/filtrados |
 | attendance | `/api/attendance/stats` | GET | Bearer (PAT/JWT) | read | KPIs asistencia (MYK-241) |
 | attendance | `/api/attendance/stats/export` | GET | Bearer (PAT/JWT) | read | Export CSV/XLSX KPIs (MYK-241) |
+| buffer | `/api/buffer/retention` | GET | Bearer (PAT/JWT) | read | Retención efectiva para QA (MYK-505) |
 | medical-leaves | `/api/medical-leaves` | GET | Bearer (PAT/JWT) | — | Lista incapacidades |
 | medical-leaves | `/api/medical-leaves` | POST | Bearer (PAT/JWT) | — | Crea incapacidad |
 | medical-leaves | `/api/medical-leaves/{id}` | GET | Bearer (PAT/JWT) | — | Obtiene incapacidad |
@@ -107,4 +108,4 @@ Spec actualizada en `docs/openapi.yaml` con:
 1. Merge PR #?? (feature/myk-407-api-tokens-endpoints → master)
 2. MYK-411: `/api/companies/*` endpoints (razon social CRUD + vinculación dispositivos)
 3. Documentar en `docs/api.md` la sección "Bearer Token Authentication"
-4. Añadir endpoint `/api/buffer/retention` read-only (MYK-505, zk-collector)
+4. ✅ `/api/buffer/retention` read-only (MYK-505, zk-collector) — DONE

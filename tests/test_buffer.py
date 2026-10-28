@@ -23,6 +23,9 @@ class TestBufferRepository:
         """Test de inicialización"""
         assert temp_db.db_path == tmp_path / "test_buffer.db"
         assert temp_db.max_records == 100
+        assert temp_db.retention_days == 30
+        assert temp_db.config_source == "default"
+        assert temp_db.config_path is None
         assert temp_db.db_path.exists()
 
     def test_add_records(self, temp_db):
@@ -131,6 +134,10 @@ class TestBufferRepository:
         assert stats["total_records"] == 1
         assert stats["pending_sync"] == 1
         assert stats["synced"] == 0
+        # MYK-505: nuevos campos
+        assert stats["retention_days"] == 30
+        assert stats["config_source"] == "default"
+        assert stats["config_path"] is None
 
     def test_cleanup_old_records(self, temp_db):
         """Test de limpieza de registros antiguos"""
@@ -163,3 +170,28 @@ class TestBufferRepository:
         assert len(history) == 1
         assert history[0]["records_synced"] == 10
         assert history[0]["status"] == "success"
+
+    def test_get_retention_audit(self, temp_db):
+        """Test de auditoría de retención (MYK-505)"""
+        temp_db.log_sync(
+            records_synced=5, records_failed=0, status="success", duration_seconds=1.0
+        )
+        temp_db.log_sync(
+            records_synced=3, records_failed=1, status="failed", duration_seconds=2.0
+        )
+
+        audit = temp_db.get_retention_audit(limit=5)
+
+        assert len(audit) == 2
+        synced_values = [a["records_synced"] for a in audit]
+        assert set(synced_values) == {3, 5}
+
+    def test_custom_retention_days(self, tmp_path):
+        """Test con retención personalizada"""
+        db_path = tmp_path / "test_custom.db"
+        repo = BufferRepository(db_path, max_records=100, retention_days=730, config_source="archivo", config_path="/etc/attendance/collector.yaml")
+        
+        stats = repo.get_stats()
+        assert stats["retention_days"] == 730
+        assert stats["config_source"] == "archivo"
+        assert stats["config_path"] == "/etc/attendance/collector.yaml"
