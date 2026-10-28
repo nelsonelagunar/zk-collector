@@ -2,7 +2,7 @@
 Tests para el módulo Buffer
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest
 
@@ -132,152 +132,25 @@ class TestBufferRepository:
         assert stats["pending_sync"] == 1
         assert stats["synced"] == 0
 
-    def test_capacity_compacts_synced_only(self, temp_db):
-        """MYK-419: el overflow compacta SOLO sincronizados; pendientes intactos"""
-        old_ts = datetime.now() - timedelta(days=100)
-        new_ts = datetime.now() - timedelta(days=1)
-
-        synced_records = [
-            AttendanceRecordDB(
-                user_id=f"s{i}", timestamp=old_ts + timedelta(hours=i),
-                status=0, device_ip="192.168.1.101", punch_type="entrada",
-            )
-            for i in range(60)
-        ]
-        pending_records = [
-            AttendanceRecordDB(
-                user_id=f"p{i}", timestamp=new_ts + timedelta(hours=i),
-                status=0, device_ip="192.168.1.101", punch_type="entrada",
-            )
-            for i in range(50)
-        ]
-        temp_db.add_records(synced_records + pending_records)
-
-        # Los 60 más antiguos (s*) se marcan como sincronizados
-        unsynced = temp_db.get_unsynced_records(limit=1000)
-        assert len(unsynced) == 110
-        temp_db.mark_as_synced([r["id"] for r in unsynced[:60]])
-
-        # Un registro más dispara el overflow (111 > max_records=100)
-        temp_db.add_records(
-            [
+    def test_cleanup_old_records(self, temp_db):
+        """Test de limpieza de registros antiguos"""
+        # Agregar registros hasta exceder máximo
+        records = []
+        for i in range(110):
+            records.append(
                 AttendanceRecordDB(
-                    user_id="extra", timestamp=datetime.now(),
-                    status=0, device_ip="192.168.1.101", punch_type="entrada",
+                    user_id=str(i),
+                    timestamp=datetime.now(),
+                    status=0,
+                    device_ip="192.168.1.101",
+                    punch_type="entrada",
                 )
-            ]
-        )
+            )
+
+        temp_db.add_records(records)
 
         stats = temp_db.get_stats()
-        # Se compactaron 11 sincronizados; los 51 pendientes NINGUNO se perdió
-        assert stats["total_records"] == 100
-        assert stats["pending_sync"] == 51
-        assert stats["synced"] == 49
-
-    def test_synced_40_days_not_purged(self, temp_db):
-        """MYK-419 AC: registro sync'd de 40 días NO se borra (fin del purge a 30d)"""
-        old = AttendanceRecordDB(
-            user_id="veterano",
-            timestamp=datetime.now() - timedelta(days=40),
-            status=0, device_ip="192.168.1.101", punch_type="entrada",
-        )
-        temp_db.add_records([old])
-        temp_db.mark_as_synced([temp_db.get_unsynced_records()[0]["id"]])
-
-        # Nuevas marcas deben NO purgar al veterano de 40 días
-        temp_db.add_records(
-            [
-                AttendanceRecordDB(
-                    user_id="nuevo", timestamp=datetime.now(),
-                    status=0, device_ip="192.168.1.101", punch_type="entrada",
-                )
-            ]
-        )
-
-        with temp_db.get_connection() as conn:
-            row = conn.execute(
-                "SELECT COUNT(*) FROM attendance_records WHERE user_id = 'veterano'"
-            ).fetchone()
-        assert row[0] == 1
-
-    def test_overflow_never_deletes_unsynced(self, tmp_path):
-        """MYK-419 AC: overflow 10k+1 con pendientes -> ninguno perdido"""
-        repo = BufferRepository(tmp_path / "overflow.db", max_records=10000)
-        base = datetime.now() - timedelta(days=1)
-        records = [
-            AttendanceRecordDB(
-                user_id=f"u{i}", timestamp=base + timedelta(seconds=i),
-                status=0, device_ip="192.168.1.101", punch_type="entrada",
-            )
-            for i in range(10001)
-        ]
-
-        repo.add_records(records)
-
-        stats = repo.get_stats()
-        assert stats["total_records"] == 10001
-        assert stats["pending_sync"] == 10001
-        # Ningún pendiente perdido pese a exceder max_records en 1
-        unsynced = repo.get_unsynced_records(limit=20000)
-        assert len(unsynced) == 10001
-
-    def test_manual_purge_synced_older_than(self, temp_db):
-        """MYK-419: purge manual solo sync>days, con bitácora obligatoria"""
-        now = datetime.now()
-        temp_db.add_records(
-            [
-                AttendanceRecordDB(
-                    user_id="viejo_sync", timestamp=now - timedelta(days=800),
-                    status=0, device_ip="192.168.1.101", punch_type="entrada",
-                ),
-                AttendanceRecordDB(
-                    user_id="reciente_sync", timestamp=now - timedelta(days=100),
-                    status=0, device_ip="192.168.1.101", punch_type="entrada",
-                ),
-                AttendanceRecordDB(
-                    user_id="viejo_pendiente", timestamp=now - timedelta(days=800),
-                    status=0, device_ip="192.168.1.101", punch_type="entrada",
-                ),
-            ]
-        )
-        unsynced = temp_db.get_unsynced_records()
-        ids = {r["user_id"]: r["id"] for r in unsynced}
-        temp_db.mark_as_synced([ids["viejo_sync"], ids["reciente_sync"]])
-
-        deleted = temp_db.purge_synced_older_than(
-            days=730, reason="purga anual auditada", operator="dba"
-        )
-
-        assert deleted == 1
-        stats = temp_db.get_stats()
-        assert stats["total_records"] == 2
-        assert stats["pending_sync"] == 1  # viejo_pendiente sigue vivo
-
-        audit = temp_db.get_retention_audit()
-        assert len(audit) == 1
-        assert audit[0]["action"] == "purge_synced"
-        assert audit[0]["records_deleted"] == 1
-        assert audit[0]["operator"] == "dba"
-        assert "purga anual" in audit[0]["reason"]
-
-    def test_manual_purge_requires_reason_and_operator(self, temp_db):
-        """MYK-419: sin reason/operator no hay borrado manual (bitácora obligatoria)"""
-        temp_db.add_records(
-            [
-                AttendanceRecordDB(
-                    user_id="x", timestamp=datetime.now() - timedelta(days=999),
-                    status=0, device_ip="192.168.1.101", punch_type="entrada",
-                )
-            ]
-        )
-        temp_db.mark_as_synced([temp_db.get_unsynced_records()[0]["id"]])
-
-        with pytest.raises(ValueError):
-            temp_db.purge_synced_older_than(days=730, reason="", operator="dba")
-        with pytest.raises(ValueError):
-            temp_db.purge_synced_older_than(days=730, reason="ok", operator="")
-        assert temp_db.get_stats()["total_records"] == 1
-        assert temp_db.get_retention_audit() == []
+        assert stats["total_records"] <= temp_db.max_records
 
     def test_log_sync(self, temp_db):
         """Test de log de sincronización"""

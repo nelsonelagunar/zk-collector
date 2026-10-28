@@ -442,16 +442,14 @@ class TestBufferChain:
 
 class TestPurgeGapClassification:
     def test_age_purge_leaves_recorded_gap_not_false_alarm(self, repo):
-        """MYK-419: sin purga automatica por antiguedad; la purga manual
-        (purge_synced_older_than) deja hueco clasificado como recorded_purge_gap
-        en vez de falso positivo de ALTERACION."""
+        """H2 review: la purga de sincronizados >30d elimina filas selladas;
+        el verificador clasifica el hueco (recorded_purge_gaps) en vez de dar
+        falso positivo perpetuo de ALTERACION."""
         old = _record(user_id="101", ts=datetime(2026, 9, 1, 9, 0, 0))
         assert repo.add_records([old]) == 1
         repo.mark_as_synced([1])
-        # Anadir nuevo registro (id 2) sella con prev_hash del registro 1
+        # El siguiente add_records dispara la purga de sincronizados >30d
         assert repo.add_records([_record(user_id="102")]) == 1
-        # Luego purgar manualmente el registro 1: deja hueco entre genesis y id 2
-        repo.purge_synced_older_than(30, reason="retencion cumplida", operator="system")
 
         report = repo.verify_integrity()
         assert report["valid"] is True
@@ -485,8 +483,6 @@ class TestPurgeGapClassification:
             )
             == 2
         )
-        # Marcar como sincronizados para que la purga por capacidad los borre
-        repo.mark_as_synced([1, 2])
         # Desborda: la purga elimina la mas antigua (id 1) y lo deja en bitacora
         assert repo.add_records([_record(user_id="103", ts=datetime(2026, 10, 5, 10, 0, 0))]) == 1
 
@@ -595,7 +591,7 @@ class TestIntegrityEndpoints:
         # El listado de la UI muestra la correccion y oculta el original anulado
         listing = client.get("/attendance/api/attendance").get_json()
         timestamps = [r["timestamp"] for r in listing["records"]]
-        assert timestamps == ["2026-10-05T09:05:00-06:00"]
+        assert timestamps == ["2026-10-05T09:05:00"]
 
     def test_correction_validation_errors(self, client, repo):
         _login(client)

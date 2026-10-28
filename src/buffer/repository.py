@@ -6,13 +6,19 @@ Manejo de registros de asistencia en disco
 import json
 import logging
 import sqlite3
+from bisect import bisect_left
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from ..utils.timezones import coerce_timezone, ensure_aware
-from .integrity import ATTESTED_FIELDS, GENESIS_HASH, compute_hash, verify_chain
+from .integrity import (
+    ATTESTED_FIELDS,
+    GENESIS_HASH,
+    MAX_FAILURES_REPORTED,
+    compute_hash,
+    verify_chain,
+)
 from .models import AttendanceRecordDB
 
 logger = logging.getLogger(__name__)
@@ -27,7 +33,7 @@ CREATE TABLE IF NOT EXISTS attendance_audit_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     record_id INTEGER,
     action TEXT NOT NULL
-        CHECK (action IN ('update', 'delete', 'annul', 'correction', 'chain_backfill', 'purge')),
+        CHECK (action IN ('update', 'delete', 'annul', 'correction', 'chain_backfill')),
     actor TEXT NOT NULL,
     reason TEXT,
     before_values TEXT,
@@ -94,10 +100,7 @@ class BufferRepository:
     Características:
     - Almacenamiento offline (hasta 10,000 registros)
     - Cola de sincronización pendiente
-    - Retención legal LFT 804-III: SIN borrado automático por antigüedad;
-      el borrado es manual (purge_synced_older_than) con entrada en bitácora
-      (tabla retention_audit). El overflow solo compacta registros ya
-      sincronizados: los pendientes NUNCA se borran.
+    - Limpieza automática (30 días)
     - Transacciones atómicas
     - Conexión thread-safe
     """
@@ -105,9 +108,7 @@ class BufferRepository:
     def __init__(self, db_path: Path, max_records: int = 10000, default_timezone=None):
         self.db_path = Path(db_path)
         self.max_records = max_records
-        # Huso usado para localizar timestamps naive del firmware antes de
-        # persistir (MYK-420): todo registro queda ISO-8601 con offset.
-        self.default_tz = coerce_timezone(default_timezone)
+        self.default_tz = default_timezone
         self._init_database()
 
     @contextmanager
@@ -191,20 +192,6 @@ class BufferRepository:
                 )
             """)
 
-            # Bitácora de retención (MYK-419, LFT 804-III): todo borrado de
-            # registros de asistencia es manual y debe quedar registrado aquí.
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS retention_audit (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    action TEXT NOT NULL,
-                    records_deleted INTEGER NOT NULL,
-                    cutoff_date TEXT,
-                    reason TEXT,
-                    operator TEXT
-                )
-            """)
-
             # Bitacora append-only + triggers de auditoria (MYK-422): en el
             # baseline para DBs nuevas; migrations/buffer/010 la anade a las
             # pre-existentes. Idempotente en ambos casos.
@@ -220,7 +207,7 @@ class BufferRepository:
             # mismo log del dispositivo cada vez) y garantizar idempotencia con
             # un índice único. Clave natural: (user_id, timestamp, device_ip).
             # Solo entre activos: no debe borrar la fila corregida que comparte
-            # clave con su original anulado (MIN(id) sera el anulado).
+            # clave con su original anulado (MIN(id) seria el anulado).
             cursor.execute("""
                 DELETE FROM attendance_records
                 WHERE annulled = 0 AND id NOT IN (
@@ -376,9 +363,11 @@ class BufferRepository:
                     if hasattr(r.timestamp, "isoformat")
                     else str(r.timestamp)
                 )
-                user_id = str(r.user_id)
                 values = {
-                    "user_id": user_id,
+                    # Coercion defensiva (MYK-442 review): el modelo declara str,
+                    # pero un caller con int sellaria mal la fila (TEXT la
+                    # convierte al insertar y el hash quedaria sobre el int).
+                    "user_id": str(r.user_id),
                     "timestamp": ts,
                     "status": r.status,
                     "device_ip": r.device_ip,
@@ -413,69 +402,14 @@ class BufferRepository:
                     inserted += 1
                     prev_hash = record_hash
 
-            # Compacción de capacidad: SOLO registros ya sincronizados.
-            # LFT 804-III: nunca se borra por antigüedad ni pendientes.
-            self._enforce_capacity(conn)
+            # Limpiar registros antiguos si excedemos el máximo
+            self._cleanup_old_records(conn)
 
             logger.info(
                 f"Agregados {inserted} registros al buffer "
                 f"({len(records) - inserted} duplicados ignorados)"
             )
             return inserted
-
-    def _cleanup_old_records(self, conn, days: int = 30):
-        """
-        Borrado por antigüedad de registros sincronizados (MYK-422).
-
-        Elimina registros synced=1 con timestamp anterior a `days` días y deja
-        entrada en attendance_audit_log con actor='purge' para que el
-        verificador clasifique el hueco como recorded_purge_gap en vez de
-        falso positivo de ALTERACION.
-        """
-        cursor = conn.cursor()
-        cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
-
-        rows = cursor.execute(
-            """
-            SELECT id FROM attendance_records
-            WHERE synced = 1 AND timestamp < ?
-            ORDER BY id ASC
-            """,
-            (cutoff_date,),
-        ).fetchall()
-
-        for row in rows:
-            cursor.execute(
-                """
-                INSERT INTO attendance_audit_log
-                    (record_id, action, actor, reason)
-                VALUES (?, 'purge', 'purge', ?)
-                """,
-                (row["id"], f"purge por antigüedad >{days}d (registro id={row['id']})"),
-            )
-
-        cursor.execute(
-            """
-            DELETE FROM attendance_records
-            WHERE synced = 1 AND timestamp < ?
-            """,
-            (cutoff_date,),
-        )
-
-    def _serialize_timestamp(self, timestamp: Any) -> str:
-        """
-        Serializa a ISO-8601 con offset (MYK-420).
-
-        - datetime aware: conserva el offset del dispositivo.
-        - datetime naive (firmware): se localiza con default_timezone.
-        - cualquier otro valor: str() tal cual (legacy).
-        """
-        if isinstance(timestamp, datetime):
-            aware = ensure_aware(timestamp, self.default_tz)
-            return aware.isoformat()
-        if hasattr(timestamp, "isoformat"):
-            return str(timestamp.isoformat())
-        return str(timestamp)
 
     def get_unsynced_records(self, limit: int = 1000) -> list[dict]:
         """
@@ -575,157 +509,90 @@ class BufferRepository:
                 [max_attempts] + record_ids,
             )
 
-    def _enforce_capacity(self, conn):
+    def _record_purge(self, cursor, ids: list[int], reason: str) -> None:
         """
-        Compacción del buffer al exceder max_records.
+        Bitacora actor='purge' por cada id ANTES de eliminarlo (MYK-442 review).
 
-        LFT 804-III: el overflow SOLO compacta registros ya sincronizados
-        (respaldados en la plataforma). Los registros pendientes (synced=0)
-        NUNCA se borran: si siguen sobrando tras compactar, se conserva todo
-        y se alerta por log para restaurar el sync.
+        Distingue la limpieza automatica de un DELETE fuera de la purga: el
+        verificador clasifica como hueco de purga registrado solo los ids con
+        entrada actor='purge'; un DELETE directo deja solo la entrada del
+        trigger (actor='trigger') y sigue reportandose como posible alteracion.
+        """
+        for rid in ids:
+            cursor.execute(
+                """
+                INSERT INTO attendance_audit_log (record_id, action, actor, reason)
+                VALUES (?, 'delete', 'purge', ?)
+                """,
+                (rid, reason),
+            )
+
+    def _purge_ids(self, cursor, ids: list[int], reason: str) -> int:
+        """Bitacora + DELETE de un conjunto concreto de ids. Devuelve los borrados."""
+        if not ids:
+            return 0
+        self._record_purge(cursor, ids, reason)
+        placeholders = ",".join("?" * len(ids))
+        cursor.execute(
+            f"DELETE FROM attendance_records WHERE id IN ({placeholders})",
+            ids,
+        )
+        return cursor.rowcount or 0
+
+    def _cleanup_old_records(self, conn, days: int = 30):
+        """
+        Limpiar registros antiguos.
+
+        MYK-442 review: la purga elimina filas selladas y deja huecos en la
+        cadena. Cada id eliminado queda registrado en la bitacora con
+        actor='purge' para que el verificador distinga huecos de purga de
+        alteraciones reales (ver verify_integrity / docs de integridad).
+
+        Args:
+            conn: Conexión SQLite
+            days: Días a mantener
         """
         cursor = conn.cursor()
 
-        cursor.execute("SELECT COUNT(*) FROM attendance_records")
-        count = cursor.fetchone()[0]
-
-        if count <= self.max_records:
-            return
-
-        excess = count - self.max_records
-        # First get IDs to purge
-        rows = cursor.execute(
-            """
-            SELECT id FROM attendance_records
-            WHERE synced = 1
-            ORDER BY timestamp ASC
-            LIMIT ?
-            """,
-            (excess,),
-        ).fetchall()
-
-        for row in rows:
-            cursor.execute(
-                """
-                INSERT INTO attendance_audit_log
-                    (record_id, action, actor, reason)
-                VALUES (?, 'purge', 'purge', ?)
-                """,
-                (row["id"], f"purge por capacidad >max_records (registro id={row['id']})"),
-            )
-
-        cursor.execute(
-            """
-            DELETE FROM attendance_records
-            WHERE id IN (
-                SELECT id FROM attendance_records
-                WHERE synced = 1
-                ORDER BY timestamp ASC
-                LIMIT ?
-            )
-        """,
-            (excess,),
-        )
-        compacted = cursor.rowcount if cursor.rowcount is not None else 0
-
-        if compacted > 0:
-            logger.info(f"Capacidad excedida: {compacted} registros sincronizados compactados")
-
-        cursor.execute("SELECT COUNT(*) FROM attendance_records WHERE synced = 0 AND annulled = 0")
-        pending = cursor.fetchone()[0]
-        if pending > self.max_records:
-            logger.critical(
-                f"Buffer sobre capacidad con {pending} registros PENDIENTES de sync "
-                f"(max_records={self.max_records}). Nada se borra (LFT 804-III): "
-                f"restaurar el sync para drenar el buffer."
-            )
-
-    def purge_synced_older_than(self, days: int, reason: str, operator: str) -> int:
-        """
-        Borrado MANUAL de registros sincronizados más antiguos que `days` días.
-
-        LFT 804-III (MYK-419): única vía de borrado por antigüedad. Nunca
-        borra pendientes de sync. Requiere `reason` y `operator` no vacíos y
-        deja entrada obligatoria en la bitácora (retention_audit).
-
-        Returns:
-            Número de registros eliminados
-        """
-        if not reason or not reason.strip():
-            raise ValueError("reason obligatorio: borrado manual requiere bitácora")
-        if not operator or not operator.strip():
-            raise ValueError("operator obligatorio: borrado manual requiere bitácora")
-        if days < 0:
-            raise ValueError("days no puede ser negativo")
-
+        # Eliminar registros sincronizados mayores a N días
         cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
 
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-
-            # Recopilar IDs que se purgaran para dejar entrada en audit log
-            # (clasificacion de huecos en verify_integrity, MYK-422).
-            purge_rows = cursor.execute(
+        stale_ids = [
+            row[0]
+            for row in cursor.execute(
                 """
                 SELECT id FROM attendance_records
                 WHERE synced = 1 AND timestamp < ?
                 ORDER BY id ASC
-                """,
+            """,
                 (cutoff_date,),
             ).fetchall()
+        ]
+        deleted = self._purge_ids(cursor, stale_ids, "purga automatica: sincronizados >30 dias")
 
-            for row in purge_rows:
-                cursor.execute(
+        # Si aún excedemos el máximo, eliminar los más antiguos
+        cursor.execute("SELECT COUNT(*) FROM attendance_records")
+        count = cursor.fetchone()[0]
+
+        if count > self.max_records:
+            excess = count - self.max_records
+            overflow_ids = [
+                row[0]
+                for row in cursor.execute(
                     """
-                    INSERT INTO attendance_audit_log
-                        (record_id, action, actor, reason)
-                    VALUES (?, 'purge', 'purge', ?)
-                    """,
-                    (row["id"], f"purge_synced_older_than: {days}d (registro id={row['id']})"),
-                )
-
-            cursor.execute(
-                """
-                DELETE FROM attendance_records
-                WHERE synced = 1 AND timestamp < ?
-            """,
-                (cutoff_date,),
-            )
-            deleted = cursor.rowcount if cursor.rowcount is not None else 0
-
-            cursor.execute(
-                """
-                INSERT INTO retention_audit
-                (action, records_deleted, cutoff_date, reason, operator)
-                VALUES ('purge_synced', ?, ?, ?, ?)
-            """,
-                (deleted, cutoff_date, reason.strip(), operator.strip()),
+                    SELECT id FROM attendance_records
+                    ORDER BY timestamp ASC
+                    LIMIT ?
+                """,
+                    (excess,),
+                ).fetchall()
+            ]
+            deleted += self._purge_ids(
+                cursor, overflow_ids, "purga automatica: desborde de capacidad del buffer"
             )
 
-            if deleted > 0:
-                logger.warning(
-                    f"Borrado manual: {deleted} registros sincronizados < {cutoff_date} "
-                    f"por {operator}: {reason}"
-                )
-            return deleted
-
-    def get_retention_audit(self, limit: int = 50) -> list[dict]:
-        """
-        Obtener bitácora de retención (borrados manuales).
-        """
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-
-            cursor.execute(
-                """
-                SELECT * FROM retention_audit
-                ORDER BY timestamp DESC, id DESC
-                LIMIT ?
-            """,
-                (limit,),
-            )
-
-            return [dict(row) for row in cursor.fetchall()]
+        if deleted > 0:
+            logger.info(f"Limpieza completada: {deleted} registros eliminados")
 
     def get_stats(self) -> dict[str, Any]:
         """
@@ -809,6 +676,29 @@ class BufferRepository:
 
             return [dict(row) for row in cursor.fetchall()]
 
+    @staticmethod
+    def _failure_is_recorded_purge_gap(
+        failure: dict[str, Any], ids: list[int], purged_ids: set[int]
+    ) -> bool:
+        """
+        True si el hueco de cadena que explica el fallo esta cubierto por
+        entradas de bitacora actor='purge' (MYK-442 review).
+
+        El hueco de la fila que falla son los ids entre la fila anterior
+        superviviente y ella misma; si TODOS tienen entrada de purga, el fallo
+        es consecuencia de una limpieza registrada, no de una alteracion. Un
+        DELETE directo deja solo la entrada del trigger y NO clasifica.
+        """
+        fid = failure.get("id")
+        if fid is None or not purged_ids:
+            return False
+        idx = bisect_left(ids, fid)
+        gap_from = ids[idx - 1] + 1 if idx > 0 else 1
+        gap = range(gap_from, fid)
+        if not gap:
+            return False
+        return all(gid in purged_ids for gid in gap)
+
     def verify_integrity(self) -> dict[str, Any]:
         """
         Verifica la cadena de hashes de attendance_records y resume la bitacora.
@@ -817,9 +707,13 @@ class BufferRepository:
         first_failure, audit_entries, recent_audit, annulled_records,
         purged_records, recorded_purge_gaps.
         Un UPDATE directo de un campo atestiguado produce hash_mismatch; un
-        DELETE produce prev_hash_mismatch en la fila siguiente; un hueco por
-        purga registrada (actor='purge') se clasifica como recorded_purge_gap
-        en vez de falso positivo de ALTERACION.
+        DELETE produce prev_hash_mismatch en la fila siguiente.
+
+        Los huecos causados por la purga automatica (que elimina filas
+        selladas) se clasifican aparte (recorded_purge_gaps) cruzando la
+        bitacora actor='purge': no invalidan `valid` pero si se reportan.
+        Un DELETE fuera de la purga no tiene entrada actor='purge' y sigue
+        contando como fallo (posible ALTERACION).
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -836,57 +730,42 @@ class BufferRepository:
             ]
             report = verify_chain(rows)
 
-            # Clasificar huecos por purga registrada (actor='purge') en la
-            # bitacora: un prev_hash_mismatch cuyo gap corresponde a registros
-            # purgados no es ALTERACION, es recorded_purge_gap.
-            purge_entries = [
-                dict(row)
+            purged_ids = {
+                row["record_id"]
                 for row in cursor.execute(
                     """
                     SELECT record_id FROM attendance_audit_log
-                    WHERE action = 'purge' ORDER BY record_id
+                    WHERE action = 'delete' AND actor = 'purge' AND record_id IS NOT NULL
                     """
                 ).fetchall()
-            ]
-            purged_ids = {e["record_id"] for e in purge_entries if e["record_id"] is not None}
+            }
+
+            ids = [row["id"] for row in rows]
+            unexplained: list[dict[str, Any]] = []
+            gap_rows: dict[int, dict[str, Any]] = {}
+            for failure in report["failures"]:
+                if failure["reason"] in ("prev_hash_mismatch", "hash_mismatch") and (
+                    self._failure_is_recorded_purge_gap(failure, ids, purged_ids)
+                ):
+                    fid = failure["id"]
+                    if fid not in gap_rows:
+                        idx = bisect_left(ids, fid)
+                        gap_rows[fid] = {
+                            "id": fid,
+                            "reason": "recorded_purge_gap",
+                            "detail": "hueco por purga registrada en bitacora (actor='purge')",
+                            "gap_from": ids[idx - 1] + 1 if idx > 0 else 1,
+                            "gap_to": fid - 1,
+                        }
+                else:
+                    unexplained.append(failure)
+
+            report["failures"] = unexplained[:MAX_FAILURES_REPORTED]
+            report["failure_count"] = len(unexplained)
+            report["first_failure"] = unexplained[0] if unexplained else None
+            report["valid"] = not unexplained
             report["purged_records"] = len(purged_ids)
-
-            purge_gaps: list[dict[str, Any]] = []
-            remaining_failures: list[dict[str, Any]] = []
-            purge_gap_ids: set[int] = set()
-            for failure in report.get("failures", []):
-                if failure.get("reason") == "prev_hash_mismatch":
-                    fid = failure.get("id")
-                    # El gap está entre el registro previo existente y este;
-                    # si el registro inmediatamente anterior (fid-1) fue
-                    # purgado (entrada en bitacora con action='purge'),
-                    # se clasifica como recorded_purge_gap en vez de
-                    # falso positivo de ALTERACION.
-                    if (fid - 1) in purged_ids:
-                        gap_end = fid - 1
-                        gap_start = gap_end
-                        while (gap_start - 1) in purged_ids:
-                            gap_start -= 1
-                        purge_gaps.append(
-                            {
-                                "id": fid,
-                                "reason": "recorded_purge_gap",
-                                "detail": "hueco por purga registrada en bitacora (actor='purge')",
-                                "gap_from": gap_start,
-                                "gap_to": gap_end,
-                            }
-                        )
-                        purge_gap_ids.add(fid)
-                        continue
-                if failure.get("reason") == "hash_mismatch" and failure.get("id") in purge_gap_ids:
-                    continue
-                remaining_failures.append(failure)
-
-            report["failures"] = remaining_failures
-            report["failure_count"] = len(remaining_failures)
-            report["recorded_purge_gaps"] = purge_gaps
-            report["valid"] = len(remaining_failures) == 0
-            report["first_failure"] = remaining_failures[0] if remaining_failures else None
+            report["recorded_purge_gaps"] = list(gap_rows.values())[:MAX_FAILURES_REPORTED]
 
             report["audit_entries"] = cursor.execute(
                 "SELECT COUNT(*) FROM attendance_audit_log"
@@ -1035,23 +914,9 @@ class BufferRepository:
             }
 
     def clear_all(self):
-        """Limpiar todos los registros (usar con precaución).
-
-        Borrado manual destructivo: queda registrado en la bitácora
-        (retention_audit) por LFT 804-III (MYK-419).
-        """
+        """Limpiar todos los registros (usar con precaución)"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM attendance_records")
-            total = cursor.fetchone()[0]
             cursor.execute("DELETE FROM attendance_records")
             cursor.execute("DELETE FROM sync_log")
-            cursor.execute(
-                """
-                INSERT INTO retention_audit
-                (action, records_deleted, reason, operator)
-                VALUES ('clear_all', ?, ?, ?)
-            """,
-                (total, "clear_all(): borrado manual completo del buffer", "unknown"),
-            )
             logger.warning("Todos los registros del buffer han sido eliminados")

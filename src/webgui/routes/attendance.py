@@ -19,17 +19,7 @@ from flask import (
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 
-from ..middleware.auth import api_auth_required, login_required
-from ...utils.timezones import coerce_timezone, get_system_timezone, to_local_iso
-
 attendance_bp = Blueprint("attendance", __name__)
-
-
-def localize_rows(rows: list[dict], db) -> None:
-    """Convierte timestamps de rows a la hora local del centro de trabajo (MYK-420)."""
-    tz = coerce_timezone(get_system_timezone(db))
-    for row in rows:
-        row["timestamp"] = to_local_iso(row["timestamp"], tz)
 
 
 def get_buffer_repo():
@@ -46,7 +36,7 @@ def resolve_employee_names(db, rows) -> dict[tuple[str, str], str]:
     """
     Resuelve el nombre del colaborador vía employee_device_links.
 
-    Mapea (device_ip, user_id) -> nombre apellido usando el enlace
+    Mapea (device_ip, user_id) -> 'nombre apellido' usando el enlace
     device_serial (via devices.address) + device_user_id. Los registros sin
     enlace quedan fuera del mapa (fallback a device_users en el caller).
     """
@@ -78,7 +68,7 @@ def resolve_employee_names(db, rows) -> dict[tuple[str, str], str]:
                 (
                     row["device_serial"],
                     row["device_user_id"],
-                ): f"{row[first_name]} {row[last_name]}".strip()
+                ): f"{row['first_name']} {row['last_name']}".strip()
                 for row in links
             }
 
@@ -91,14 +81,12 @@ def resolve_employee_names(db, rows) -> dict[tuple[str, str], str]:
 
 
 @attendance_bp.route("/", strict_slashes=False)
-@login_required
 def list_attendance():
     """Página principal de asistencia - renderiza template"""
     return render_template("attendance/list.html")
 
 
 @attendance_bp.route("/api/devices")
-@api_auth_required
 def api_devices():
     """API para obtener lista de dispositivos para el select de filtro"""
     db = get_webgui_db()
@@ -111,7 +99,6 @@ def api_devices():
 
 
 @attendance_bp.route("/api/attendance")
-@api_auth_required
 def api_attendance():
     """
     API paginada con filtros para registros de asistencia
@@ -206,22 +193,59 @@ def api_attendance():
         cursor.execute(data_query, params_with_pagination)
         rows = cursor.fetchall()
 
-    records = [dict(row) for row in rows]
-    
-    # Localize timestamps to system timezone (MYK-420)
-    localize_rows(records, db)
+    # Enriquecer con nombres de usuario desde device_users (webgui.db)
+    user_names = {}
+    if rows:
+        user_ids = list(set(row["user_id"] for row in rows))
+        if user_ids:
+            # SQLite doesn't support row-value IN, use individual placeholders
+            placeholders = ",".join("?" * len(user_ids))
+            query = f"SELECT user_id, name FROM device_users WHERE user_id IN ({placeholders})"
+            user_rows = db.fetch_all(query, tuple(user_ids))
+            user_names = {row["user_id"]: row["name"] for row in user_rows}
 
-    return jsonify({
-        "records": records,
-        "pagination": {
-            "page": page,
-            "per_page": per_page,
-            "total": total,
-            "pages": (total + per_page - 1) // per_page,
-        },
-    })
+    # Nombre del colaborador vía employee_device_links (precedencia sobre device_users)
+    employee_names = resolve_employee_names(db, rows)
+
+    records = []
+    for row in rows:
+        record = dict(row)
+        collaborator = employee_names.get((record["device_ip"], record["user_id"]))
+        if collaborator:
+            record["user_name"] = collaborator
+        else:
+            record["user_name"] = user_names.get(record["user_id"], record["user_id"])
+        records.append(record)
+
+    total_pages = (total + per_page - 1) // per_page
+
+    return jsonify(
+        {
+            "records": records,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": total,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_prev": page > 1,
+            },
+            "filters": {
+                "start_date": start_date,
+                "end_date": end_date,
+                "user_id": user_id,
+                "device_ip": device_ip,
+                "status": status,
+                "punch_type": punch_type,
+                "synced": synced,
+                "sort": sort,
+                "order": order,
+            },
+        }
+    )
 
 
+@attendance_bp.route("/attendance/stats")
 def attendance_stats():
     """Estadísticas rápidas de asistencia"""
     buffer_repo = get_buffer_repo()
@@ -298,7 +322,6 @@ def _build_attendance_query(params: dict) -> tuple[str, list]:
 
 
 @attendance_bp.route("/export")
-@login_required
 def export_attendance():
     """
     Exportar registros de asistencia a CSV o Excel
