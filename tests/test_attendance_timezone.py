@@ -21,6 +21,7 @@ from flask import Flask
 
 from src.buffer.models import AttendanceRecordDB
 from src.buffer.repository import BufferRepository
+from src.webgui.auth import Auth
 from src.utils.timezones import (
     DEFAULT_TIMEZONE,
     coerce_timezone,
@@ -70,6 +71,7 @@ def _build_app(tmp_path: Path, system_timezone: str | None = None) -> Flask:
     app.config["TESTING"] = True
     app.config["SECRET_KEY"] = "test-secret-key"
     app.db = Database(db_path)
+    app.auth = Auth(app.config["SECRET_KEY"])
     app.buffer_repo = BufferRepository(
         tmp_path / "data" / "buffer.db",
         default_timezone=get_system_timezone(app.db),

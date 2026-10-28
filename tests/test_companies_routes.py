@@ -7,13 +7,15 @@ from pathlib import Path
 import pytest
 from flask import Flask
 
+from src.webgui.auth import Auth
 from src.webgui.database import Database
 from src.webgui.routes.companies import companies_bp
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MIGRATIONS_SRC = REPO_ROOT / "migrations"
 
-AUTH_HEADER = {"Authorization": "Bearer test-token"}
+SECRET = "test-secret-key"
+AUTH_HEADER = {"Authorization": f"Bearer {Auth(SECRET).generate_tokens(1, 'admin', 'admin')['access_token']}"}
 
 
 def _build_app(tmp_path: Path) -> Flask:
@@ -24,6 +26,7 @@ def _build_app(tmp_path: Path) -> Flask:
     app.config["SECRET_KEY"] = "test-secret-key"
     app.db = Database(db_path)
     app.db.initialize()
+    app.auth = Auth(app.config["SECRET_KEY"])
     app.register_blueprint(companies_bp, url_prefix="/api/companies")
     return app
 

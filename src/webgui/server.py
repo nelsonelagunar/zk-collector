@@ -18,6 +18,7 @@ from .alerts import AlertEngine
 from .auth import Auth
 from .database import Database
 from .mail import Mailer
+from .nav import rbac_nav_context
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,8 @@ def create_app(config=None):
     @app.context_processor
     def utility_processor():
         return {"now": datetime.now}
+
+    app.context_processor(rbac_nav_context)
 
     from .routes.alerts import alerts_bp
     from .routes.apidocs import apidocs_bp

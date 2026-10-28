@@ -5,7 +5,6 @@ Rutas para visualización y exportación de registros de asistencia
 
 import csv
 import io
-from datetime import datetime
 
 from flask import (
     Blueprint,
@@ -19,8 +18,8 @@ from flask import (
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 
-from ..middleware.auth import api_auth_required, login_required
 from ...utils.timezones import coerce_timezone, get_system_timezone, to_local_iso
+from ..middleware.auth import api_auth_required, login_required
 
 attendance_bp = Blueprint("attendance", __name__)
 
@@ -78,7 +77,7 @@ def resolve_employee_names(db, rows) -> dict[tuple[str, str], str]:
                 (
                     row["device_serial"],
                     row["device_user_id"],
-                ): f"{row[first_name]} {row[last_name]}".strip()
+                ): f"{row['first_name']} {row['last_name']}".strip()
                 for row in links
             }
 
@@ -207,7 +206,7 @@ def api_attendance():
         rows = cursor.fetchall()
 
     records = [dict(row) for row in rows]
-    
+
     # Localize timestamps to system timezone (MYK-420)
     localize_rows(records, db)
 
@@ -255,7 +254,10 @@ def export():
         ws = wb.active
         ws.title = "Asistencia"
 
-        headers = ["ID Dispositivo", "Usuario", "Timestamp", "Estado", "IP Dispositivo", "Tipo Marcaje"]
+        headers = [
+            "ID Dispositivo", "Usuario", "Timestamp", "Estado",
+            "IP Dispositivo", "Tipo Marcaje",
+        ]
         ws.append(headers)
 
         for record in records:
@@ -286,7 +288,10 @@ def export():
     # CSV
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["ID Dispositivo", "Usuario", "Timestamp", "Estado", "IP Dispositivo", "Tipo Marcaje"])
+    writer.writerow([
+        "ID Dispositivo", "Usuario", "Timestamp", "Estado",
+        "IP Dispositivo", "Tipo Marcaje",
+    ])
     for record in records:
         writer.writerow([
             record.get("user_id", ""),
@@ -300,5 +305,8 @@ def export():
     return Response(
         output.getvalue(),
         mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=asistencia_{start_date or all}_{end_date or all}.csv"},
+        headers={
+            "Content-Disposition": f"attachment; filename="
+                                   f"asistencia_{start_date or all}_{end_date or all}.csv"
+        },
     )

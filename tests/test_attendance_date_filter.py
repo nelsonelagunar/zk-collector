@@ -14,6 +14,7 @@ import pytest
 from flask import Flask
 
 from src.buffer.repository import BufferRepository
+from src.webgui.auth import Auth
 from src.webgui.database import Database
 from src.webgui.routes.attendance import attendance_bp
 
@@ -38,6 +39,7 @@ def _build_app(tmp_path: Path) -> Flask:
     app.config["TESTING"] = True
     app.config["SECRET_KEY"] = "test-secret-key"
     app.db = Database(db_path)
+    app.auth = Auth(app.config["SECRET_KEY"])
     app.buffer_repo = BufferRepository(tmp_path / "data" / "buffer.db")
     app.register_blueprint(attendance_bp, url_prefix="/attendance")
     return app

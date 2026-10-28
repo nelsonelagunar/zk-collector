@@ -71,7 +71,8 @@ class BufferRepository:
                     sync_attempts INTEGER DEFAULT 0,
                     last_sync_attempt DATETIME,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    annulled BOOLEAN NOT NULL DEFAULT 0
                 )
             """)
 

@@ -105,34 +105,35 @@ class Database:
     def _fix_devices_schema_transition(self, conn):
         """
         Fix devices table schema transition from old (ip, enabled) to new (address, is_enabled).
-        
+
         Some live databases were created with the old schema from migration 003_device_columns.sql
         which added columns to a table with ip and enabled columns. The new 001_initial_schema.sql
         defines address and is_enabled instead. This causes "no such column: ip" errors
         when later migrations reference the old column names.
-        
+
         We detect and fix this by rebuilding the table with the correct schema.
         """
         cursor = conn.cursor()
-        
+
         # Check if devices table exists
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='devices'")
         if not cursor.fetchone():
             return  # Table doesnt exist yet, migrations will create it correctly
-        
+
         # Get current columns
         cursor.execute("PRAGMA table_info(devices)")
         columns = {row[1] for row in cursor.fetchall()}
-        
+
         has_ip = "ip" in columns
         has_address = "address" in columns
-        has_enabled = "enabled" in columns
-        has_is_enabled = "is_enabled" in columns
-        
+
         # If we have old schema (ip, enabled) but not new schema (address, is_enabled)
         if has_ip and not has_address:
-            logger.info("Detected old devices schema (ip, enabled). Migrating to new schema (address, is_enabled)...")
-            
+            logger.info(
+                "Detected old devices schema (ip, enabled). Migrating to new schema "
+                "(address, is_enabled)..."
+            )
+
             # Create new table with correct schema
             conn.execute("""
                 CREATE TABLE devices_new (
@@ -154,7 +155,7 @@ class Database:
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            
+
             # Copy data from old to new
             conn.execute("""
                 INSERT INTO devices_new (
@@ -162,44 +163,47 @@ class Database:
                     protocol, status, is_enabled, firmware_version, serial_number,
                     last_seen, created_at, updated_at
                 )
-                SELECT 
-                    id, name, 
+                SELECT
+                    id, name,
                     location, zone,
                     ip as address,
-                    port, 
-                    CASE 
+                    port,
+                    CASE
                         WHEN typeof(password) = text THEN CAST(password AS INTEGER)
                         ELSE password
                     END as password,
                     timeout,
-                    protocol, 
+                    protocol,
                     status,
                     enabled as is_enabled,
-                    firmware_version, 
+                    firmware_version,
                     serial_number,
-                    last_seen, 
-                    created_at, 
+                    last_seen,
+                    created_at,
                     updated_at
                 FROM devices
             """)
-            
+
             # Replace old table
             conn.execute("DROP TABLE devices")
             conn.execute("ALTER TABLE devices_new RENAME TO devices")
-            
+
             # Recreate indexes
             conn.execute("CREATE INDEX IF NOT EXISTS idx_devices_address ON devices(address)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_devices_status ON devices(status)")
-            
+
             logger.info("Devices schema migration completed successfully")
-        
+
         # Also fix device_users table if it has old schema (device_ip instead of device_id)
         cursor.execute("PRAGMA table_info(device_users)")
         du_columns = {row[1] for row in cursor.fetchall()}
-        
+
         if "device_ip" in du_columns and "device_id" not in du_columns:
-            logger.info("Detected old device_users schema (device_ip). Migrating to new schema (device_id FK)...")
-            
+            logger.info(
+                "Detected old device_users schema (device_ip). Migrating to new schema "
+                "(device_id FK)..."
+            )
+
             conn.execute("""
                 CREATE TABLE device_users_new (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -215,14 +219,14 @@ class Database:
                     FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
                 )
             """)
-            
+
             # Map device_ip to device_id
             conn.execute("""
                 INSERT INTO device_users_new (
                     id, device_id, user_id, name, privilege, password,
                     group_id, user_role, created_at, updated_at
                 )
-                SELECT 
+                SELECT
                     du.id,
                     d.id as device_id,
                     du.user_id,
@@ -236,13 +240,19 @@ class Database:
                 FROM device_users du
                 JOIN devices d ON d.address = du.device_ip
             """)
-            
+
             conn.execute("DROP TABLE device_users")
             conn.execute("ALTER TABLE device_users_new RENAME TO device_users")
-            
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_device_users_device_id ON device_users(device_id)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_device_users_user_id ON device_users(user_id)")
-            
+
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_device_users_device_id "
+                "ON device_users(device_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_device_users_user_id "
+                "ON device_users(user_id)"
+            )
+
             logger.info("Device_users schema migration completed successfully")
 
     # Metodos genericos

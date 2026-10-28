@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from flask import Flask
 
+from src.webgui.auth import Auth
 from src.webgui.database import Database
 from src.webgui.routes.employees import employees_bp
 
@@ -33,6 +34,7 @@ def _build_app(tmp_path: Path) -> Flask:
     app.config["TESTING"] = True
     app.config["SECRET_KEY"] = "test-secret-key"
     app.db = Database(db_path)
+    app.auth = Auth(app.config["SECRET_KEY"])
     app.register_blueprint(employees_bp, url_prefix="/api/employees")
     return app
 

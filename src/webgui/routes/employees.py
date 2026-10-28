@@ -13,9 +13,8 @@ import sqlite3
 
 from flask import Blueprint, Response, current_app, jsonify, request
 
-from ..validators import LABOR_FIELDS, normalize_labor_fields
-
 from ..middleware.auth import api_auth_required
+from ..validators import LABOR_FIELDS, normalize_labor_fields
 
 employees_bp = Blueprint("employees", __name__)
 
