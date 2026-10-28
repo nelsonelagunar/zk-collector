@@ -213,6 +213,18 @@ class BufferRepository:
                 WHERE annulled = 0
             """)
 
+            # Columna additiva para bases pre-existentes (MYK-408 / MYK-422),
+            # idempotente y en linea con el resto de columnas de integridad:
+            # annulled marca registros anulados por flujo de correccion.
+            # /api/attendance/stats (compute_attendance_stats) filtra por
+            # annulled = 0 y necesita la columna presente incluso si el runner
+            # de migrations/buffer/010 no se ejecuto.
+            with contextlib.suppress(sqlite3.OperationalError):
+                cursor.execute(
+                    "ALTER TABLE attendance_records "
+                    "ADD COLUMN annulled BOOLEAN NOT NULL DEFAULT 0"
+                )
+
             # Tabla de log de sincronización
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS sync_log (
