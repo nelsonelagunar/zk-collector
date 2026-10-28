@@ -18,6 +18,7 @@ tags:
   - name: auth
   - name: devices
   - name: attendance
+  - name: tokens
   - name: sync
   - name: health
 paths:
@@ -218,6 +219,300 @@ paths:
                   errors:
                     type: array
                     items: { type: string }
+  /auth/api/tokens:
+    get:
+      tags: [tokens]
+      summary: List personal access tokens (admin sees all)
+      description: >-
+        Lista los PAT del usuario actual (un admin ve todos).
+        Nunca devuelve el hash del token.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tokens:
+                    type: array
+                    items: $ref: '#/components/schemas/ApiToken'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [tokens]
+      summary: Create a personal access token (PAT)
+      description: >-
+        Emite un nuevo PAT. El token plano se devuelve una sola vez.
+        Requiere sesion de admin.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                scopes:
+                  type: array
+                  items: { type: string, enum: [read, write] }
+                  default: ["read"]
+                expires_in_days:
+                  type: integer
+                  default: 90
+                  minimum: 1
+                  maximum: 365
+      responses:
+        '201':
+          description: Token created (plain token returned once)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string, example: "zpk_..." }
+                  record: $ref: '#/components/schemas/ApiToken'
+        '400': { description: Validation error }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { description: Max tokens per user reached }
+    delete:
+      tags: [tokens]
+      summary: Revoke a personal access token
+      description: Revoca un token de API por id.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: token_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Token revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  revoked: { type: boolean }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/devices:
+    get:
+      tags: [devices]
+      summary: Device status for external consumers (MYK-407)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of devices with online/offline summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  devices:
+                    type: array
+                    items: $ref: '#/components/schemas/Device'
+                  summary:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      online: { type: integer }
+                      offline: { type: integer }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/devices/{id}:
+    get:
+      tags: [devices]
+      summary: Device status by id (MYK-407)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { $ref: '#/components/parameters/deviceId' }
+      responses:
+        '200':
+          description: Device detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Device' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/employees:
+    get:
+      tags: [devices]
+      summary: List employees (CRUD, MYK-407)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: per_page, in: query, schema: { type: integer, default: 20 } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: department, in: query, schema: { type: string } }
+        - { name: search, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Paginated list of employees
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  employees:
+                    type: array
+                    items: $ref: '#/components/schemas/Employee'
+                  pagination:
+                    type: object
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [devices]
+      summary: Create an employee (CRUD, MYK-407)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employee_code, first_name, last_name]
+              properties:
+                employee_code: { type: string }
+                first_name: { type: string }
+                last_name: { type: string }
+                email: { type: string }
+                phone: { type: string }
+                department: { type: string }
+                position: { type: string }
+                hire_date: { type: string }
+                notes: { type: string }
+      responses:
+        '201':
+          description: Employee created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  employee: $ref: '#/components/schemas/Employee'
+        '400': { description: Validation error }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { description: employee_code already exists }
+
+  /api/employees/{id}:
+    get:
+      tags: [devices]
+      summary: Get an employee by id (CRUD, MYK-407)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Employee detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  employee: $ref: '#/components/schemas/Employee'
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      tags: [devices]
+      summary: Update an employee (partial, CRUD, MYK-407)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                employee_code: { type: string }
+                first_name: { type: string }
+                last_name: { type: string }
+                email: { type: string }
+                phone: { type: string }
+                department: { type: string }
+                position: { type: string }
+                hire_date: { type: string }
+                notes: { type: string }
+      responses:
+        '200':
+          description: Employee updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  employee: $ref: '#/components/schemas/Employee'
+        '400': { description: Validation error }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: employee_code already exists }
+    delete:
+      tags: [devices]
+      summary: Soft-delete an employee (CRUD, MYK-407)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Employee deactivated
+        '404': { $ref: '#/components/responses/NotFound' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/attendance:
+    get:
+      tags: [attendance]
+      summary: Paginated attendance records / punches (MYK-407)
+      security:
+        - bearerAuth: []
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: per_page, in: query, schema: { type: integer, default: 50 } }
+        - { name: start_date, in: query, schema: { type: string, format: date } }
+        - { name: end_date, in: query, schema: { type: string, format: date } }
+        - { name: user_id, in: query, schema: { type: string } }
+        - { name: device_ip, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: integer } }
+        - { name: punch_type, in: query, schema: { type: string } }
+        - { name: synced, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: Paginated attendance records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  records:
+                    type: array
+                    items: $ref: '#/components/schemas/AttendanceRecord'
+                  pagination:
+                    type: object
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /devices/api/devices:
     get:
       tags: [devices]
@@ -561,6 +856,14 @@ components:
             type: object
             properties:
               error: { type: string }
+    Unauthorized:
+      description: Missing or invalid Bearer token
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
   schemas:
     PasswordResetRequestResult:
       type: object
@@ -596,3 +899,28 @@ components:
         timestamp: { type: string, format: date-time }
         punch_type: { type: string, enum: [check_in, check_out] }
         synced: { type: boolean }
+    ApiToken:
+      type: object
+      properties:
+        id: { type: integer }
+        user_id: { type: integer }
+        name: { type: string }
+        scopes: { type: string }
+        last_used_at: { type: string, format: date-time, nullable: true }
+        revoked_at: { type: string, format: date-time, nullable: true }
+        expires_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+    Employee:
+      type: object
+      properties:
+        id: { type: integer }
+        employee_code: { type: string }
+        first_name: { type: string }
+        last_name: { type: string }
+        email: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        department: { type: string, nullable: true }
+        position: { type: string, nullable: true }
+        hire_date: { type: string, format: date, nullable: true }
+        notes: { type: string, nullable: true }
+        status: { type: string, enum: [active, inactive] }
