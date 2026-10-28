@@ -3,6 +3,7 @@ Repositorio para Buffer Local SQLite
 Manejo de registros de asistencia en disco
 """
 
+import contextlib
 import csv
 import logging
 import sqlite3
@@ -98,14 +99,10 @@ class BufferRepository:
             # Columnas additivas para bases existentes (RT-1 / MYK-428):
             # archived / archived_at marcan registros exportados antes del purge.
             for col_def in ("archived BOOLEAN DEFAULT 0", "archived_at DATETIME"):
-                col_name = col_def.split()[0]
-                try:
+                with contextlib.suppress(sqlite3.OperationalError):
                     cursor.execute(
                         f"ALTER TABLE attendance_records ADD COLUMN {col_def}"
                     )
-                except sqlite3.OperationalError:
-                    # Ya existe (base creada con la versión nueva)
-                    pass
 
             # Índices para rendimiento
             cursor.execute("""

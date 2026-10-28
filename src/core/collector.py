@@ -6,10 +6,9 @@ import logging
 import os
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
-from src.buffer.repository import BufferRepository, DEFAULT_RETENTION_DAYS
+from src.buffer.repository import DEFAULT_RETENTION_DAYS, BufferRepository
 from src.core.config import Config
 from src.monitoring.health import HealthMonitor
 from src.sync.platform import PlatformSync
