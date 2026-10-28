@@ -63,7 +63,7 @@ class Config:
                 "max_records": {"type": "integer", "default": 10000},
                 # MYK-419 (LFT 804-III): retención legal mínima 730 días.
                 # El borrado es manual con bitácora; nunca automático.
-                "retention_days": {"type": "integer", "default": 730},
+                "retention_days": {"type": "integer", "default": 790},
             },
         },
         "logging": {
@@ -104,7 +104,7 @@ class Config:
             "poll_interval_seconds": 300,
             "sync_interval_seconds": 60,
             "sync_enabled": False,
-            "buffer": {"max_records": 10000, "retention_days": 730},
+            "buffer": {"max_records": 10000, "retention_days": 790},
             "logging": {"level": "INFO"},
         }
         return cfg

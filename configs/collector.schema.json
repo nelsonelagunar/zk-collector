@@ -55,7 +55,7 @@
       "type": "object",
       "properties": {
         "max_records": {"type": "integer", "default": 10000, "minimum": 100},
-        "retention_days": {"type": "integer", "default": 730, "minimum": 1}
+        "retention_days": {"type": "integer", "default": 790, "minimum": 1}
       }
     },
     "logging": {
