@@ -16,7 +16,7 @@ pero la autorización es prácticamente inexistente:
   y **no se usa en ninguna ruta**.
 - `api_auth_required` valida el header `Authorization: Bearer` pero tiene un
   `TODO: Validar token con Auth class` — **no verifica la firma del JWT**.
-- Solo 7 rutas API (medical_leaves ×5, attendance_stats ×2) llevan decorador; rutas de UI
+- 13 rutas API (medical_leaves ×5, attendance_stats ×2, alerts ×6) llevan decorador; rutas de UI
   (`/colaboradores`, `/reportes`, `/devices`) y las APIs de employees/devices quedan
   protegidas solo por la verificación ad-hoc de sesión en `/`.
 
@@ -39,7 +39,8 @@ como `auditor`-sin-escritura? **No**: en la migración 005 se normaliza
 `UPDATE users SET role='auditor' WHERE role NOT IN ('admin','rrhh','supervisor','auditor')`,
 y la capa app valida contra `ALLOWED_ROLES` en todo write path (SQLite no soporta
 `ALTER TABLE ADD CONSTRAINT`; rebuild de tabla por un CHECK se considera riesgo > beneficio
-— alternativa descartada).
+— alternativa descartada). La normalización vive en la migración 008
+(`migrations/008_rbac_roles.sql`), no en la 005 (ese slot ya lo ocupa `005_alerts.sql` en master).
 
 **Alternativa descartada:** N:M `users↔roles↔permissions` con tablas `roles`,
 `role_permissions`, `user_roles`. Para un collector self-hosted con 4 perfiles fijados por
@@ -113,6 +114,7 @@ ruta es el patrón Flask idiomático y visible en el diff del PR.
 | `/colaboradores` UI | `employees:read`; write → `employees:write` |
 | `/api/employees/*` | igual que UI employees |
 | `/api/medical-leaves/*` | `medical_leaves:read`; write → `medical_leaves:write` |
+| `/api/alerts/*` | `alerts:read` (lectura: auditor, rrhh; admin implícito); write (leer/resolver, preferencias) → `alerts:write` |
 | `/attendance` UI, `/api/attendance/stats`, `/reportes*` | `reports:read`; `/export` → `reports:export` |
 | `/health` | público |
 | `/api` apidocs | login (cualquier rol) |
@@ -122,7 +124,7 @@ ruta es el patrón Flask idiomático y visible en el diff del PR.
 ## Consecuencias
 
 - Positivas: autorización real y auditable; JWT finalmente verificado; matriz explícita y
-  testeable; cero tablas nuevas (solo migración 005 de normalización de roles).
+  testeable; cero tablas nuevas (solo migración 008 de normalización de roles).
 - Negativas: tocar todas las rutas existentes en un PR de backend (riesgo de 500 por
   decorador mal aplicado → mitigado con tests de matriz por rol y CI).
 - El mapa en código hace que agregar un permiso exija PR (aceptado: es decisión de producto).
