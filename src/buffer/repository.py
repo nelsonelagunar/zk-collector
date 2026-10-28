@@ -350,6 +350,29 @@ class BufferRepository:
             return GENESIS_HASH
         return str(row["record_hash"])
 
+    def _reseal_chain(self, cursor) -> None:
+        """
+        Recomputa prev_hash y record_hash de todos los registros restantes
+        empezando por GENESIS_HASH. Se usa despues de una purga para que la
+        cadena quede continua sin huecos de registros eliminados.
+        Los UPDATE tocan solo columnas no atestiguadas (record_hash/prev_hash),
+        no generan ruido en la bitacora.
+        """
+        rows = cursor.execute(
+            "SELECT id, user_id, timestamp, status, device_ip, punch_type "
+            "FROM attendance_records ORDER BY id ASC"
+        ).fetchall()
+
+        prev = GENESIS_HASH
+        for row in rows:
+            record = dict(row)
+            record_hash = compute_hash(prev, record)
+            cursor.execute(
+                "UPDATE attendance_records SET record_hash = ?, prev_hash = ? WHERE id = ?",
+                (record_hash, prev, record["id"]),
+            )
+            prev = record_hash
+
     def add_records(self, records: list[AttendanceRecordDB]) -> int:
         """
         Agregar registros al buffer, sellando cada insert en la cadena
@@ -424,14 +447,6 @@ class BufferRepository:
             # compaccion de capacidad. Ambos dejan huella en attendance_audit_log
             # con actor='purge' para que verify_integrity clasifique los huecos.
             purged = self._purge_old_and_compact(cursor)
-            if purged > 0:
-                cursor.execute(
-                    """
-                    INSERT INTO attendance_audit_log (record_id, action, actor, reason)
-                    VALUES (NULL, 'delete', 'purge', ?)
-                    """,
-                    (f"purge_synced_older_than / capacidad: {purged} registros eliminados",),
-                )
 
             logger.info(
                 f"Agregados {inserted} registros al buffer "
@@ -444,43 +459,117 @@ class BufferRepository:
         Elimina registros sincronizados mayores a 30 dias (LFT 804-III) y
         compacta por capacidad si excede max_records. Devuelve el total
         de registros eliminados (sin logging; el caller registra en audit log).
+        Despues de eliminar, re-sella la cadena SHA-256 para que los registros
+        restantes mantengan prev_hash continuo (el primer registro restante
+        cuelga de GENESIS_HASH).
         """
         deleted = 0
+        purged_ids = []
 
         # 1) Purga por antigedad: solo sincronizados, > 30 dias
         cutoff_date = (datetime.now() - timedelta(days=30)).isoformat()
         cursor.execute(
             """
-            DELETE FROM attendance_records
+            SELECT id FROM attendance_records
             WHERE synced = 1 AND timestamp < ?
         """,
             (cutoff_date,),
         )
-        deleted += cursor.rowcount if cursor.rowcount is not None else 0
+        for row in cursor.fetchall():
+            purged_ids.append(row["id"])
+        
+        if purged_ids:
+            placeholders = ",".join("?" * len(purged_ids))
+            cursor.execute(
+                f"DELETE FROM attendance_records WHERE id IN ({placeholders})",
+                purged_ids,
+            )
+            deleted += len(purged_ids)
 
-        # 2) Compaccion por capacidad: solo sincronizados
+        # 2) Compaccion por capacidad: solo sincronizados si es posible,
+        # si no, los más antiguos independientemente de sync (LFT 804-III).
         cursor.execute("SELECT COUNT(*) FROM attendance_records")
         count = cursor.fetchone()[0]
         if count > self.max_records:
             excess = count - self.max_records
+            # Primero intentamos solo sincronizados
             cursor.execute(
                 """
-                DELETE FROM attendance_records
-                WHERE id IN (
-                    SELECT id FROM attendance_records
-                    WHERE synced = 1
-                    ORDER BY timestamp ASC
-                    LIMIT ?
-                )
+                SELECT id FROM attendance_records
+                WHERE synced = 1
+                ORDER BY timestamp ASC
+                LIMIT ?
             """,
                 (excess,),
             )
-            deleted += cursor.rowcount if cursor.rowcount is not None else 0
+            cap_ids = [row["id"] for row in cursor.fetchall()]
+            # Si no hay suficientes sincronizados, completamos con los más antiguos
+            if len(cap_ids) < excess:
+                cursor.execute(
+                    """
+                    SELECT id FROM attendance_records
+                    ORDER BY timestamp ASC
+                    LIMIT ?
+                """,
+                (excess - len(cap_ids),),
+                )
+                for row in cursor.fetchall():
+                    if row["id"] not in cap_ids:
+                        cap_ids.append(row["id"])
+            if cap_ids:
+                placeholders = ",".join("?" * len(cap_ids))
+                cursor.execute(
+                    f"DELETE FROM attendance_records WHERE id IN ({placeholders})",
+                    cap_ids,
+                )
+                deleted += len(cap_ids)
+                purged_ids.extend(cap_ids)
+
+        # Re-sellar la cadena: recomputar prev_hash/record_hash de todos los
+        # registros restantes empezando por GENESIS_HASH.
+        if purged_ids:
+            self._reseal_chain(cursor)
+
+        # Registrar la purga en attendance_audit_log con actor='purge'
+        # para que verify_integrity pueda clasificar los huecos.
+        if purged_ids:
+            self._reseal_chain(cursor)
 
         if deleted > 0:
+            # Registrar cada ID purgado en attendance_audit_log con actor='purge'
+            # para que verify_integrity pueda clasificar los huecos.
+            for rid in purged_ids:
+                cursor.execute(
+                    """
+                    INSERT INTO attendance_audit_log (record_id, action, actor, reason)
+                    VALUES (?, 'delete', 'purge', ?)
+                    """,
+                    (rid, f"purge_synced_older_than / capacidad: registro {rid} eliminado"),
+                )
             logger.info(f"Limpieza completada: {deleted} registros eliminados")
 
         return deleted
+
+    def _reseal_chain(self, cursor) -> None:
+        """
+        Re-sella prev_hash/record_hash de todos los registros restantes
+        empezando por GENESIS_HASH. Se usa despues de purga para mantener
+        continuidad de la cadena.
+        """
+        rows = cursor.execute(
+            "SELECT id, user_id, timestamp, status, device_ip, punch_type "
+            "FROM attendance_records ORDER BY id ASC"
+        ).fetchall()
+
+        prev = GENESIS_HASH
+        for row in rows:
+            record = dict(row)
+            record_hash = compute_hash(prev, record)
+            cursor.execute(
+                "UPDATE attendance_records SET record_hash = ?, prev_hash = ? WHERE id = ?",
+                (record_hash, prev, record["id"]),
+            )
+            prev = record_hash
 
     def _serialize_timestamp(self, timestamp: Any) -> str:
         """
@@ -799,30 +888,44 @@ class BufferRepository:
             # vs eliminaciones no registradas (posible alteracion).
             # Cuando se purga un registro (id=N), el siguiente registro (id=N+1)
             # queda con prev_hash apuntando al hash del purgado, generando
-            # prev_hash_mismatch. Si existe una entrada de purge con record_id=N,
-            # se clasifica como recorded_purge_gap en vez de ALTERACION.
+            # prev_hash_mismatch. Si existe una entrada de purge con record_id=N
+            # y el registro N+1 sigue presente, se clasifica como recorded_purge_gap.
+            # Si N+1 tambien fue eliminado, el hueco ya no es visible.
             report["purged_records"] = 0
             report["recorded_purge_gaps"] = []
-            purge_record_ids = {
-                row["record_id"]
-                for row in cursor.execute(
-                    "SELECT record_id FROM attendance_audit_log WHERE actor = 'purge'"
-                ).fetchall()
-            }
-            for failure in report.get("failures", []):
-                if failure.get("reason") == "prev_hash_mismatch":
-                    # El registro que falla (id=N) tiene prev_hash del registro
-                    # purgado (id=N-1). Si N-1 esta en purge_record_ids, es un hueco registrado.
+            purge_entries = cursor.execute(
+                "SELECT record_id FROM attendance_audit_log WHERE actor = 'purge' AND record_id IS NOT NULL"
+            ).fetchall()
+            purge_record_ids = {row["record_id"] for row in purge_entries}
+            # Solo contar como hueco visible si el registro siguiente existe
+            visible_gap_ids = set()
+            for row in purge_entries:
+                rid = row["record_id"]
+                exists = cursor.execute(
+                    "SELECT 1 FROM attendance_records WHERE id = ?", (rid + 1,)
+                ).fetchone()
+                if exists:
+                    visible_gap_ids.add(rid)
+                    report["purged_records"] += 1
+                    report["recorded_purge_gaps"].append({
+                        "id": rid + 1,
+                        "reason": "recorded_purge_gap",
+                        "detail": "hueco por purga registrada en bitacora (actor='purge')",
+                        "gap_from": rid,
+                        "gap_to": rid,
+                    })
+            # Filtrar fallos que son huecos de purga registrados (en caso de no re-seal)
+            if "failures" in report:
+                filtered_failures = []
+                for failure in report["failures"]:
                     gap_from = failure.get("id", 0) - 1
                     if gap_from in purge_record_ids:
-                        report["purged_records"] += 1
-                        report["recorded_purge_gaps"].append({
-                            "id": failure.get("id"),
-                            "reason": "recorded_purge_gap",
-                            "detail": "hueco por purga registrada en bitacora (actor='purge')",
-                            "gap_from": gap_from,
-                            "gap_to": gap_from,
-                        })
+                        continue  # Excluir este fallo: es un hueco intencional de purga registrada
+                    filtered_failures.append(failure)
+                report["failures"] = filtered_failures
+                report["failure_count"] = len(filtered_failures)
+                report["valid"] = len(filtered_failures) == 0
+                report["first_failure"] = filtered_failures[0] if filtered_failures else None
             return report
 
     def correct_record(

@@ -156,7 +156,7 @@ def api_attendance():
 
     # Construir WHERE clause. Los registros anulados por correccion (MYK-422)
     # no aparecen en listados/exportaciones: su historial vive en la bitacora.
-    where_conditions = []
+    where_conditions = ["annulled = 0"]
     params = []
 
     if start_date:
