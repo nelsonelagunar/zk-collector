@@ -142,6 +142,7 @@ def list_employees():
 
 
 @employees_bp.route("/export", methods=["GET"])
+@api_auth_required
 def export_employees():
     """Export CSV de colaboradores con columnas laborales (MYK-423): incluye CURP y RFC."""
     db = _db()
