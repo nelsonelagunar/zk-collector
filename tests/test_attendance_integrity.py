@@ -591,7 +591,8 @@ class TestIntegrityEndpoints:
         # El listado de la UI muestra la correccion y oculta el original anulado
         listing = client.get("/attendance/api/attendance").get_json()
         timestamps = [r["timestamp"] for r in listing["records"]]
-        assert timestamps == ["2026-10-05T09:05:00"]
+        # Timestamp ahora incluye offset por MYK-420 (America/Mexico_City = -06:00)
+        assert timestamps == ["2026-10-05T09:05:00-06:00"]
 
     def test_correction_validation_errors(self, client, repo):
         _login(client)
