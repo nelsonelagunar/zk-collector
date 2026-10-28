@@ -446,7 +446,7 @@ class BufferRepository:
             # Limpieza de registros antiguos (edad > 30 dias, sincronizados) y
             # compaccion de capacidad. Ambos dejan huella en attendance_audit_log
             # con actor='purge' para que verify_integrity clasifique los huecos.
-            purged = self._purge_old_and_compact(cursor)
+            self._purge_old_and_compact(cursor)
 
             logger.info(
                 f"Agregados {inserted} registros al buffer "
@@ -477,7 +477,7 @@ class BufferRepository:
         )
         for row in cursor.fetchall():
             purged_ids.append(row["id"])
-        
+
         if purged_ids:
             placeholders = ",".join("?" * len(purged_ids))
             cursor.execute(
@@ -894,7 +894,8 @@ class BufferRepository:
             report["purged_records"] = 0
             report["recorded_purge_gaps"] = []
             purge_entries = cursor.execute(
-                "SELECT record_id FROM attendance_audit_log WHERE actor = 'purge' AND record_id IS NOT NULL"
+                "SELECT record_id FROM attendance_audit_log "
+                "WHERE actor = 'purge' AND record_id IS NOT NULL"
             ).fetchall()
             purge_record_ids = {row["record_id"] for row in purge_entries}
             # Solo contar como hueco visible si el registro siguiente existe
