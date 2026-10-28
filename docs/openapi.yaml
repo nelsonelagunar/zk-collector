@@ -21,6 +21,7 @@ tags:
   - name: sync
   - name: health
   - name: companies
+  - name: portal
 paths:
   /health:
     get:
@@ -698,6 +699,98 @@ paths:
           description: Vínculo eliminado
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Vínculo no encontrado }
+  /mi-asistencia/login:
+    post:
+      tags: [portal]
+      summary: Employee portal login with employee_code + PIN (MYK-425)
+      description: >-
+        Portal del trabajador (LFT 132-XVII). PIN per employee, Argon2id
+        (migration 009). 5 failed attempts per 15 min per employee_code;
+        single generic error message (anti-enumeration).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [employee_code, pin]
+              properties:
+                employee_code: { type: string, example: 'EMP-0001' }
+                pin: { type: string, example: '849203' }
+      responses:
+        '302':
+          description: Redirect to /mi-asistencia on success
+        '401':
+          description: Wrong employee_code/PIN (generic message)
+        '429':
+          description: Rate limited (5 failures / 15 min)
+  /mi-asistencia/api/records:
+    get:
+      tags: [portal]
+      summary: Own attendance marks and overtime for a period (MYK-425)
+      description: >-
+        Read-only view of the authenticated employee's own records.
+        Any employee_id query param other than the session's own -> 403.
+        Period capped at 92 days; end_date cannot be in the future.
+      security:
+        - portalSession: []
+      parameters:
+        - { name: start_date, in: query, schema: { type: string, format: date } }
+        - { name: end_date, in: query, schema: { type: string, format: date } }
+        - { name: employee_id, in: query, required: false, schema: { type: integer },
+            description: Must equal the session employee; otherwise 403 }
+      responses:
+        '200':
+          description: Own day-by-day marks with worked/overtime hours
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  employee:
+                    type: object
+                    properties:
+                      employee_id: { type: integer }
+                      employee_code: { type: string }
+                      employee_name: { type: string }
+                  period:
+                    type: object
+                    properties:
+                      start_date: { type: string, format: date }
+                      end_date: { type: string, format: date }
+                  summary:
+                    type: object
+                    properties:
+                      days_with_marks: { type: integer }
+                      days_late: { type: integer }
+                      worked_hours: { type: number }
+                      extra_hours: { type: number }
+                  days:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date: { type: string, format: date }
+                        first_mark: { type: [string, 'null'], example: '09:00:00' }
+                        last_mark: { type: [string, 'null'], example: '18:30:00' }
+                        worked_seconds: { type: integer }
+                        extra_seconds: { type: integer }
+                        late: { type: boolean }
+                        marks:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              time: { type: string, example: '09:00:00' }
+                              status: { type: integer }
+                              label: { type: string }
+        '400':
+          description: Invalid period (format, order, > 92 days, future end)
+        '401':
+          description: Not authenticated (portal session required)
+        '403':
+          description: employee_id param different from the session employee
 components:
   securitySchemes:
     sessionCookie:
@@ -705,6 +798,11 @@ components:
       in: cookie
       name: session
       description: Session cookie issued by POST /auth/login. LAN-only deployments may additionally restrict API routes by source IP at the reverse proxy.
+    portalSession:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Employee portal session issued by POST /mi-asistencia/login (employee_code + PIN). Independent keys from the admin session; only exposes the employee's own records.
     bearerAuth:
       type: http
       scheme: bearer
