@@ -60,7 +60,7 @@
 
 ## MCP Server (MYK-408)
 
-- `src/mcp_server/` → `zk-collector-mcp` (entry point). Transporte stdio (default, sin puertos) u HTTP opt-in `ZK_COLLECTOR_MCP_HTTP=1` bind 127.0.0.1:9248 (no-loopback rechazado salvo `ZK_COLLECTOR_MCP_ALLOW_REMOTE_BIND=1`). Solo lectura: `attendance_stats`, `list_punches`, `list_devices`, `list_employees` via Bearer a WebGUI. Auth: JWT HS256 `type=access` (MYK-443, sin PAT) — modo `static` (`ZK_COLLECTOR_API_TOKEN`, JWT minteado externo) o `minted` (`ZK_COLLECTOR_JWT_SECRET`/`WEBGUI_SECRET_KEY`, auto-refresh + re-mint único en 401; `src/mcp_server/tokens.py`). Tests: `tests/test_mcp_server.py`.
+- `src/mcp_server/` → `zk-collector-mcp` (entry point). Transporte stdio (default, sin puertos) u HTTP opt-in `ZK_COLLECTOR_MCP_HTTP=1` bind 127.0.0.1:9248. Solo lectura: `attendance_stats`, `list_punches`, `list_devices`, `list_employees` via Bearer a WebGUI. Token en `ZK_COLLECTOR_API_TOKEN`. Tests: `tests/test_mcp_server.py`.
 
 ## Hash Chain (MYK-422)
 
@@ -74,10 +74,12 @@
 
 - `/api/attendance/stats` y `/attendance/api/attendance` devuelven ISO-8601 con offset (`America/Mexico_City` default). Collector guarda UTC; WebGUI convierte a zona configurada. Tests: `tests/test_attendance_stats.py`.
 
-## Sync Horaria de Relojes (MYK-421)
+## Export Legal (MYK-424)
 
-- `src/core/clock_sync.py`: `sync_device_clock()` compara `get_time()` vs hora servidor en cada poll (wired en `poll_devices`); deriva > `clock_sync.threshold_seconds` (default 60, `configs/collector.yaml.example` + schema) → `set_time()` + alerta WARNING por log (patrón "alerta por log", MYK-419). AC test: mock 5min se corrige y alerta — `tests/test_clock_sync.py`.
-- Alerta en tabla `alerts` del WebGUI requiere schema (`employee_id NOT NULL` FK + CHECK en `alert_rules.type`) y escritura cross-proceso a webgui.db — fuera del slice; pendiente decisión PM si se quiere persistencia en tabla.
+- `GET /attendance/export` reconstruido con formato legal CSV/XLSX (implementa EX-1 de `docs/compliance_nomina_2027.md`, seccion 4). Columnas: `Codigo empleado`, `Colaborador`, `CURP`, `RFC`, `Razon social`, `RFC patron`, `Centro de trabajo`, `Fecha/Hora` (ISO-8601 con offset, MYK-420), `Tipo de marca` (6 tipos), `Estado`, `Semana ISO`, `Horas ordinarias`, `Horas extra dobles`, `Horas extra triples`. Logica y pruebas puras en `src/webgui/legal_export.py`; serializacion en `src/webgui/routes/attendance.py`.
+- Jornada LFT 66-68 por persona/semana ISO: trabajado = ultima - primera marca del dia (>= 2 marcas); ordinaria = min(trabajado, 8 h); extra = max(0, trabajado - 8 h); semana: dobles = min(extra semanal, 9 h), triples = el resto. Se computa sobre TODAS las marcas de la semana, no solo las filtradas en el export.
+- Modo degradado: CT-1 (MYK-427) sin merge => centro de trabajo = ubicacion del dispositivo; razon social/RFC patron vacios sin vinculo `company_devices`; CURP/RFC vacios sin captura (migracion 011); `annulled` se filtra solo si la columna existe (buffer migrado 010, restaurado por MYK-479).
+- `format=csv|xlsx` (`excel` alias); `end_date` inclusivo; sin registros => 200 con solo cabecera. Pruebas: `tests/test_export_legal.py` (golden CSV/XLSX, caso 11 h extra semanal = 9 dobles + 2 triples, 6 tipos de marca).
 
 ## Reportes Full-Width (MYK-404 items 1-2)
 
@@ -116,13 +118,6 @@
 - Aviso de privacidad obligatorio enlazado (datos biometricos = sensibles LFPDPPP):
   `/mi-asistencia/aviso-privacidad`. Docs: `docs/mi_asistencia.md`; tests:
   `tests/test_mi_asistencia.py`.
-
-## Testing
-
-- **Guard contra fechas absolutas (MYK-466):** `scripts/check_no_absolute_dates.py` corre en CI (lint job) y falla si un test usa `date(2026-...)`, `datetime(2026-...)` o string literales `"YYYY-MM-DD"` con año 2025-2030 en datos de prueba (no en assertions).
-  - Usar fechas relativas: `date.today() + timedelta(days=N)`, `_day(offset)` helper (de `tests/test_alerts.py`), o `datetime.now()` / `datetime.utcnow()`.
-  - Algunos tests de timezone/integración están en `ALLOWED_FILES` del script y usan fechas absolutas legítimas.
-- **TDD:** Escribir el test antes del código. Tests unitarios para lógica, handler/integration tests para endpoints, table-driven donde aplique.
 
 ---
 

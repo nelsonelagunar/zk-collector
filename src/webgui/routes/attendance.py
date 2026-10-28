@@ -5,6 +5,8 @@ Rutas para visualización y exportación de registros de asistencia
 
 import csv
 import io
+from datetime import datetime
+from typing import Any
 
 from flask import (
     Blueprint,
@@ -19,6 +21,7 @@ from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 
 from ...utils.timezones import coerce_timezone, get_system_timezone, to_local_iso
+from ..legal_export import LEGAL_HEADERS, build_legal_rows
 from ..middleware.auth import api_auth_required, login_required
 
 attendance_bp = Blueprint("attendance", __name__)
@@ -156,7 +159,7 @@ def api_attendance():
 
     # Construir WHERE clause. Los registros anulados por correccion (MYK-422)
     # no aparecen en listados/exportaciones: su historial vive en la bitacora.
-    where_conditions = ["annulled = 0"]
+    where_conditions = []
     params = []
 
     if start_date:
@@ -210,100 +213,171 @@ def api_attendance():
     # Localize timestamps to system timezone (MYK-420)
     localize_rows(records, db)
 
-    return jsonify({
-        "records": records,
-        "pagination": {
-            "page": page,
-            "per_page": per_page,
-            "total": total,
-            "pages": (total + per_page - 1) // per_page,
-        },
-    })
+    return jsonify(
+        {
+            "records": records,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": total,
+                "pages": (total + per_page - 1) // per_page,
+            },
+        }
+    )
+
+
+def _buffer_has_column(repo: Any, table: str, column: str) -> bool:
+    with repo.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA table_info({table})")
+        return any(row[1] == column for row in cursor.fetchall())
+
+
+def _parse_export_date(value: str | None, field: str) -> str | None:
+    if not value:
+        return None
+    try:
+        datetime.strptime(value.strip(), "%Y-%m-%d")
+    except ValueError as exc:
+        msg = f"{field} invalida: {value!r} (formato esperado YYYY-MM-DD)"
+        raise ExportValidationError(msg) from exc
+    return value.strip()
+
+
+class ExportValidationError(ValueError):
+    """Parametros invalidos para el export legal."""
+
+
+EXPORT_FORMATS: dict[str, str] = {"csv": "csv", "xlsx": "xlsx", "excel": "xlsx"}
 
 
 @attendance_bp.route("/export")
 @api_auth_required
 def export():
-    """Exportar asistencia a CSV o Excel"""
+    """Exportar asistencia a CSV o Excel (formato legal, MYK-424).
+
+    Columnas: codigo de empleado, colaborador, CURP, RFC, razon social,
+    RFC patron, centro de trabajo (ubicacion del dispositivo, modo degradado
+    hasta CT-1/MYK-427), fecha-hora con zona (MYK-420), tipo de marca, estado
+    y desglose de jornada semanal LFT 66-68 (ordinaria / extra doble / extra
+    triple). Sin registros devuelve 200 con solo la cabecera (CSV/XLSX validos).
+    """
     repo = get_buffer_repo()
     db = get_webgui_db()
 
-    start_date = request.args.get("start_date")
-    end_date = request.args.get("end_date")
-    user_id = request.args.get("user_id")
-    device_ip = request.args.get("device_ip")
-    fmt = request.args.get("format", "csv")
+    try:
+        start_date = _parse_export_date(request.args.get("start_date"), "start_date")
+        end_date = _parse_export_date(request.args.get("end_date"), "end_date")
+    except ExportValidationError as exc:
+        return str(exc), 400
+    user_id = request.args.get("user_id") or ""
+    device_ip = request.args.get("device_ip") or ""
+    status = request.args.get("status") or ""
+    punch_type = request.args.get("punch_type") or ""
+    synced = request.args.get("synced") or ""
+    fmt = EXPORT_FORMATS.get((request.args.get("format") or "csv").lower())
+    if fmt is None:
+        return "Formato de exportacion no soportado: csv|xlsx", 400
 
-    records = repo.query_records(
-        start_date=start_date,
-        end_date=end_date,
-        user_id=user_id,
-        device_ip=device_ip,
-        page=1,
-        per_page=100000,
-    ).get("records", [])
+    where_conditions: list[str] = []
+    params: list[Any] = []
+    if start_date:
+        where_conditions.append("substr(timestamp, 1, 10) >= ?")
+        params.append(start_date)
+    if end_date:
+        where_conditions.append("substr(timestamp, 1, 10) <= ?")  # end_date inclusivo (MYK-383)
+        params.append(end_date)
+    if user_id:
+        where_conditions.append("user_id = ?")
+        params.append(user_id)
+    if device_ip:
+        where_conditions.append("device_ip = ?")
+        params.append(device_ip)
+    if status != "":
+        try:
+            status_int = int(status)
+        except ValueError:
+            return "Estado invalido: debe ser 0-5", 400
+        where_conditions.append("status = ?")
+        params.append(status_int)
+    if punch_type:
+        where_conditions.append("punch_type = ?")
+        params.append(punch_type)
+    if synced != "":
+        try:
+            params.append(int(synced))
+        except ValueError:
+            return "Sincronizado invalido: use 0 o 1", 400
+        where_conditions.append("synced = ?")
 
-    # Localize timestamps (MYK-420)
-    localize_rows(records, db)
+    # Los registros anulados por correccion (MYK-422) no integran el export
+    # legal: su historial vive en la bitacora. La columna solo existe en
+    # buffers migrados con migration 010 (restaurada por MYK-479); en buffers
+    # legados se exportan todos (modo degradado, sin romper el endpoint).
+    if _buffer_has_column(repo, "attendance_records", "annulled"):
+        where_conditions.append("annulled = 0")
 
-    if fmt == "excel":
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Asistencia"
+    where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+    data_query = f"""
+        SELECT id, user_id, timestamp, status, device_ip, punch_type, synced
+        FROM attendance_records
+        {where_clause}
+        ORDER BY timestamp ASC, id ASC
+    """
+    with repo.get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(data_query, params)
+        records = [dict(row) for row in cursor.fetchall()]
 
-        headers = [
-            "ID Dispositivo", "Usuario", "Timestamp", "Estado",
-            "IP Dispositivo", "Tipo Marcaje",
-        ]
-        ws.append(headers)
+    tz = coerce_timezone(get_system_timezone(db))
+    rows = build_legal_rows(records, db, repo, tz)
 
-        for record in records:
-            ws.append([
-                record.get("user_id", ""),
-                record.get("user_id", ""),
-                record.get("timestamp", ""),
-                record.get("status", ""),
-                record.get("device_ip", ""),
-                record.get("punch_type", ""),
-            ])
+    start_label = start_date or "todos"
+    end_label = end_date or "todos"
+    download_name = f"asistencia_legal_{start_label}_{end_label}.{fmt}"
 
-        for col in ws.columns:
-            max_length = max(len(str(cell.value or "")) for cell in col)
-            ws.column_dimensions[get_column_letter(col[0].column)].width = min(max_length + 2, 50)
+    if fmt == "xlsx":
+        return _render_xlsx(rows, download_name)
+    return _render_csv(rows, download_name)
 
-        output = io.BytesIO()
-        wb.save(output)
-        output.seek(0)
 
-        return send_file(
-            output,
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            as_attachment=True,
-            download_name=f"asistencia_{start_date or all}_{end_date or all}.xlsx",
-        )
-
-    # CSV
+def _render_csv(rows: list[dict[str, str]], download_name: str) -> Response:
     output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
-        "ID Dispositivo", "Usuario", "Timestamp", "Estado",
-        "IP Dispositivo", "Tipo Marcaje",
-    ])
-    for record in records:
-        writer.writerow([
-            record.get("user_id", ""),
-            record.get("user_id", ""),
-            record.get("timestamp", ""),
-            record.get("status", ""),
-            record.get("device_ip", ""),
-            record.get("punch_type", ""),
-        ])
+    output.write("\ufeff")  # BOM utf-8-sig para Excel
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(LEGAL_HEADERS)
+    for row in rows:
+        writer.writerow([row.get(header, "") for header in LEGAL_HEADERS])
 
-    return Response(
+    response = Response(
         output.getvalue(),
         mimetype="text/csv",
-        headers={
-            "Content-Disposition": f"attachment; filename="
-                                   f"asistencia_{start_date or all}_{end_date or all}.csv"
-        },
+        headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
+    )
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    return response
+
+
+def _render_xlsx(rows: list[dict[str, str]], download_name: str):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Asistencia legal"
+
+    ws.append(LEGAL_HEADERS)
+    for row in rows:
+        ws.append([row.get(header, "") for header in LEGAL_HEADERS])
+
+    for col in ws.columns:
+        max_length = max(len(str(cell.value or "")) for cell in col)
+        ws.column_dimensions[get_column_letter(col[0].column)].width = min(max_length + 2, 50)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=download_name,
     )
