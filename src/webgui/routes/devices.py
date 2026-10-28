@@ -17,7 +17,7 @@ from flask import (
 from zk import ZK
 from zk.exception import ZKError
 
-from ..middleware.auth import api_require, require, login_required
+from ..middleware.auth import api_require, require
 
 devices_bp = Blueprint("devices", __name__)
 

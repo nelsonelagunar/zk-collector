@@ -17,7 +17,7 @@ from typing import cast
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, url_for
 
 from ..database import Database
-from ..middleware.auth import admin_required, api_require, login_required, require
+from ..middleware.auth import admin_required, api_require, require
 
 employees_ui_bp = Blueprint("employees_ui", __name__)
 

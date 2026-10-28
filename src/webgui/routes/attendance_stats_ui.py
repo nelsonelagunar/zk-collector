@@ -24,7 +24,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 
 from ..attendance_stats import StatsValidationError
 from ..database import Database
-from ..middleware.auth import api_require, login_required, require
+from ..middleware.auth import api_require, require
 from .attendance_stats import build_export_response, compute_report
 
 attendance_stats_ui_bp = Blueprint("attendance_stats_ui", __name__)

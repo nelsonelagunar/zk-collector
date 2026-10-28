@@ -50,8 +50,10 @@ def client(tmp_path):
     app = _build_app(tmp_path)
     test_client = app.test_client()
     # MYK-451: /attendance/api/* y /attendance/export requieren sesion/JWT.
+    # MYK-414: @require/@api_require tambien necesita session["role"] para has_permission.
     with test_client.session_transaction() as session:
         session["user_id"] = 1
+        session["role"] = "admin"
     return test_client
 
 
