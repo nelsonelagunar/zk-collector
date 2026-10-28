@@ -15,7 +15,7 @@ from ..medical_leaves import (
     MedicalLeaveRepository,
     ValidationError,
 )
-from ..middleware.auth import api_auth_required
+from ..middleware.auth import api_require
 
 medical_leaves_bp = Blueprint("medical_leaves", __name__)
 
@@ -32,7 +32,7 @@ def _parse_pagination() -> tuple[int, int]:
 
 
 @medical_leaves_bp.route("/", methods=["GET"])
-@api_auth_required
+@api_require("medical_leaves:read")
 def list_medical_leaves():
     """Lista paginada de incapacidades con filtro opcional por employee_id."""
     repo = _repo()
@@ -62,7 +62,7 @@ def list_medical_leaves():
 
 
 @medical_leaves_bp.route("/", methods=["POST"])
-@api_auth_required
+@api_require("medical_leaves:write")
 def create_medical_leave():
     """Crear incapacidad. `days` se calcula server-side y se ignora si llega."""
     repo = _repo()
@@ -87,7 +87,7 @@ def create_medical_leave():
 
 
 @medical_leaves_bp.route("/<int:leave_id>", methods=["GET"])
-@api_auth_required
+@api_require("medical_leaves:read")
 def get_medical_leave(leave_id: int):
     """Obtener incapacidad por id."""
     repo = _repo()
@@ -98,7 +98,7 @@ def get_medical_leave(leave_id: int):
 
 
 @medical_leaves_bp.route("/<int:leave_id>", methods=["PUT"])
-@api_auth_required
+@api_require("medical_leaves:write")
 def update_medical_leave(leave_id: int):
     """Actualizar incapacidad (parcial). `days` se recalcula server-side."""
     repo = _repo()
@@ -125,7 +125,7 @@ def update_medical_leave(leave_id: int):
 
 
 @medical_leaves_bp.route("/<int:leave_id>", methods=["DELETE"])
-@api_auth_required
+@api_require("medical_leaves:write")
 def cancel_medical_leave(leave_id: int):
     """Borrado logico: status -> cancelled."""
     repo = _repo()

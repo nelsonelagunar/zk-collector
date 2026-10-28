@@ -17,7 +17,7 @@ from flask import (
 from zk import ZK
 from zk.exception import ZKError
 
-from ..middleware.auth import api_auth_required, login_required
+from ..middleware.auth import api_require, require, login_required
 
 devices_bp = Blueprint("devices", __name__)
 
@@ -39,7 +39,7 @@ def _user_field(user, attr, default=""):
 
 
 @devices_bp.route("/<int:device_id>/sync-users", methods=["POST"])
-@api_auth_required
+@api_require("devices:sync")
 def sync_users(device_id):
     """Sincronizar usuarios desde el dispositivo ZKTeco a la base de datos WebGUI"""
     db = current_app.db
@@ -134,7 +134,7 @@ def sync_users(device_id):
 
 
 @devices_bp.route("/api/device-users")
-@api_auth_required
+@api_require("devices:read")
 def api_device_users():
     """API para obtener lista de usuarios de un dispositivo"""
     db = current_app.db
@@ -162,7 +162,7 @@ def api_device_users():
 
 
 @devices_bp.route("/api/device-users/stats")
-@api_auth_required
+@api_require("devices:read")
 def api_device_users_stats():
     """API para obtener estadísticas de usuarios de un dispositivo"""
     db = current_app.db
@@ -194,7 +194,7 @@ def api_device_users_stats():
 
 
 @devices_bp.route("/", strict_slashes=False)
-@login_required
+@require("devices:read")
 def list_devices():
     """Lista de dispositivos"""
     db = current_app.db
@@ -203,7 +203,7 @@ def list_devices():
 
 
 @devices_bp.route("/new", methods=["GET", "POST"])
-@login_required
+@require("devices:write")
 def create_device():
     """Crear nuevo dispositivo"""
     if request.method == "POST":
@@ -241,7 +241,7 @@ def create_device():
 
 
 @devices_bp.route("/<int:device_id>/edit", methods=["GET", "POST"])
-@login_required
+@require("devices:write")
 def edit_device(device_id):
     """Editar dispositivo"""
     db = current_app.db
@@ -281,7 +281,7 @@ def edit_device(device_id):
 
 
 @devices_bp.route("/<int:device_id>/delete", methods=["POST"])
-@login_required
+@require("devices:write")
 def delete_device(device_id):
     """Eliminar dispositivo"""
     db = current_app.db
@@ -292,7 +292,7 @@ def delete_device(device_id):
 
 
 @devices_bp.route("/<int:device_id>/test")
-@api_auth_required
+@api_require("devices:sync")
 def test_device(device_id):
     """Probar conexión con dispositivo - API endpoint"""
     db = current_app.db
@@ -354,7 +354,7 @@ def test_device(device_id):
 
 
 @devices_bp.route("/api/devices/test", methods=["POST"])
-@api_auth_required
+@api_require("devices:sync")
 def api_test_device():
     """API endpoint para test de conexión desde el form"""
     data = request.get_json()
@@ -389,7 +389,7 @@ def api_test_device():
 
 
 @devices_bp.route("/<int:device_id>/detail")
-@login_required
+@require("devices:read")
 def device_detail(device_id):
     """Vista detallada del dispositivo con tabs"""
     db = current_app.db
@@ -404,7 +404,7 @@ def device_detail(device_id):
 
 
 @devices_bp.route("/<int:device_id>/toggle", methods=["POST"])
-@login_required
+@require("devices:write")
 def toggle_device(device_id):
     """Activar/desactivar dispositivo"""
     db = current_app.db

@@ -42,6 +42,7 @@ def client(tmp_path: Path):
     # MYK-451: las rutas de este blueprint requieren sesion/JWT.
     with test_client.session_transaction() as session:
         session["user_id"] = 1
+        session["role"] = "admin"
     return test_client
 
 

@@ -36,7 +36,7 @@ from ..attendance_stats import (
     StatsValidationError,
     compute_attendance_stats,
 )
-from ..middleware.auth import api_auth_required
+from ..middleware.auth import api_require
 
 attendance_stats_bp = Blueprint("attendance_stats", __name__)
 
@@ -118,7 +118,7 @@ def build_export_response(report: dict, format_type: str) -> Response:
 
 
 @attendance_stats_bp.route("/stats")
-@api_auth_required
+@api_require("reports:read")
 def stats_report():
     """Reporte de asistencia (presentes/ausentes/retardos/incapacidades/vacaciones)."""
     try:
@@ -129,7 +129,7 @@ def stats_report():
 
 
 @attendance_stats_bp.route("/stats/export")
-@api_auth_required
+@api_require("reports:export")
 def stats_export():
     """Exportar el reporte de asistencia a CSV o Excel con los mismos filtros."""
     try:

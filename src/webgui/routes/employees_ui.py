@@ -17,20 +17,20 @@ from typing import cast
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, url_for
 
 from ..database import Database
-from ..middleware.auth import admin_required, api_auth_required, login_required
+from ..middleware.auth import admin_required, api_require, login_required, require
 
 employees_ui_bp = Blueprint("employees_ui", __name__)
 
 
 @employees_ui_bp.route("/", strict_slashes=False)
-@login_required
+@require("employees:read")
 def list_employees_ui():
     """Página principal de colaboradores."""
     return render_template("employees/list.html")
 
 
 @employees_ui_bp.route("/expediente/<int:employee_id>")
-@login_required
+@require("employees:read")
 def employee_expediente_ui(employee_id: int):
     """Expediente del colaborador con sección de incapacidades (MYK-240)."""
     db = cast(Database, current_app.db)  # type: ignore[attr-defined]
@@ -79,7 +79,7 @@ def clear_pin_ui(employee_id: int):
 
 
 @employees_ui_bp.route("/api/devices")
-@api_auth_required
+@api_require("employees:read")
 def api_devices():
     """Dispositivos habilitados con serial para el selector de vínculos."""
     db = current_app.db
@@ -95,7 +95,7 @@ def api_devices():
 
 
 @employees_ui_bp.route("/api/devices/<int:device_id>/users")
-@api_auth_required
+@api_require("employees:read")
 def api_device_users(device_id):
     """Usuarios del reloj para el selector de user_id."""
     db = current_app.db

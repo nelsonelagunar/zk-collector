@@ -6,6 +6,8 @@ from pathlib import Path
 
 from flask import Blueprint, abort, send_file
 
+from ..middleware.auth import login_required
+
 openapi_path = Path(__file__).resolve().parents[3] / "docs" / "openapi.yaml"
 
 apidocs_bp = Blueprint("apidocs", __name__)
@@ -29,12 +31,14 @@ SWAGGER_UI_HTML = """<!DOCTYPE html>
 
 
 @apidocs_bp.route("/docs")
+@login_required
 def swagger_ui():
     """Interactive Swagger UI for the API reference"""
     return SWAGGER_UI_HTML
 
 
 @apidocs_bp.route("/openapi.yaml")
+@login_required
 def openapi_spec():
     """Machine-readable OpenAPI 3.1 spec"""
     if not openapi_path.exists():
@@ -43,6 +47,7 @@ def openapi_spec():
 
 
 @apidocs_bp.route("/openapi.json")
+@login_required
 def openapi_spec_json():
     """JSON variant of the OpenAPI spec"""
     import json as jsonlib

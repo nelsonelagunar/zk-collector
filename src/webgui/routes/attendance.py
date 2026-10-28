@@ -22,7 +22,7 @@ from openpyxl.utils import get_column_letter
 
 from ...utils.timezones import coerce_timezone, get_system_timezone, to_local_iso
 from ..legal_export import LEGAL_HEADERS, build_legal_rows
-from ..middleware.auth import api_auth_required, login_required
+from ..middleware.auth import api_require, require
 
 attendance_bp = Blueprint("attendance", __name__)
 
@@ -93,14 +93,14 @@ def resolve_employee_names(db, rows) -> dict[tuple[str, str], str]:
 
 
 @attendance_bp.route("/", strict_slashes=False)
-@login_required
+@require("reports:read")
 def list_attendance():
     """Página principal de asistencia - renderiza template"""
     return render_template("attendance/list.html")
 
 
 @attendance_bp.route("/api/devices")
-@api_auth_required
+@api_require("reports:read")
 def api_devices():
     """API para obtener lista de dispositivos para el select de filtro"""
     db = get_webgui_db()
@@ -113,7 +113,7 @@ def api_devices():
 
 
 @attendance_bp.route("/api/attendance")
-@api_auth_required
+@api_require("reports:read")
 def api_attendance():
     """
     API paginada con filtros para registros de asistencia
@@ -257,7 +257,7 @@ EXPORT_FORMATS: dict[str, str] = {"csv": "csv", "xlsx": "xlsx", "excel": "xlsx"}
 
 
 @attendance_bp.route("/export")
-@api_auth_required
+@api_require("reports:export")
 def export():
     """Exportar asistencia a CSV o Excel (formato legal, MYK-424).
 
