@@ -3,11 +3,17 @@ Fixtures y configuración común para tests
 """
 
 import os
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 from flask import Flask
+
+
+def _day(offset: int) -> str:
+    """Fecha ISO relativa a hoy — evita time-bombs por fechas hardcodeadas (MYK-466)."""
+    return (date.today() + timedelta(days=offset)).isoformat()
 
 
 @pytest.fixture
@@ -82,7 +88,7 @@ def sample_attendance_record():
 
     class AttendanceData:
         user_id = "1"
-        timestamp = "2026-03-03 08:00:00"
+        timestamp = f"{_day(0)} 08:00:00"
         status = 0
 
     return AttendanceData()

@@ -3,7 +3,7 @@ Detailed unit tests for ZKClient module to improve coverage
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
 
 import pytest
@@ -12,6 +12,11 @@ from zk.exception import ZKError as PyZKError
 from src.zk_client.attendance import AttendanceRecord
 from src.zk_client.client import ZKClient
 from src.zk_client.exceptions import ZKAttendanceError, ZKConnectionError
+
+
+def _dt(days_ago: int = 365, hours: int = 12, minutes: int = 0, seconds: int = 0) -> datetime:
+    """Relative datetime for tests — avoids time-bombs (MYK-466)."""
+    return datetime.now().replace(hour=hours, minute=minutes, second=seconds, microsecond=0) - timedelta(days=days_ago)
 
 
 class TestZKClientDetailed:
@@ -328,7 +333,7 @@ class TestZKClientDetailed:
     def test_get_time_success(self, mock_zk_class, zk_client):
         """Test successful time retrieval"""
         mock_zk = Mock()
-        expected_time = datetime(2026, 1, 1, 12, 0, 0)
+        expected_time = _dt()
         mock_zk.get_time.return_value = expected_time
         zk_client.zk = mock_zk
         zk_client.connected = True
@@ -361,7 +366,7 @@ class TestZKClientDetailed:
         zk_client.zk = mock_zk
         zk_client.connected = True
 
-        new_time = datetime(2026, 1, 1, 12, 0, 0)
+        new_time = _dt()
         result = zk_client.set_time(new_time)
 
         assert result is True
@@ -449,8 +454,10 @@ class TestZKClientDetailed:
     def test_get_connection_status(self, mock_zk_class, zk_client):
         """Test get_connection_status"""
         zk_client.connected = True
-        zk_client.last_connection_attempt = datetime(2026, 1, 1, 10, 0, 0)
-        zk_client.last_successful_connection = datetime(2026, 1, 1, 10, 0, 5)
+        attempt_dt = _dt(days_ago=365, hours=10)
+        success_dt = _dt(days_ago=365, hours=10, minutes=0, seconds=5)
+        zk_client.last_connection_attempt = attempt_dt
+        zk_client.last_successful_connection = success_dt
         zk_client.connection_attempts = 0
 
         status = zk_client.get_connection_status()
@@ -458,8 +465,8 @@ class TestZKClientDetailed:
         assert status["ip"] == "192.168.1.100"
         assert status["port"] == 4370
         assert status["connected"] is True
-        assert status["last_attempt"] == "2026-01-01T10:00:00"
-        assert status["last_success"] == "2026-01-01T10:00:05"
+        assert status["last_attempt"] == attempt_dt.isoformat()
+        assert status["last_success"] == success_dt.isoformat()
         assert status["failed_attempts"] == 0
 
     def test_get_connection_status_no_attempts(self, zk_client):

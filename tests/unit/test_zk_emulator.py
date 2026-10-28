@@ -5,7 +5,7 @@ Unit tests for ZKEmulator TCP protocol implementation (mock/zk_emulator.py)
 import os
 import struct
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -75,7 +75,7 @@ class TestChecksum:
 
 class TestEncodeTime:
     def test_roundtrip_known_date(self):
-        dt = datetime(2026, 10, 13, 8, 0, 0)
+        dt = datetime.now().replace(hour=8, minute=0, second=0, microsecond=0)
         encoded = encode_time(dt)
         assert encoded > 0
 

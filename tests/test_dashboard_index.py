@@ -14,13 +14,18 @@ os.environ.setdefault("WEBGUI_SKIP_APP_CREATE", "1")
 
 import re
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from src.buffer.models import AttendanceRecordDB
 from src.webgui.server import create_app  # noqa: E402
+
+
+def _dt(days_ago: int = 0, hours: int = 8, minutes: int = 0) -> datetime:
+    """Relative datetime for tests — avoids time-bombs (MYK-466)."""
+    return datetime.now().replace(hour=hours, minute=minutes, second=0, microsecond=0) - timedelta(days=days_ago)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MIGRATIONS_DIR = REPO_ROOT / "migrations"
@@ -85,14 +90,14 @@ def test_dashboard_pending_records_come_from_buffer_db(webgui_app, user_id):
         [
             AttendanceRecordDB(
                 user_id="1",
-                timestamp=datetime(2026, 10, 20, 8, 0, 0),
+                timestamp=_dt(days_ago=365),
                 status=0,
                 device_ip="192.168.1.101",
                 punch_type="check_in",
             ),
             AttendanceRecordDB(
                 user_id="2",
-                timestamp=datetime(2026, 10, 20, 8, 5, 0),
+                timestamp=_dt(days_ago=365, minutes=5),
                 status=0,
                 device_ip="192.168.1.101",
                 punch_type="check_in",

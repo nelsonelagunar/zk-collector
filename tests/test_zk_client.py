@@ -2,7 +2,7 @@
 Tests para el módulo ZK Client
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
 
 import pytest
@@ -10,6 +10,11 @@ import pytest
 from src.zk_client.attendance import AttendanceRecord
 from src.zk_client.client import ZKClient
 from src.zk_client.exceptions import ZKConnectionError
+
+
+def _dt(days_ago: int = 365, hours: int = 8, minutes: int = 0) -> datetime:
+    """Relative datetime for tests — avoids time-bombs (MYK-466)."""
+    return datetime.now().replace(hour=hours, minute=minutes, second=0, microsecond=0) - timedelta(days=days_ago)
 
 
 class TestZKClient:
@@ -127,7 +132,7 @@ class TestAttendanceRecord:
         """Test de conversión a diccionario"""
         record = AttendanceRecord(
             user_id="1",
-            timestamp=datetime(2026, 3, 3, 8, 0, 0),
+            timestamp=_dt(),
             status=0,
             device_ip="192.168.1.101",
         )
@@ -136,4 +141,4 @@ class TestAttendanceRecord:
 
         assert data["user_id"] == "1"
         assert data["punch_type"] == "entrada"
-        assert "2026-03-03" in data["timestamp"]
+        assert _dt().date().isoformat() in data["timestamp"]

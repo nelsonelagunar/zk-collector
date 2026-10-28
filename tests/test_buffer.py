@@ -50,7 +50,7 @@ class TestBufferRepository:
 
     def test_add_records_deduplicates(self, temp_db):
         """El log completo del device en polls repetidos no debe duplicar filas"""
-        ts = datetime(2026, 10, 13, 8, 0, 0)
+        ts = datetime.now()
         records = [
             AttendanceRecordDB(
                 user_id="1", timestamp=ts, status=0, device_ip="10.0.0.12", punch_type="entrada"

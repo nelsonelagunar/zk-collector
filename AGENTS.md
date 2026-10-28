@@ -112,6 +112,13 @@
   `/mi-asistencia/aviso-privacidad`. Docs: `docs/mi_asistencia.md`; tests:
   `tests/test_mi_asistencia.py`.
 
+## Testing
+
+- **Guard contra fechas absolutas (MYK-466):** `scripts/check_no_absolute_dates.py` corre en CI (lint job) y falla si un test usa `date(2026-...)`, `datetime(2026-...)` o string literales `"YYYY-MM-DD"` con año 2025-2030 en datos de prueba (no en assertions).
+  - Usar fechas relativas: `date.today() + timedelta(days=N)`, `_day(offset)` helper (de `tests/test_alerts.py`), o `datetime.now()` / `datetime.utcnow()`.
+  - Algunos tests de timezone/integración están en `ALLOWED_FILES` del script y usan fechas absolutas legítimas.
+- **TDD:** Escribir el test antes del código. Tests unitarios para lógica, handler/integration tests para endpoints, table-driven donde aplique.
+
 ---
 
 *Actualizado con cada merge a master. Source of truth para agents.*

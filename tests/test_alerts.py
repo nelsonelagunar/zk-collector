@@ -144,10 +144,10 @@ class TestAusenciaSinJustificar:
     def test_dispara_por_umbral_de_injustificadas(self):
         engine = AlertEngine(Mock())
         absences = [
-            {"employee_id": 1, "date": "2026-10-16", "justified": 0},
-            {"employee_id": 1, "date": "2026-10-17", "justified": 0},
-            {"employee_id": 1, "date": "2026-10-18", "justified": 0},
-            {"employee_id": 2, "date": "2026-10-16", "justified": 1},
+            {"employee_id": 1, "date": _day(-3), "justified": 0},
+            {"employee_id": 1, "date": _day(-2), "justified": 0},
+            {"employee_id": 1, "date": _day(-1), "justified": 0},
+            {"employee_id": 2, "date": _day(-3), "justified": 1},
         ]
         alerts = engine.evaluate_ausencia_sin_justificar(absences, days=2)
         assert len(alerts) == 1
@@ -157,8 +157,8 @@ class TestAusenciaSinJustificar:
     def test_no_cuenta_justificadas(self):
         engine = AlertEngine(Mock())
         absences = [
-            {"employee_id": 1, "date": "2026-10-16", "justified": 1},
-            {"employee_id": 1, "date": "2026-10-17", "justified": 1},
+            {"employee_id": 1, "date": _day(-3), "justified": 1},
+            {"employee_id": 1, "date": _day(-2), "justified": 1},
         ]
         alerts = engine.evaluate_ausencia_sin_justificar(absences, days=2)
         assert alerts == []
