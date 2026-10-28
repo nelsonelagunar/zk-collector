@@ -532,8 +532,6 @@ class BufferRepository:
 
         # Registrar la purga en attendance_audit_log con actor='purge'
         # para que verify_integrity pueda clasificar los huecos.
-        if purged_ids:
-            self._reseal_chain(cursor)
 
         if deleted > 0:
             # Registrar cada ID purgado en attendance_audit_log con actor='purge'
@@ -549,27 +547,6 @@ class BufferRepository:
             logger.info(f"Limpieza completada: {deleted} registros eliminados")
 
         return deleted
-
-    def _reseal_chain(self, cursor) -> None:
-        """
-        Re-sella prev_hash/record_hash de todos los registros restantes
-        empezando por GENESIS_HASH. Se usa despues de purga para mantener
-        continuidad de la cadena.
-        """
-        rows = cursor.execute(
-            "SELECT id, user_id, timestamp, status, device_ip, punch_type "
-            "FROM attendance_records ORDER BY id ASC"
-        ).fetchall()
-
-        prev = GENESIS_HASH
-        for row in rows:
-            record = dict(row)
-            record_hash = compute_hash(prev, record)
-            cursor.execute(
-                "UPDATE attendance_records SET record_hash = ?, prev_hash = ? WHERE id = ?",
-                (record_hash, prev, record["id"]),
-            )
-            prev = record_hash
 
     def _serialize_timestamp(self, timestamp: Any) -> str:
         """
