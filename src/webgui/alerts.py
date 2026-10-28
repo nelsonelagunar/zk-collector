@@ -65,14 +65,24 @@ class AlertEngine:
         MYK-442 review: `annulled = 0` excluye las marcadas anuladas por
         correccion; sin el filtro una correccion alimenta el AlertEngine dos
         veces (original obsoleto + fila corregida).
+
+        MYK-478: defensive query - check if annulled column exists before
+        filtering. Old buffer.db volumes may not have this column.
         """
         if self.buffer_repo is None:
             return []
         try:
             with self.buffer_repo.get_connection() as conn:
-                rows = conn.execute(
-                    "SELECT user_id, timestamp, status FROM attendance_records WHERE annulled = 0"
-                ).fetchall()
+                # MYK-478: defensive column check for old buffer.db volumes
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA table_info(attendance_records)")
+                columns = [row[1] for row in cursor.fetchall()]
+                annulled_filter = " AND annulled = 0" if "annulled" in columns else ""
+                query = (
+                    "SELECT user_id, timestamp, status FROM attendance_records "
+                    f"WHERE 1=1{annulled_filter}"
+                )
+                rows = conn.execute(query).fetchall()
             return [dict(r) for r in rows]  # type: ignore[no-any-return]
         except Exception as exc:  # pragma: no cover - defensivo
             logger.warning(f"No se pudieron leer attendance_records: {exc}")

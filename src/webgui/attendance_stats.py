@@ -112,6 +112,18 @@ def _aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return out
 
 
+def _has_annulled_column(buffer_repo: Any) -> bool:
+    """Check if attendance_records table has annulled column (MYK-478)."""
+    try:
+        with buffer_repo.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(attendance_records)")
+            columns = [row[1] for row in cursor.fetchall()]
+            return "annulled" in columns
+    except Exception:
+        return False
+
+
 def compute_attendance_stats(
     db: Database,
     buffer_repo: Any,
@@ -136,6 +148,9 @@ def compute_attendance_stats(
     # Hora local del centro de trabajo (MYK-420): dias y primer entrada se computan
     # en el huso configurado, no en el offset original de cada marcada.
     stats_tz = coerce_timezone(get_system_timezone(db))
+
+    # Check if annulled column exists in buffer DB (MYK-478)
+    has_annulled = _has_annulled_column(buffer_repo)
 
     # 1. Colaboradores activos con filtros
     query = (
@@ -177,9 +192,11 @@ def compute_attendance_stats(
     # substr(timestamp,1,10) soporta ambos formatos 'YYYY-MM-DD HH:MM:SS' e ISO 'T'
     with buffer_repo.get_connection() as conn:
         cursor = conn.cursor()
+        # MYK-478: defensive query - check if annulled column exists before filtering
+        annulled_filter = " AND annulled = 0" if has_annulled else ""
         cursor.execute(
             "SELECT user_id, timestamp, status, device_ip FROM attendance_records "
-            "WHERE substr(timestamp, 1, 10) BETWEEN ? AND ? AND annulled = 0",
+            f"WHERE substr(timestamp, 1, 10) BETWEEN ? AND ?{annulled_filter}",
             (start.isoformat(), end.isoformat()),
         )
         for row in cursor.fetchall():

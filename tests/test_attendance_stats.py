@@ -245,6 +245,75 @@ class TestWorkStart:
         assert report["work_start"] == "08:00:00"
 
 
+class TestOldBufferSchema:
+    """Regression tests for MYK-478: old buffer.db without annulled column."""
+
+    @pytest.fixture
+    def old_buffer_repo(self, tmp_path):
+        """BufferRepository with old schema: no annulled column."""
+        repo = BufferRepository(tmp_path / "data" / "buffer_old.db")
+        # Drop annulled column if it somehow exists (simulate old schema)
+        with repo.get_connection() as conn:
+            conn.execute("DROP TABLE IF EXISTS attendance_records")
+            conn.execute("""
+                CREATE TABLE attendance_records (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    timestamp DATETIME NOT NULL,
+                    status INTEGER NOT NULL,
+                    device_ip TEXT NOT NULL,
+                    punch_type TEXT,
+                    synced BOOLEAN DEFAULT 0,
+                    sync_attempts INTEGER DEFAULT 0,
+                    last_sync_attempt DATETIME,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+        return repo
+
+    def test_stats_without_annulled_column(self, db, old_buffer_repo):
+        """Stats endpoint must not crash when buffer.db lacks annulled column (MYK-478)."""
+        db.insert("devices", {"name": "Reloj 1", "address": "10.0.0.5", "serial_number": "SN1"})
+        ana_id = db.insert(
+            "employees",
+            {
+                "employee_code": "E001",
+                "first_name": "Ana",
+                "last_name": "Lopez",
+                "department": "IT",
+                "hire_date": "2020-01-01",
+            },
+        )
+        db.insert(
+            "employee_device_links",
+            {
+                "employee_id": ana_id,
+                "device_serial": "SN1",
+                "device_user_id": "1",
+            },
+        )
+        # Insert records into old-schema buffer (no annulled column)
+        with old_buffer_repo.get_connection() as conn:
+            conn.execute(
+                "INSERT INTO attendance_records (user_id, timestamp, status, device_ip) "
+                "VALUES ('1', '2026-10-05 08:55:00', 0, '10.0.0.5')",
+            )
+        report = _stats(db, old_buffer_repo, employee_id=ana_id)
+        assert report["rows"][0]["employee_name"] == "Ana Lopez"
+        assert report["rows"][0]["days_present"] == 1
+
+    def test_stats_with_annulled_column_still_works(self, db, buffer_repo, seeded):
+        """Stats must still work with new buffer.db that has annulled column."""
+        # buffer_repo fixture creates table without annulled, so add it manually
+        with buffer_repo.get_connection() as conn:
+            conn.execute("ALTER TABLE attendance_records ADD COLUMN annulled BOOLEAN NOT NULL DEFAULT 0")
+        report = _stats(db, buffer_repo, employee_id=seeded["ana_id"])
+        ana = report["rows"][0]
+        assert ana["employee_name"] == "Ana Lopez"
+        assert ana["days_present"] == 3
+
+
 class TestValidation:
     def test_invalid_start_date(self, db, buffer_repo):
         with pytest.raises(StatsValidationError):
