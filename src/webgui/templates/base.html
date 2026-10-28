@@ -17,7 +17,7 @@
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col">
     <!-- Navbar -->
-    {% if session.get(user_id) %}
+    {% if session.get("user_id") %}
     <nav class="bg-white shadow-sm border-b" x-data="{ mobileMenuOpen: false }">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
