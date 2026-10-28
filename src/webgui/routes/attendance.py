@@ -215,6 +215,23 @@ def api_attendance():
 
     records = [dict(row) for row in rows]
 
+    # Enriquecer con nombre de colaborador (link device/empleado) y device_users (fallback)
+    user_names = {}
+    if rows:
+        user_ids = list(set(row["user_id"] for row in rows))
+        placeholders = ",".join("?" * len(user_ids))
+        user_rows = db.fetch_all(
+            f"SELECT user_id, name FROM device_users WHERE user_id IN ({placeholders})",
+            tuple(user_ids),
+        )
+        user_names = {row["user_id"]: row["name"] for row in user_rows}
+
+    employee_names = resolve_employee_names(db, records)
+
+    for record in records:
+        collaborator = employee_names.get((record["device_ip"], record["user_id"]))
+        record["user_name"] = collaborator or user_names.get(record["user_id"], record["user_id"])
+
     # Localize timestamps to system timezone (MYK-420)
     localize_rows(records, db)
 
