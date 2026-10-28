@@ -5,7 +5,7 @@ Unit tests for ZKEmulator TCP protocol implementation (mock/zk_emulator.py)
 import os
 import struct
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest
 

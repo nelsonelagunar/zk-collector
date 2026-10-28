@@ -25,7 +25,8 @@ from src.webgui.server import create_app  # noqa: E402
 
 def _dt(days_ago: int = 0, hours: int = 8, minutes: int = 0) -> datetime:
     """Relative datetime for tests — avoids time-bombs (MYK-466)."""
-    return datetime.now().replace(hour=hours, minute=minutes, second=0, microsecond=0) - timedelta(days=days_ago)
+    base = datetime.now().replace(hour=hours, minute=minutes, second=0, microsecond=0)
+    return base - timedelta(days=days_ago)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MIGRATIONS_DIR = REPO_ROOT / "migrations"

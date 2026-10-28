@@ -14,7 +14,8 @@ from src.zk_client.exceptions import ZKConnectionError
 
 def _dt(days_ago: int = 365, hours: int = 8, minutes: int = 0) -> datetime:
     """Relative datetime for tests — avoids time-bombs (MYK-466)."""
-    return datetime.now().replace(hour=hours, minute=minutes, second=0, microsecond=0) - timedelta(days=days_ago)
+    base = datetime.now().replace(hour=hours, minute=minutes, second=0, microsecond=0)
+    return base - timedelta(days=days_ago)
 
 
 class TestZKClient:
