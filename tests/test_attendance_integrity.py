@@ -483,6 +483,8 @@ class TestPurgeGapClassification:
             )
             == 2
         )
+        # Marcar como sincronizados para que la purga por capacidad los borre
+        repo.mark_as_synced([1, 2])
         # Desborda: la purga elimina la mas antigua (id 1) y lo deja en bitacora
         assert repo.add_records([_record(user_id="103", ts=datetime(2026, 10, 5, 10, 0, 0))]) == 1
 

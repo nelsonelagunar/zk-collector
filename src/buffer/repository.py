@@ -570,7 +570,8 @@ class BufferRepository:
         ]
         deleted = self._purge_ids(cursor, stale_ids, "purga automatica: sincronizados >30 dias")
 
-        # Si aún excedemos el máximo, eliminar los más antiguos
+        # Si aún excedemos el máximo, eliminar los más antiguos SINCRONIZADOS.
+        # LFT 804-III: los pendientes (synced=0) NUNCA se borran.
         cursor.execute("SELECT COUNT(*) FROM attendance_records")
         count = cursor.fetchone()[0]
 
@@ -581,6 +582,7 @@ class BufferRepository:
                 for row in cursor.execute(
                     """
                     SELECT id FROM attendance_records
+                    WHERE synced = 1
                     ORDER BY timestamp ASC
                     LIMIT ?
                 """,

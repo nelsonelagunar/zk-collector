@@ -133,8 +133,10 @@ class TestBufferRepository:
         assert stats["synced"] == 0
 
     def test_cleanup_old_records(self, temp_db):
-        """Test de limpieza de registros antiguos"""
-        # Agregar registros hasta exceder máximo
+        """Test de limpieza de registros antiguos - LFT 804-III (MYK-419):
+        los registros pendientes (synced=0) NUNCA se borran por capacidad.
+        Solo los sincronizados (synced=1) se compactan."""
+        # Agregar registros pendientes hasta exceder máximo
         records = []
         for i in range(110):
             records.append(
@@ -150,7 +152,10 @@ class TestBufferRepository:
         temp_db.add_records(records)
 
         stats = temp_db.get_stats()
-        assert stats["total_records"] <= temp_db.max_records
+        # Los 110 pendientes NO se compactan (LFT 804-III)
+        assert stats["total_records"] == 110
+        assert stats["pending_sync"] == 110
+        assert stats["synced"] == 0
 
     def test_log_sync(self, temp_db):
         """Test de log de sincronización"""
