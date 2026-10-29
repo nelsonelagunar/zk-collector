@@ -45,6 +45,15 @@
 - Aplicación por blueprint: MYK-414; API CRUD usuarios + OpenAPI: MYK-415.
 - Tests: `tests/test_rbac_middleware.py` (33, parametrizados por rol).
 
+## API CRUD usuarios (MYK-415)
+
+- `src/webgui/routes/users.py` (blueprint `users_api_bp` @ `/api/users`, registro en `server.py`): GET/POST `/api/users`, PATCH/DELETE `/api/users/<id>`, todo con `api_require("users:manage")` (sesion O JWT). Nunca expone `password_hash`.
+- Reglas: rol contra `ALLOWED_ROLES` en todo write path; password `Auth.hash_password` + `Auth.validate_password_strength` (12+ chars); username/email UNIQUE -> 409; DELETE soft (`is_active=0`).
+- Ultimo admin activo: PATCH (degradar/desactivar) y DELETE -> 409; caller no puede desactivar su propia cuenta (sesion o claim `user_id` del JWT) -> 409. Paridad con UI `/users` (MYK-416).
+- Contrato: `docs/openapi.yaml` (paths `/api/users`, schemas User/UserInput/UserPatch, responses 401/403/404/409); RBAC + semantica de cambio de rol (re-login / 30 min) en `docs/security.md` seccion "RBAC: Roles y Permisos".
+- Tests: `tests/test_users_api.py` (22: happy path admin, 403 rrhh/supervisor/auditor en 4 verbos, 401, ultimo admin, soft delete).
+- NOTA master CI: ya en rojo antes de este PR (ruff 42 errores preexistentes + tests de companies/integrity fallando por MYK-443 fail-closed sin `app.auth`); ver issue de seguimiento.
+
 ## API Auth (MYK-443)
 
 - `api_auth_required` (`src/webgui/middleware/auth.py`) valida de verdad desde MYK-443: sesión WebGUI activa (`user_id` en session, para los fetch same-origin del dashboard) O Bearer JWT firmado con `WEBGUI_SECRET_KEY` via `Auth.verify_access_token` (`type=access`, HS256). Todo lo demas responde 401 `{"error": ...}` (shape intacto). Fail-closed si la app no tiene `app.auth` (create_app siempre lo setea, server.py:70).
