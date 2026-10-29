@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from src.buffer.repository import BufferRepository
+from src.buffer.repository import DEFAULT_RETENTION_DAYS, BufferRepository
 from src.core.clock_sync import CLOCK_DRIFT_THRESHOLD_SECONDS, sync_device_clock
 from src.core.config import Config
 from src.monitoring.health import HealthMonitor
@@ -40,6 +40,8 @@ class AttendanceCollector:
                 os.environ.get("BUFFER_DB_PATH", "/opt/attendance/data/buffer.db"),
             ),
             max_records=self.config.get("buffer.max_records", 10000),
+            retention_days=self.config.get("buffer.retention_days", DEFAULT_RETENTION_DAYS),
+            archive_dir=self.config.get("buffer.archive_dir"),
         )
 
         self.platform_sync = PlatformSync(

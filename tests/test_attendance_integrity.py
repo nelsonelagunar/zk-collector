@@ -441,7 +441,7 @@ class TestBufferChain:
 
 
 class TestPurgeGapClassification:
-    def test_age_purge_leaves_recorded_gap_not_false_alarm(self, repo):
+    def test_age_purge_leaves_recorded_gap_not_false_alarm(self, repo, tmp_path):
         """H2 review: la purga de sincronizados >30d elimina filas selladas;
         el verificador clasifica el hueco (recorded_purge_gaps) en vez de dar
         falso positivo perpetuo de ALTERACION."""
@@ -449,8 +449,14 @@ class TestPurgeGapClassification:
         assert repo.add_records([old]) == 1
         repo.mark_as_synced([1])
         assert repo.add_records([_record(user_id="102")]) == 1
-        # MYK-419: la purga por antiguedad ya no es automatica; se aplica
-        # manualmente via purge_synced_older_than() (retencion LFT 804-III)
+        # RT-1 (MYK-428): la purga por antiguedad no es automatica y exige
+        # archivo previo; se aplica en dos pasos auditados.
+        assert repo.archive_synced_older_than(
+            days=30,
+            export_path=tmp_path / "archive" / "retencion.csv",
+            reason="retencion",
+            operator="test",
+        ) == 1
         assert repo.purge_synced_older_than(days=30, reason="retencion", operator="test") == 1
 
         report = repo.verify_integrity()
@@ -475,7 +481,11 @@ class TestPurgeGapClassification:
     def test_capacity_purge_classified_but_direct_delete_still_flags(self, tmp_path):
         """El desborde de capacidad tambien deja hueco clasificado; un DELETE
         directo (sin bitacora actor='purge') sigue siendo posible ALTERACION (AC3)."""
-        repo = BufferRepository(tmp_path / "data" / "buffer.db", max_records=2)
+        repo = BufferRepository(
+            tmp_path / "data" / "buffer.db",
+            max_records=2,
+            archive_dir=tmp_path / "archive",
+        )
         assert (
             repo.add_records(
                 [
@@ -485,7 +495,7 @@ class TestPurgeGapClassification:
             )
             == 2
         )
-        # Solo se compactan sincronizados: marca la mas antigua antes del overflow
+        # Solo se compactan sincronizados (y archivados): marca la mas antigua
         repo.mark_as_synced([1])
         # Desborda: la purga elimina la mas antigua (id 1) y lo deja en bitacora
         assert repo.add_records([_record(user_id="103", ts=datetime(2026, 10, 5, 10, 0, 0))]) == 1

@@ -3,6 +3,8 @@ Repositorio para Buffer Local SQLite
 Manejo de registros de asistencia en disco
 """
 
+import contextlib
+import csv
 import json
 import logging
 import sqlite3
@@ -16,6 +18,10 @@ from .integrity import ATTESTED_FIELDS, GENESIS_HASH, compute_hash, verify_chain
 from .models import AttendanceRecordDB
 
 logger = logging.getLogger(__name__)
+
+# Retencion legal por defecto: 26 meses (~790 dias) = ultimo ano + 1 ano
+# tras la baja + margen (LFT 804-III, RT-1 / MYK-428).
+DEFAULT_RETENTION_DAYS = 790
 
 # Bitacora append-only + triggers (MYK-422). Mismo DDL que
 # migrations/buffer/010_attendance_integrity.sql: el baseline lo aplica a DBs
@@ -105,9 +111,20 @@ class BufferRepository:
       la cadena (annul + insert corrected + bitacora).
     """
 
-    def __init__(self, db_path: Path, max_records: int = 10000, default_timezone=None):
+    def __init__(
+        self,
+        db_path: Path,
+        max_records: int = 10000,
+        default_timezone=None,
+        retention_days: int = DEFAULT_RETENTION_DAYS,
+        archive_dir: Path | None = None,
+    ):
         self.db_path = Path(db_path)
         self.max_records = max_records
+        # RT-1 (MYK-428): retencion legal (26 meses) y directorio de archivo
+        # previo al purge. Sin archive_dir no se borra nada por capacidad.
+        self.retention_days = retention_days
+        self.archive_dir = Path(archive_dir) if archive_dir is not None else None
         # Huso usado para localizar timestamps naive del firmware antes de
         # persistir (MYK-420): todo registro queda ISO-8601 con offset.
         self.default_tz = coerce_timezone(default_timezone)
@@ -152,9 +169,19 @@ class BufferRepository:
                     record_hash TEXT,
                     prev_hash TEXT,
                     annulled BOOLEAN NOT NULL DEFAULT 0,
-                    corrects_record_id INTEGER
+                    corrects_record_id INTEGER,
+                    archived BOOLEAN DEFAULT 0,
+                    archived_at DATETIME
                 )
             """)
+
+            # Columnas additivas RT-1 (MYK-428) para DBs pre-existentes:
+            # archived/archived_at marcan registros exportados antes del purge.
+            for _col_def in ("archived BOOLEAN DEFAULT 0", "archived_at DATETIME"):
+                with contextlib.suppress(sqlite3.OperationalError):
+                    cursor.execute(
+                        f"ALTER TABLE attendance_records ADD COLUMN {_col_def}"
+                    )
 
             # Índices para rendimiento
             cursor.execute("""
@@ -170,6 +197,11 @@ class BufferRepository:
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_user_id
                 ON attendance_records(user_id)
+            """)
+
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_archived_timestamp
+                ON attendance_records(archived, timestamp)
             """)
 
             # Unicidad SOLO entre registros activos (migration buffer/010, MYK-422):
@@ -191,6 +223,21 @@ class BufferRepository:
                     status TEXT,
                     error_message TEXT,
                     duration_seconds REAL
+                )
+            """)
+
+            # Bitacora de archivado (RT-1 / MYK-428): toda exportacion previa al
+            # purge queda registrada con ruta, motivo y operador.
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS archive_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    action TEXT NOT NULL,
+                    records_archived INTEGER NOT NULL,
+                    cutoff_date TEXT,
+                    export_path TEXT,
+                    reason TEXT,
+                    operator TEXT
                 )
             """)
 
@@ -456,13 +503,16 @@ class BufferRepository:
         """
         Compacta por capacidad cuando el buffer excede max_records.
 
-        Reglas (MYK-419):
-        - Solo se eliminan registros YA SINCRONIZADOS, de los mas antiguos
-          primero. Los pendientes de sincronizar NUNCA se borran, aunque el
-          buffer exceda temporalmente max_records (se perderia asistencia).
-        - No hay purga automatica por antiguedad: la retencion legal
-          (LFT 804-III, 2 anos) se aplica solo via purge_synced_older_than()
-          con bitacora y operador responsable.
+        Reglas (MYK-419 / RT-1 MYK-428):
+        - Solo se eliminan registros YA SINCRONIZADOS y ARCHIVADOS (exportados
+          previamente a CSV en archive_dir). Los pendientes de sincronizar
+          NUNCA se borran, aunque el buffer exceda temporalmente max_records
+          (se perderia asistencia).
+        - Sin archive_dir configurado NO se borra nada: archive-and-purge
+          exige una exportacion previa verificable (LFT 804-III).
+        - No hay purga automatica por antiguedad: la retencion legal se aplica
+          solo via archive_synced_older_than() + purge_synced_older_than() con
+          bitacora y operador responsable.
 
         Despues de eliminar, re-sella la cadena SHA-256 para que los registros
         restantes mantengan prev_hash continuo (el primero cuelga de GENESIS).
@@ -476,14 +526,37 @@ class BufferRepository:
         count = cursor.fetchone()[0]
         if count > self.max_records:
             excess = count - self.max_records
+
+            if self.archive_dir is None:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM attendance_records WHERE synced = 0"
+                )
+                pending = cursor.fetchone()[0]
+                logger.critical(
+                    f"Buffer sobre capacidad ({count} > max_records={self.max_records}) "
+                    f"sin archive_dir: NO se borra ningun registro (LFT 804-III). "
+                    f"Pendientes={pending}. Configurar buffer.archive_dir para "
+                    f"habilitar archive-and-purge."
+                )
+                return 0
+
+            archived = self._archive_oldest_synced(cursor, excess)
+            if archived == 0:
+                logger.critical(
+                    f"Buffer sobre capacidad ({count} > max_records="
+                    f"{self.max_records}) y no se pudo archivar ningun registro: "
+                    f"NO se borra nada (LFT 804-III)."
+                )
+                return 0
+
             cursor.execute(
                 """
                 SELECT id FROM attendance_records
-                WHERE synced = 1
+                WHERE archived = 1 AND synced = 1
                 ORDER BY timestamp ASC, id ASC
                 LIMIT ?
                 """,
-                (excess,),
+                (archived,),
             )
             purged_ids = [row["id"] for row in cursor.fetchall()]
             if purged_ids:
@@ -508,11 +581,192 @@ class BufferRepository:
                     INSERT INTO attendance_audit_log (record_id, action, actor, reason)
                     VALUES (?, 'delete', 'purge', ?)
                     """,
-                    (rid, f"purge_synced_older_than / capacidad: registro {rid} eliminado"),
+                    (rid, f"archive-and-purge / capacidad: registro {rid} eliminado"),
                 )
-            logger.info(f"Limpieza completada: {deleted} registros eliminados")
+            logger.warning(
+                f"Capacidad excedida: {deleted} registros archivados purgados "
+                f"(archive-and-purge, LFT 804-III)"
+            )
 
         return deleted
+
+    def _export_ids_to_csv(self, cursor, record_ids: list[int], export_path: Path) -> None:
+        """Escribe a CSV los registros indicados (columnas auditables)."""
+        if not record_ids:
+            return
+        placeholders = ",".join("?" * len(record_ids))
+        rows = cursor.execute(
+            f"""
+            SELECT id, user_id, timestamp, status, device_ip, punch_type,
+                   synced, sync_attempts, last_sync_attempt, created_at
+            FROM attendance_records
+            WHERE id IN ({placeholders})
+            ORDER BY timestamp ASC, id ASC
+            """,
+            record_ids,
+        ).fetchall()
+
+        export_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(export_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                [
+                    "id",
+                    "user_id",
+                    "timestamp",
+                    "status",
+                    "device_ip",
+                    "punch_type",
+                    "synced",
+                    "sync_attempts",
+                    "last_sync_attempt",
+                    "created_at",
+                ]
+            )
+            for row in rows:
+                writer.writerow(list(row))
+
+    def _archive_oldest_synced(self, cursor, limit: int) -> int:
+        """
+        Exporta a CSV en archive_dir los `limit` registros sincronizados mas
+        antiguos sin archivar y los marca archived=1. Devuelve cuantos archivo.
+        """
+        if self.archive_dir is None or limit <= 0:
+            return 0
+
+        rows = cursor.execute(
+            """
+            SELECT id FROM attendance_records
+            WHERE synced = 1 AND archived = 0
+            ORDER BY timestamp ASC, id ASC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        record_ids = [row["id"] for row in rows]
+        if not record_ids:
+            return 0
+
+        export_path = self.archive_dir / (
+            f"archive_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv"
+        )
+        try:
+            self._export_ids_to_csv(cursor, record_ids, export_path)
+        except OSError as e:
+            logger.error(f"No se pudo escribir archivo de archivo {export_path}: {e}")
+            return 0
+
+        placeholders = ",".join("?" * len(record_ids))
+        cursor.execute(
+            f"""
+            UPDATE attendance_records
+            SET archived = 1, archived_at = CURRENT_TIMESTAMP
+            WHERE id IN ({placeholders})
+            """,
+            record_ids,
+        )
+        cursor.execute(
+            """
+            INSERT INTO archive_log
+            (action, records_archived, cutoff_date, export_path, reason, operator)
+            VALUES ('archive_synced', ?, NULL, ?, ?, 'system')
+            """,
+            (
+                len(record_ids),
+                str(export_path),
+                "archive-and-purge por exceder max_records",
+            ),
+        )
+        logger.info(f"Archivados {len(record_ids)} registros en {export_path}")
+        return len(record_ids)
+
+    def archive_synced_older_than(
+        self, days: int, export_path: Path, reason: str, operator: str
+    ) -> int:
+        """
+        Exporta (archiva) los registros sincronizados mas antiguos que `days`
+        dias a un CSV ANTES de poder purgarlos.
+
+        LFT 804-III (RT-1 / MYK-428): el purge solo procede tras un archivo
+        exitoso. Requiere `reason` y `operator` no vacios (bitacora
+        obligatoria en archive_log).
+
+        Returns:
+            Numero de registros archivados.
+        """
+        if not reason or not reason.strip():
+            raise ValueError("reason obligatorio: archivado requiere bitacora")
+        if not operator or not operator.strip():
+            raise ValueError("operator obligatorio: archivado requiere bitacora")
+        if days < 0:
+            raise ValueError("days no puede ser negativo")
+
+        export_path = Path(export_path)
+        cutoff_date = (datetime.now() - timedelta(days=days)).isoformat()
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            rows = cursor.execute(
+                """
+                SELECT id FROM attendance_records
+                WHERE synced = 1 AND archived = 0 AND timestamp < ?
+                ORDER BY timestamp ASC, id ASC
+                """,
+                (cutoff_date,),
+            ).fetchall()
+            record_ids = [row["id"] for row in rows]
+
+            if record_ids:
+                try:
+                    self._export_ids_to_csv(cursor, record_ids, export_path)
+                except OSError as e:
+                    logger.error(f"No se pudo escribir archivo de archivo {export_path}: {e}")
+                    raise
+
+                placeholders = ",".join("?" * len(record_ids))
+                cursor.execute(
+                    f"""
+                    UPDATE attendance_records
+                    SET archived = 1, archived_at = CURRENT_TIMESTAMP
+                    WHERE id IN ({placeholders})
+                    """,
+                    record_ids,
+                )
+
+            cursor.execute(
+                """
+                INSERT INTO archive_log
+                (action, records_archived, cutoff_date, export_path, reason, operator)
+                VALUES ('archive_synced', ?, ?, ?, ?, ?)
+                """,
+                (
+                    len(record_ids),
+                    cutoff_date,
+                    str(export_path),
+                    reason.strip(),
+                    operator.strip(),
+                ),
+            )
+
+            logger.info(
+                f"Archivados {len(record_ids)} registros sincronizados en "
+                f"{export_path} por {operator}: {reason}"
+            )
+            return len(record_ids)
+
+    def get_archive_log(self, limit: int = 50) -> list[dict]:
+        """Bitacora de archivados previos al purge (RT-1 / MYK-428)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT * FROM archive_log
+                ORDER BY timestamp DESC, id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
 
     def _serialize_timestamp(self, timestamp: Any) -> str:
         """
@@ -694,11 +948,16 @@ class BufferRepository:
 
     def mark_sync_failed(self, record_ids: list[int], max_attempts: int = 5):
         """
-        Marcar registros como fallidos en sincronización
+        Marcar registros como fallidos en sincronización.
+
+        LFT 804-III (RT-1 / MYK-428): los registros fallidos NUNCA se
+        descartan ni se marcan como sincronizados por agotar reintentos. Se
+        incrementan los intentos y se deja synced = 0 para que sigan siendo
+        consultables y reintentados en el siguiente ciclo.
 
         Args:
             record_ids: IDs de registros
-            max_attempts: Máximo de intentos antes de descartar
+            max_attempts: Umbral para alertar por log (no descarta)
         """
         if not record_ids:
             return
@@ -711,23 +970,36 @@ class BufferRepository:
                 f"""
                 UPDATE attendance_records
                 SET sync_attempts = sync_attempts + 1,
-                    last_sync_attempt = CURRENT_TIMESTAMP,
-                    synced = CASE
-                        WHEN sync_attempts + 1 >= ? THEN 1
-                        ELSE 0
-                    END
+                    last_sync_attempt = CURRENT_TIMESTAMP
                 WHERE id IN ({placeholders})
             """,
-                [max_attempts] + record_ids,
+                list(record_ids),
             )
+
+            exceeded = cursor.execute(
+                f"""
+                SELECT id, sync_attempts FROM attendance_records
+                WHERE id IN ({placeholders}) AND sync_attempts >= ?
+                """,
+                list(record_ids) + [max_attempts],
+            ).fetchall()
+            for row in exceeded:
+                logger.warning(
+                    f"Registro {row['id']} alcanzo {row['sync_attempts']} "
+                    f"intentos de sincronizacion sin exito: se retiene "
+                    f"pendiente (LFT 804-III, no se descarta)"
+                )
 
     def purge_synced_older_than(self, days: int, reason: str, operator: str) -> int:
         """
-        Borrado MANUAL de registros sincronizados más antiguos que `days` días.
+        Borrado MANUAL de registros sincronizados Y ARCHIVADOS más antiguos
+        que `days` días.
 
-        LFT 804-III (MYK-419): única vía de borrado por antigüedad. Nunca
-        borra pendientes de sync. Requiere `reason` y `operator` no vacíos y
-        deja entrada obligatoria en la bitácora (retention_audit).
+        LFT 804-III (RT-1 / MYK-428): única vía de borrado por antigüedad.
+        Solo se borran registros archivados previamente con
+        archive_synced_older_than() (exportacion exitosa). Nunca borra
+        pendientes de sync. Requiere `reason` y `operator` no vacíos y deja
+        entrada obligatoria en la bitácora (retention_audit).
 
         Returns:
             Número de registros eliminados
@@ -749,7 +1021,7 @@ class BufferRepository:
                 for row in cursor.execute(
                     """
                     SELECT id FROM attendance_records
-                    WHERE synced = 1 AND timestamp < ?
+                    WHERE synced = 1 AND archived = 1 AND timestamp < ?
                     """,
                     (cutoff_date,),
                 ).fetchall()
@@ -845,6 +1117,8 @@ class BufferRepository:
                 "oldest_pending": oldest_pending,
                 "newest_record": newest,
                 "max_records": self.max_records,
+                "retention_days": self.retention_days,
+                "archive_enabled": self.archive_dir is not None,
                 "usage_percent": (total / self.max_records * 100) if self.max_records > 0 else 0,
             }
 
