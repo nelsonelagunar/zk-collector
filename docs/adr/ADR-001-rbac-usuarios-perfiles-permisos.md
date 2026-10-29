@@ -51,7 +51,7 @@ roles es cerrado y definido por el producto, no por el operador del deploy.
 
 Permisos como strings gruesos (`employees:read`, `employees:write`,
 `medical_leaves:read`, `medical_leaves:write`, `attendance:read`,
-`reports:read`, `reports:export`, `devices:read`, `devices:write`,
+`alerts:read`, `alerts:write`, `reports:read`, `reports:export`, `devices:read`, `devices:write`,
 `devices:sync`, `users:manage`, `settings:manage`, `audit:read`).
 
 El mapa role→permisos vive en **código versionado** (`src/webgui/permissions.py`), no en BD:
@@ -62,6 +62,7 @@ El mapa role→permisos vive en **código versionado** (`src/webgui/permissions.
 | employees:read / employees:write | ✅ | ✅ | read | read |
 | medical_leaves:read / write | ✅ | ✅ | read | read |
 | attendance:read | ✅ | ✅ | ✅ | ✅ |
+| alerts:read / alerts:write | ✅ | write | read | read |
 | reports:read / reports:export | ✅ | ✅ | ✅ | ✅ |
 | users:manage | ✅ | ❌ | ❌ | ❌ |
 | settings:manage | ✅ | ❌ | ❌ | ❌ |
