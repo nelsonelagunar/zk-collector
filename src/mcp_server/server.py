@@ -2,7 +2,8 @@
 
 Transport: stdio by default (no port is opened at all — the MCP client
 spawns this process). HTTP (streamable) is opt-in via ZK_COLLECTOR_MCP_HTTP=1
-and binds to 127.0.0.1 by default so nothing is reachable from the network.
+and binds to 127.0.0.1 by default so nothing is reachable from the network;
+non-loopback binds are rejected unless ZK_COLLECTOR_MCP_ALLOW_REMOTE_BIND=1.
 The collector port 4370 and the WebGUI are never touched by this server.
 """
 
