@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Any
 
 from src.buffer.repository import BufferRepository
+from src.core.clock_sync import CLOCK_DRIFT_THRESHOLD_SECONDS, sync_device_clock
 from src.core.config import Config
 from src.monitoring.health import HealthMonitor
 from src.sync.platform import PlatformSync
@@ -57,6 +58,12 @@ class AttendanceCollector:
         # Configuración de intervalos
         self.poll_interval = self.config.get("poll_interval_seconds", 300)
         self.sync_interval = self.config.get("sync_interval_seconds", 60)
+
+        # MYK-421 (MYK-410 TZ-1): deriva máxima del reloj del dispositivo
+        # antes de corregir con set_time() + alerta por log.
+        self.clock_drift_threshold = self.config.get(
+            "clock_sync.threshold_seconds", CLOCK_DRIFT_THRESHOLD_SECONDS
+        )
 
         # Dispositivos
         self.devices_config = self.config.get("devices", [])
@@ -107,6 +114,10 @@ class AttendanceCollector:
                     logger.error(f"No se pudo conectar a {ip}")
                     error_count += 1
                     continue
+
+                # MYK-421: comparar reloj del dispositivo vs servidor en cada
+                # poll; deriva > umbral -> set_time() + alerta por log.
+                sync_device_clock(client, threshold_seconds=self.clock_drift_threshold)
 
                 # Obtener registros
                 attendances = client.get_attendance(

@@ -57,6 +57,14 @@ class Config:
         },
         "poll_interval_seconds": {"type": "integer", "default": 300, "min": 60, "max": 3600},
         "sync_interval_seconds": {"type": "integer", "default": 60, "min": 10, "max": 600},
+        "clock_sync": {
+            "required": False,
+            "fields": {
+                # MYK-421 (MYK-410 TZ-1): deriva máxima tolerada del reloj del
+                # dispositivo (segundos) antes de corregir con set_time() + alerta.
+                "threshold_seconds": {"type": "integer", "default": 60, "min": 1},
+            },
+        },
         "buffer": {
             "required": False,
             "fields": {

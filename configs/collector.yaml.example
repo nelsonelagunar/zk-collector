@@ -56,6 +56,16 @@ poll_interval_seconds: 300  # 5 minutos (mín: 60, máx: 3600)
 sync_interval_seconds: 60   # 1 minuto (mín: 10, máx: 600)
 
 #-------------------------------------------------------------------------------
+# Sincronización horaria de relojes (MYK-421)
+#-------------------------------------------------------------------------------
+# En cada poll se compara get_time() del dispositivo contra la hora del
+# servidor; una deriva mayor al umbral invalida la hora legal del registro:
+# se corrige con set_time() y se emite alerta por log.
+clock_sync:
+  threshold_seconds: 60     # deriva máxima tolerada en segundos (default 60)
+
+
+#-------------------------------------------------------------------------------
 # Zona horaria (MYK-420)
 #-------------------------------------------------------------------------------
 # Huso IANA usado para localizar los timestamps naive del firmware.

@@ -51,6 +51,12 @@
       "minimum": 10,
       "maximum": 600
     },
+    "clock_sync": {
+      "type": "object",
+      "properties": {
+        "threshold_seconds": {"type": "integer", "default": 60, "minimum": 1}
+      }
+    },
     "buffer": {
       "type": "object",
       "properties": {
