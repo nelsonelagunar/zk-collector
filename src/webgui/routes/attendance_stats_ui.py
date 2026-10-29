@@ -24,7 +24,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 
 from ..attendance_stats import StatsValidationError
 from ..database import Database
-from ..middleware.auth import api_auth_required, login_required
+from ..middleware.auth import api_require, require
 from .attendance_stats import build_export_response, compute_report
 
 attendance_stats_ui_bp = Blueprint("attendance_stats_ui", __name__)
@@ -52,7 +52,7 @@ def _active_filter_options(db: Database) -> tuple[list[dict], list[str]]:
 
 
 @attendance_stats_ui_bp.route("/", strict_slashes=False)
-@login_required
+@require("reports:read")
 def stats_dashboard():
     """Dashboard de estadisticos de asistencia con filtros."""
     db = cast(Database, current_app.db)  # type: ignore[attr-defined]
@@ -68,7 +68,7 @@ def stats_dashboard():
 
 
 @attendance_stats_ui_bp.route("/api/stats")
-@api_auth_required
+@api_require("reports:read")
 def stats_json():
     """Reporte JSON con los mismos filtros que /api/attendance/stats."""
     try:
@@ -79,7 +79,7 @@ def stats_json():
 
 
 @attendance_stats_ui_bp.route("/export")
-@api_auth_required
+@api_require("reports:export")
 def stats_export():
     """Exportar el reporte del dashboard a CSV o Excel (mismos filtros)."""
     try:

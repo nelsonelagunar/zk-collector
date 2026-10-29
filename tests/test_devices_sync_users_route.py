@@ -139,6 +139,7 @@ def _logged_client(app):
     client = app.test_client()
     with client.session_transaction() as session:
         session["user_id"] = 1
+        session["role"] = "admin"
     return client
 
 
