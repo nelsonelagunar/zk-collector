@@ -74,10 +74,6 @@ def create_app(config=None):
 
     app.auth = Auth(app.config["SECRET_KEY"])
 
-    @app.context_processor
-    def utility_processor():
-        return {"now": datetime.now}
-
     from .routes.alerts import alerts_bp
     from .routes.apidocs import apidocs_bp
     from .routes.attendance import attendance_bp
@@ -90,12 +86,20 @@ def create_app(config=None):
     from .routes.devices import devices_bp
     from .routes.employees import employees_bp
     from .routes.employees_ui import employees_ui_bp
+    from .routes.errors_ui import errors_ui_bp
     from .routes.landing import landing_bp
     from .routes.medical_leaves import medical_leaves_bp
     from .routes.mi_asistencia import mi_asistencia_bp
     from .routes.profile_ui import profile_bp
     from .routes.settings_ui import settings_ui_bp
     from .routes.users_ui import users_ui_bp
+    from .nav import rbac_nav_context
+
+    @app.context_processor
+    def utility_processor():
+        return {"now": datetime.now}
+
+    app.context_processor(rbac_nav_context)
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(devices_bp, url_prefix="/devices")
@@ -112,6 +116,7 @@ def create_app(config=None):
     # Portal del trabajador /mi-asistencia (MYK-425) — fuera del login admin
     app.register_blueprint(mi_asistencia_bp, url_prefix="/mi-asistencia")
     app.register_blueprint(users_ui_bp, url_prefix="/users")
+    app.register_blueprint(errors_ui_bp)
     app.register_blueprint(settings_ui_bp, url_prefix="/settings")
     app.register_blueprint(companies_bp, url_prefix="/api/companies")
     app.register_blueprint(companies_ui_bp, url_prefix="/configuracion/razon-social")

@@ -17,7 +17,7 @@
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col">
     <!-- Navbar -->
-    {% if session.get(user_id) %}
+    {% if session.get("user_id") %}
     <nav class="bg-white shadow-sm border-b" x-data="{ mobileMenuOpen: false }">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
@@ -45,13 +45,13 @@
                             <button @click="dropdownOpen = !dropdownOpen" class="flex text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                                 <span class="sr-only">Abrir menú</span>
                                 <div class="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
-                                    {{ session.get(username, U)[0]|upper }}
+                                    {{ session.get("username", "U")[0]|upper }}
                                 </div>
                             </button>
                         </div>
                         <div x-show="dropdownOpen" @click.away="dropdownOpen = false" x-cloak class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 z-10">
                             <div class="px-4 py-2 border-b border-gray-100">
-                                <p class="text-sm font-medium text-gray-900">{{ session.get(username, ) }}</p>
+                                <p class="text-sm font-medium text-gray-900">{{ session.get("username", "") }}</p>
                                 {% if role_badge %}
                                 <p class="mt-1"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ role_badge.class }}">{{ role_badge.label }}</span></p>
                                 {% endif %}
