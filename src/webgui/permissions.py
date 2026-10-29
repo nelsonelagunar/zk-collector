@@ -25,6 +25,8 @@ ALL_PERMISSIONS = (
     "medical_leaves:read",
     "medical_leaves:write",
     "attendance:read",
+    "alerts:read",
+    "alerts:write",
     "reports:read",
     "reports:export",
     "users:manage",
@@ -41,6 +43,8 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
             "medical_leaves:read",
             "medical_leaves:write",
             "attendance:read",
+            "alerts:read",
+            "alerts:write",
             "reports:read",
             "reports:export",
         }
@@ -50,6 +54,7 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
             "employees:read",
             "medical_leaves:read",
             "attendance:read",
+            "alerts:read",
             "reports:read",
             "reports:export",
         }
@@ -59,6 +64,7 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
             "employees:read",
             "medical_leaves:read",
             "attendance:read",
+            "alerts:read",
             "reports:read",
             "reports:export",
             "audit:read",
