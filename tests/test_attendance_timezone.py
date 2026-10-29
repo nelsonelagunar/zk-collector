@@ -31,6 +31,7 @@ from src.utils.timezones import (
 from src.webgui.auth import Auth
 from src.webgui.database import Database
 from src.webgui.routes.attendance import attendance_bp
+from src.webgui.routes.auth import auth_bp
 from src.zk_client.attendance import AttendanceRecord
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -77,7 +78,15 @@ def _build_app(tmp_path: Path, system_timezone: str | None = None) -> Flask:
         default_timezone=get_system_timezone(app.db),
     )
     app.register_blueprint(attendance_bp, url_prefix="/attendance")
+    app.register_blueprint(auth_bp, url_prefix="/auth")
     return app
+
+
+def _login(client):
+    with client.session_transaction() as sess:
+        sess["user_id"] = 1
+        sess["username"] = "auditor.test"
+        sess["role"] = "auditor"
 
 
 def _record(user_id: str, ts: datetime) -> AttendanceRecordDB:
@@ -118,9 +127,7 @@ class TestBufferRoundTripOffset:
         assert datetime.fromisoformat(rows[0]["timestamp"]) == original
 
     def test_naive_firmware_localized_with_default_tz(self, tmp_path):
-        buffer = BufferRepository(
-            tmp_path / "buffer.db", default_timezone="America/Mexico_City"
-        )
+        buffer = BufferRepository(tmp_path / "buffer.db", default_timezone="America/Mexico_City")
         naive = datetime(2026, 10, 23, 8, 0, 0)
         buffer.add_records([_record("2", naive)])
         rows = buffer.get_unsynced_records()
@@ -184,6 +191,7 @@ class TestPacificExport:
         client = app.test_client()
         # Registro persistido en huso Centro (-06:00): 08:00 CDMX = 07:00 Tijuana
         _insert_raw(client, [("1", "2026-10-23T08:00:00-06:00")])
+        _login(client)
         resp = client.get("/attendance/api/attendance")
         assert resp.status_code == 200
         records = resp.get_json()["records"]
@@ -199,14 +207,16 @@ class TestPacificExport:
                 ("2", "2026-10-23T18:30:00-06:00"),
             ],
         )
+        _login(client)
         resp = client.get("/attendance/export?format=csv")
         assert resp.status_code == 200
+        assert resp.get_data(as_text=True).startswith("\ufeff")
         rows = list(csv.reader(io.StringIO(resp.get_data(as_text=True))))
-        header_idx = rows[0].index("timestamp")
-        # Export ordena por timestamp DESC
-        assert [r[header_idx] for r in rows[1:]] == [
-            "2026-10-23T17:30:00-07:00",
+        ts_idx = rows[0].index("Fecha/Hora")
+        # Export cronologico ASC, hora local del centro (Tijuana -07:00)
+        assert [r[ts_idx] for r in rows[1:]] == [
             "2026-10-23T07:00:00-07:00",
+            "2026-10-23T17:30:00-07:00",
         ]
 
     def test_export_default_center_timezone(self, tmp_path):
@@ -214,7 +224,9 @@ class TestPacificExport:
         client = app.test_client()
         # Sin config, hora local del centro = America/Mexico_City
         _insert_raw(client, [("1", "2026-10-23T08:00:00-06:00")])
+        _login(client)
         resp = client.get("/attendance/api/attendance")
+        assert resp.status_code == 200
         records = resp.get_json()["records"]
         assert records[0]["timestamp"] == "2026-10-23T08:00:00-06:00"
 
@@ -223,6 +235,7 @@ class TestPacificExport:
         app = _build_app(tmp_path, system_timezone="America/Tijuana")
         client = app.test_client()
         _insert_raw(client, [("1", "2026-10-23T08:00:00-06:00")])
+        _login(client)
         resp = client.get("/attendance/export?format=xlsx")
         assert resp.status_code == 200
         workbook = openpyxl.load_workbook(io.BytesIO(resp.data))

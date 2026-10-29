@@ -136,19 +136,20 @@ class TestAttendanceDateFilter:
         rows = list(csv.reader(io.StringIO(resp.get_data(as_text=True))))
         assert len(rows) == 3  # header + 2 registros del rango
 
-    def test_build_attendance_query_normalizes_date_bounds(self):
-        from src.webgui.routes.attendance import _build_attendance_query
+    def test_api_and_export_aplican_los_mismos_limites(self, client):
+        """Ambos bordes se aplican por fecha normalizada en API y export."""
+        _insert_records(
+            client,
+            [
+                ("1", "2026-10-22T23:59:59"),  # fuera (antes)
+                ("2", "2026-10-23T00:00:00"),  # dentro
+                ("3", "2026-10-24T23:59:59"),  # dentro (end inclusivo)
+                ("4", "2026-10-25T00:00:00"),  # fuera (despues)
+            ],
+        )
+        assert _get_total(client, "start_date=2026-10-23&end_date=2026-10-24") == 2
 
-        params = {
-            "start_date": "2026-10-23",
-            "end_date": "2026-10-24",
-            "user_id": "",
-            "device_ip": "",
-            "status": "",
-            "punch_type": "",
-            "synced": "",
-        }
-        where_clause, query_params = _build_attendance_query(params)
-        assert "substr(timestamp, 1, 10) >= ?" in where_clause
-        assert "substr(timestamp, 1, 10) <= ?" in where_clause
-        assert query_params == ["2026-10-23", "2026-10-24"]
+        resp = client.get("/attendance/export?start_date=2026-10-23&end_date=2026-10-24")
+        assert resp.status_code == 200
+        rows = list(csv.reader(io.StringIO(resp.get_data(as_text=True))))
+        assert len(rows) == 3  # header + 2 registros del rango

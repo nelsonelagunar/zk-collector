@@ -79,6 +79,13 @@
 - `src/core/clock_sync.py`: `sync_device_clock()` compara `get_time()` vs hora servidor en cada poll (wired en `poll_devices`); deriva > `clock_sync.threshold_seconds` (default 60, `configs/collector.yaml.example` + schema) → `set_time()` + alerta WARNING por log (patrón "alerta por log", MYK-419). AC test: mock 5min se corrige y alerta — `tests/test_clock_sync.py`.
 - Alerta en tabla `alerts` del WebGUI requiere schema (`employee_id NOT NULL` FK + CHECK en `alert_rules.type`) y escritura cross-proceso a webgui.db — fuera del slice; pendiente decisión PM si se quiere persistencia en tabla.
 
+## Export Legal (MYK-424)
+
+- `GET /attendance/export` reconstruido con formato legal CSV/XLSX (EX-1 de `docs/compliance_nomina_2027.md`, sección 4). Columnas: `Codigo empleado`, `Colaborador`, `CURP`, `RFC`, `Razon social`, `RFC patron`, `Centro de trabajo`, `Fecha/Hora` (ISO-8601 con offset, MYK-420), `Tipo de marca` (6 tipos), `Estado`, `Semana ISO`, `Horas ordinarias`, `Horas extra dobles`, `Horas extra triples`. Lógica y pruebas puras en `src/webgui/legal_export.py`; serialización en `src/webgui/routes/attendance.py`.
+- Jornada LFT 66-68 por persona/semana ISO: trabajado = última - primera marca del día (≥ 2 marcas); ordinaria = min(trabajado, 8 h); extra = max(0, trabajado - 8 h); semana: dobles = min(extra semanal, 9 h), triples = el resto. Se computa sobre TODAS las marcas de la semana, no solo las filtradas en el export.
+- Modo degradado: CT-1 (MYK-427) sin merge ⇒ centro de trabajo = ubicación del dispositivo; razón social/RFC patrón vacíos sin vínculo `company_devices`; CURP/RFC vacíos sin captura (migración 011); `annulled` se filtra solo si la columna existe (buffer migrado 010, restaurado por MYK-479). El listado `/attendance/api/attendance` también oculta anulados.
+- `format=csv|xlsx` (`excel` alias); `end_date` inclusivo; sin registros ⇒ 200 con solo cabecera. Pruebas: `tests/test_export_legal.py` (golden CSV/XLSX, caso 11 h extra semanal = 9 dobles + 2 triples, 6 tipos de marca).
+
 ## Reportes Full-Width (MYK-404 items 1-2)
 
 - Todas las secciones de reportes usan ancho completo + responsive. CSS en `templates/reports/stats.html`. Tests: `tests/test_nav_routing.py` incluye checks de layout.

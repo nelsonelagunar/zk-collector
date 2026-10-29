@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   anti-enumeracion y aislamiento estricto (`employee_id` ajeno -> 403).
   Aviso de privacidad LFPDPPP enlazado (datos biometricos = sensibles).
   Gestion de PINs por RRHH/admin desde el expediente del colaborador.
+- **Export legal de asistencia (MYK-424)**: `GET /attendance/export` reconstruido
+  con formato legal CSV/XLSX (LFT 66-68): empleado (codigo, CURP, RFC),
+  razon social (RFC, migracion 008), centro de trabajo, fecha-hora con zona
+  horaria, tipo de marca (6 tipos) y desglose de jornada (ordinaria / extra
+  doble hasta 9h semanales / extra triple). Golden-file en
+  `tests/fixtures/export_legal_golden.csv`.
 
 ## [1.0.0] - 2026-10-08
 
