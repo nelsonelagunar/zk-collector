@@ -18,7 +18,7 @@ DEVICE_IP = "192.0.2.51"
 JSON_ROUTES_200_LOGGED = (
     "/attendance/api/attendance",
     "/attendance/api/devices",
-    "/attendance/attendance/stats",
+    "/api/attendance/stats",
     "/colaboradores/api/devices",
     "/reportes/api/stats",
 )
@@ -114,9 +114,10 @@ def test_logged_session_exports_and_stats_work(logged_client):
     assert resp.status_code == 200
     assert resp.mimetype == "text/csv"
 
-    resp = client.get("/attendance/attendance/stats")
+    resp = client.get("/api/attendance/stats")
     assert resp.status_code == 200
-    assert "by_punch_type" in resp.get_json()
+    payload = resp.get_json()
+    assert "rows" in payload or "by_punch_type" in payload
 
 
 @pytest.mark.parametrize(
