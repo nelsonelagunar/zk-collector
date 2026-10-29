@@ -31,6 +31,8 @@ ALLOWED_FILES = {
     "tests/test_attendance_stats_ui.py",
     "tests/test_attendance_integrity.py",
     "tests/test_attendance_date_filter.py",
+    "tests/test_clock_sync.py",
+    "tests/test_export_legal.py",
     "tests/test_medical_leaves.py",
     "tests/test_medical_leaves_routes.py",
     "tests/test_medical_leaves_repository.py",
