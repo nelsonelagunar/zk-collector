@@ -58,9 +58,11 @@
 - Sección WebGUI `/configuracion/razon-social` (routes/companies_ui.py + templates/companies/index.html), navbar "Razón Social". El form consume la API con `Authorization: Bearer webgui` (patrón expediente colaboradores). Soporte `/configuracion/razon-social/api/devices` (login_required) devuelve relojes + dueño.
 - Tests: tests/test_companies_routes.py (API 30 casos), tests/test_companies_ui.py (UI+flujo), test_nav_routing.py actualizado con la nueva sección.
 
-## MCP Server (MYK-408)
+## MCP Server (MYK-408) — CLI externo, NO parte del deploy
 
-- `src/mcp_server/` → `zk-collector-mcp` (entry point). Transporte stdio (default, sin puertos) u HTTP opt-in `ZK_COLLECTOR_MCP_HTTP=1` bind 127.0.0.1:9248 (no-loopback rechazado salvo `ZK_COLLECTOR_MCP_ALLOW_REMOTE_BIND=1`). Solo lectura: `attendance_stats`, `list_punches`, `list_devices`, `list_employees` via Bearer a WebGUI. Auth: JWT HS256 `type=access` (MYK-443, sin PAT) — modo `static` (`ZK_COLLECTOR_API_TOKEN`, JWT minteado externo) o `minted` (`ZK_COLLECTOR_JWT_SECRET`/`WEBGUI_SECRET_KEY`, auto-refresh + re-mint único en 401; `src/mcp_server/tokens.py`). Tests: `tests/test_mcp_server.py`.
+- `src/mcp_server/` → `zk-collector-mcp` (entry point). Transporte stdio (default, sin puertos; el cliente MCP lanza el proceso) u HTTP opt-in `ZK_COLLECTOR_MCP_HTTP=1` bind 127.0.0.1:9248 (no-loopback rechazado salvo `ZK_COLLECTOR_MCP_ALLOW_REMOTE_BIND=1`). Solo lectura: `attendance_stats`, `list_punches`, `list_devices`, `list_employees` via Bearer a WebGUI. Auth: JWT HS256 `type=access` (MYK-443, sin PAT) — modo `static` (`ZK_COLLECTOR_API_TOKEN`, JWT minteado externo) o `minted` (`ZK_COLLECTOR_JWT_SECRET`/`WEBGUI_SECRET_KEY`, auto-refresh + re-mint único en 401; `src/mcp_server/tokens.py`). Tests: `tests/test_mcp_server.py`.
+- **NO parte del deploy (MYK-486):** la imagen NO instala el extra `[mcp]` (`Dockerfile`: `pip install .` sin extras → `zk-collector-mcp` lanza ModuleNotFoundError en deploy) y `supervisord.conf` solo define `[program:zk-collector]` + `[program:zk-webgui]`. El MCP es CLI externo client-launched por diseño (`src/mcp_server/server.py`). QA NO debe reintentar smoke in-container ni esperar `:9248` abierto en live — el bind HTTP 127.0.0.1 es inalcanzable fuera del contenedor (requeriría docker exec).
+- **Recipe smoke verificada (2026-10-27, PASS):** host cliente externo con `pip install ".[mcp]"`; `ZK_COLLECTOR_API_TOKEN` = JWT HS256 mint in-process (`Auth(secret).generate_tokens(user_id, username, role)` con `WEBGUI_SECRET_KEY`); base URL WebGUI `http://10.0.0.16:8081`. Resultado: initialize OK, tools/list 4/4, `list_devices`/`list_employees`/`list_punches` devuelven datos live.
 
 ## Hash Chain (MYK-422)
 
