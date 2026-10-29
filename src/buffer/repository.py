@@ -163,6 +163,7 @@ class BufferRepository:
                     punch_type TEXT,
                     synced BOOLEAN DEFAULT 0,
                     sync_attempts INTEGER DEFAULT 0,
+                    work_center TEXT,
                     last_sync_attempt DATETIME,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -175,13 +176,24 @@ class BufferRepository:
                 )
             """)
 
-            # Columnas additivas RT-1 (MYK-428) para DBs pre-existentes:
-            # archived/archived_at marcan registros exportados antes del purge.
+            # Columnas additivas para DBs pre-existentes.
+            columns = {
+                row[1]
+                for row in cursor.execute("PRAGMA table_info(attendance_records)")
+            }
+            # RT-1 (MYK-428): archived/archived_at marcan registros exportados
+            # antes del purge.
             for _col_def in ("archived BOOLEAN DEFAULT 0", "archived_at DATETIME"):
                 with contextlib.suppress(sqlite3.OperationalError):
                     cursor.execute(
                         f"ALTER TABLE attendance_records ADD COLUMN {_col_def}"
                     )
+            # CT-1 (MYK-427): work_center sella el centro de trabajo en cada
+            # marcada; se añade si la tabla ya existia sin la columna.
+            if "work_center" not in columns:
+                cursor.execute(
+                    "ALTER TABLE attendance_records ADD COLUMN work_center TEXT"
+                )
 
             # Índices para rendimiento
             cursor.execute("""
@@ -476,8 +488,8 @@ class BufferRepository:
                     """
                     INSERT INTO attendance_records
                         (user_id, timestamp, status, device_ip, punch_type,
-                         record_hash, prev_hash)
-                    SELECT ?, ?, ?, ?, ?, ?, ?
+                         work_center, record_hash, prev_hash)
+                    SELECT ?, ?, ?, ?, ?, ?, ?, ?
                     WHERE NOT EXISTS (
                         SELECT 1 FROM attendance_records
                         WHERE user_id = ? AND timestamp = ? AND device_ip = ?
@@ -489,6 +501,9 @@ class BufferRepository:
                         values["status"],
                         values["device_ip"],
                         values["punch_type"],
+                        # CT-1: el centro de trabajo viaja con la marcada pero
+                        # queda fuera del payload atestiguado (no rompe la cadena).
+                        r.work_center,
                         record_hash,
                         prev_hash,
                         values["user_id"],
@@ -810,7 +825,7 @@ class BufferRepository:
 
             cursor.execute(
                 """
-                SELECT id, user_id, timestamp, status, device_ip, punch_type
+                SELECT id, user_id, timestamp, status, device_ip, punch_type, work_center
                 FROM attendance_records
                 WHERE synced = 0 AND annulled = 0
                 ORDER BY timestamp ASC, id ASC
@@ -829,6 +844,7 @@ class BufferRepository:
                     "status": row["status"],
                     "device_ip": row["device_ip"],
                     "punch_type": row["punch_type"],
+                    "work_center": row["work_center"],
                 }
                 for row in rows
             ]

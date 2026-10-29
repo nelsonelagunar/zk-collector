@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Nuevo Centro de Trabajo - Attendance Collector{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="mb-6">
+        <a href="/work-centers" class="text-sm text-blue-600 hover:text-blue-500 flex items-center">
+            <svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+            Volver a centros de trabajo
+        </a>
+        <h2 class="text-2xl font-bold text-gray-900 mt-2">Nuevo Centro de Trabajo</h2>
+        <p class="text-sm text-gray-500 mt-1">Registro para compliance jornada 2027 (LFT 132-XXXIV)</p>
+    </div>
+
+    <!-- Formulario -->
+    <form class="bg-white shadow rounded-lg" method="POST" action="/work-centers/new">
+        <div class="px-6 py-5 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Información del Centro de Trabajo</h3>
+        </div>
+
+        <div class="px-6 py-5 space-y-6">
+            <!-- Nombre -->
+            <div>
+                <label for="nombre" class="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre del Centro de Trabajo *
+                </label>
+                <input type="text" id="nombre" name="nombre" required
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2"
+                    placeholder="Ej: Planta Norte, Oficinas Centrales, Sucursal Tijuana">
+            </div>
+
+            <!-- RFC Patrón e IMSS Registro Patronal -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label for="rfc_pattern" class="block text-sm font-medium text-gray-700 mb-1">
+                        RFC Patrón
+                    </label>
+                    <input type="text" id="rfc_pattern" name="rfc_pattern"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2"
+                        placeholder="Ej: ABC123456XYZ">
+                    <p class="mt-1 text-xs text-gray-500">RFC del patrón para nómina digital</p>
+                </div>
+                <div>
+                    <label for="imss_registro_patronal" class="block text-sm font-medium text-gray-700 mb-1">
+                        Registro Patronal IMSS
+                    </label>
+                    <input type="text" id="imss_registro_patronal" name="imss_registro_patronal"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2"
+                        placeholder="Ej: 12345678901">
+                    <p class="mt-1 text-xs text-gray-500">Registro patronal IMSS (11 dígitos)</p>
+                </div>
+            </div>
+
+            <!-- Dirección -->
+            <div>
+                <label for="direccion" class="block text-sm font-medium text-gray-700 mb-1">
+                    Dirección
+                </label>
+                <textarea id="direccion" name="direccion" rows="3"
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border px-3 py-2"
+                    placeholder="Dirección completa del centro de trabajo"></textarea>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3 border-t">
+            <a href="/work-centers" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                Cancelar
+            </a>
+            <button type="submit" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                Guardar Centro de Trabajo
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

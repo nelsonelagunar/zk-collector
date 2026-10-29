@@ -4,6 +4,9 @@
 # timezone (opcional, IANA): huso del reloj del dispositivo para localizar
 # timestamps naive del firmware (MYK-420). Si se omite usa la config global
 # `timezone` (system_config.timezone, default America/Mexico_City).
+# work_center (opcional): nombre del centro de trabajo al que pertenece el
+# dispositivo (CT-1). Se estampa en cada marcada capturada para que las
+# exportaciones incluyan el centro sin join por IP.
 
 devices:
   # Entrada Principal
@@ -13,6 +16,7 @@ devices:
     password: 0
     name: "Entrada Principal"
     enabled: true
+    work_center: "Planta Norte"
 
   # Sucursal Tijuana (huso Pacifico)
   - ip: "192.168.1.105"
@@ -22,6 +26,7 @@ devices:
     name: "Sucursal Tijuana"
     enabled: true
     timezone: "America/Tijuana"
+    work_center: "Sucursal Tijuana"
 
   # Salida Emergencia
   - ip: "192.168.1.102"
@@ -30,6 +35,7 @@ devices:
     password: 0
     name: "Salida Emergencia"
     enabled: true
+    work_center: "Planta Norte"
 
   # Recepción
   - ip: "192.168.1.103"
@@ -38,6 +44,7 @@ devices:
     password: 0
     name: "Recepción"
     enabled: true
+    work_center: "Recepción"
 
   # Almacén
   - ip: "192.168.1.104"
@@ -46,3 +53,4 @@ devices:
     password: 0
     name: "Almacén"
     enabled: false  # Deshabilitado temporalmente
+    work_center: "Almacén"

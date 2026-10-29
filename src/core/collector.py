@@ -129,6 +129,16 @@ class AttendanceCollector:
                 )
 
                 if attendances:
+                    # Estampar work_center del dispositivo en cada registro (CT-1)
+                    device_config = next(
+                        (d for d in self.devices_config if d.get("ip") == ip), None
+                    )
+                    wc = device_config.get("work_center") if device_config else None
+                    for a in attendances:
+                        if isinstance(a, dict):
+                            a["work_center"] = wc
+                        else:
+                            a.work_center = wc
                     # Guardar en buffer
                     self.buffer.add_records(attendances)
                     logger.info(f"{len(attendances)} registros de {ip} guardados en buffer")

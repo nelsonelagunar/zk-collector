@@ -200,7 +200,8 @@ def api_attendance():
 
     # Obtener registros paginados
     data_query = f"""
-        SELECT id, user_id, timestamp, status, device_ip, punch_type, synced
+        SELECT id, user_id, timestamp, status, device_ip, punch_type, synced,
+               work_center
         FROM attendance_records
         {where_clause}
         ORDER BY {sort} {order.upper()}
@@ -341,7 +342,8 @@ def export():
 
     where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
     data_query = f"""
-        SELECT id, user_id, timestamp, status, device_ip, punch_type, synced
+        SELECT id, user_id, timestamp, status, device_ip, punch_type, synced,
+               work_center
         FROM attendance_records
         {where_clause}
         ORDER BY timestamp ASC, id ASC

@@ -700,6 +700,104 @@ paths:
           description: Vínculo eliminado
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Vínculo no encontrado }
+  /api/work-centers:
+    get:
+      tags: [work-centers]
+      summary: Lista centros de trabajo (CT-1, MYK-427)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de centros de trabajo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  work_centers:
+                    type: array
+                    items: { $ref: '#/components/schemas/WorkCenter' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [work-centers]
+      summary: Crea centro de trabajo (CT-1, MYK-427)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkCenterInput' }
+      responses:
+        '201':
+          description: Centro de trabajo creado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  work_center: { $ref: '#/components/schemas/WorkCenter' }
+        '400': { description: Error de validación }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/work-centers/{work_center_id}:
+    get:
+      tags: [work-centers]
+      summary: Obtiene un centro de trabajo por id (CT-1, MYK-427)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: work_center_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Centro de trabajo encontrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkCenter' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [work-centers]
+      summary: Actualiza centro de trabajo (CT-1, MYK-427)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: work_center_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkCenterInput' }
+      responses:
+        '200':
+          description: Centro de trabajo actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkCenter' }
+        '400': { description: Error de validación }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [work-centers]
+      summary: Elimina centro de trabajo (CT-1, MYK-427)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: work_center_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Centro de trabajo eliminado
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: No se puede eliminar, hay dispositivos vinculados' }
   /mi-asistencia/login:
     post:
       tags: [portal]
@@ -974,6 +1072,7 @@ components:
         enabled: { type: boolean }
         status: { type: string, enum: [online, offline, error] }
         last_seen: { type: string, format: date-time, nullable: true }
+        work_center: { type: string, nullable: true }
     DeviceInput:
       type: object
       required: [name, ip]
@@ -992,6 +1091,7 @@ components:
         timestamp: { type: string, format: date-time, description: ISO-8601 with UTC offset, presented in the work center local timezone (system_config.timezone, MYK-420) }
         punch_type: { type: string, enum: [check_in, check_out] }
         synced: { type: boolean }
+        work_center: { type: string, nullable: true }
     Company:
       type: object
       properties:
@@ -1051,3 +1151,21 @@ components:
         full_name: { type: string }
         role: { type: string, enum: [admin, rrhh, supervisor, auditor] }
         is_active: { type: boolean }
+    WorkCenter:
+      type: object
+      properties:
+        id: { type: integer }
+        nombre: { type: string }
+        rfc_pattern: { type: string, nullable: true }
+        imss_registro_patronal: { type: string, nullable: true }
+        direccion: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    WorkCenterInput:
+      type: object
+      required: [nombre]
+      properties:
+        nombre: { type: string }
+        rfc_pattern: { type: string, description: "RFC del patrón para nómina digital" }
+        imss_registro_patronal: { type: string, description: "Registro patronal IMSS (11 dígitos)" }
+        direccion: { type: string, description: "Dirección completa del centro de trabajo" }

@@ -345,7 +345,9 @@ def legal_row(
         "RFC": (employee.rfc or "") if employee else "",
         "Razon social": (company.razon_social or "") if company else "",
         "RFC patron": (company.rfc or "") if company else "",
-        "Centro de trabajo": ctx.location_for(device_ip) or "",
+        # CT-1: el sello work_center de la marcada es el fallback cuando el
+        # dispositivo no tiene ubicacion capturada en el catalogo.
+        "Centro de trabajo": ctx.location_for(device_ip) or record.get("work_center") or "",
         "Fecha/Hora": local_dt.isoformat(),
         "Tipo de marca": _tipo_marca_legal(record),
         "Estado": str(record.get("status", "")),

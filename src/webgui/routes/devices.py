@@ -237,7 +237,10 @@ def create_device():
         flash(f'Dispositivo "{data["name"]}" creado exitosamente', "success")
         return redirect(url_for("devices.list_devices"))
 
-    return render_template("devices/create.html")
+    # GET: cargar centros de trabajo para el selector
+    db = current_app.db
+    work_centers = db.get_work_centers()
+    return render_template("devices/create.html", work_centers=work_centers)
 
 
 @devices_bp.route("/<int:device_id>/edit", methods=["GET", "POST"])
@@ -277,7 +280,8 @@ def edit_device(device_id):
         flash("Dispositivo no encontrado", "error")
         return redirect(url_for("devices.list_devices"))
 
-    return render_template("devices/edit.html", device=device)
+    work_centers = db.get_work_centers()
+    return render_template("devices/edit.html", device=device, work_centers=work_centers)
 
 
 @devices_bp.route("/<int:device_id>/delete", methods=["POST"])
