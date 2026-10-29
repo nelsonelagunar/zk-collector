@@ -79,9 +79,14 @@ buffer:
   # Máximo de registros a mantener en buffer
   max_records: 10000
   
-  # Días mínimos de retención legal (LFT 804-III, MYK-419).
-  # El borrado es SOLO manual con bitácora; nunca automático.
-  retention_days: 730
+  # Días mínimos de retención legal (LFT 804-III, MYK-419 / RT-1 MYK-428).
+  # Default: 26 meses (~790 días) = último año + 1 año tras la baja + margen.
+  # El borrado es SOLO manual, y solo de registros previamente archivados.
+  retention_days: 790
+
+  # Directorio de archive-and-purge: los registros se exportan a CSV aquí
+  # antes de poder borrarse. Sin archive_dir no se borra nada por capacidad.
+  # archive_dir: /opt/attendance/data/archive
 
 #-------------------------------------------------------------------------------
 # Logging

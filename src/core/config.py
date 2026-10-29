@@ -69,9 +69,11 @@ class Config:
             "required": False,
             "fields": {
                 "max_records": {"type": "integer", "default": 10000},
-                # MYK-419 (LFT 804-III): retención legal mínima 730 días.
-                # El borrado es manual con bitácora; nunca automático.
-                "retention_days": {"type": "integer", "default": 730},
+                # MYK-419 / RT-1 (LFT 804-III): retención legal 26 meses
+                # (~790 días). El borrado es manual y solo tras archivo previo.
+                "retention_days": {"type": "integer", "default": 790},
+                # Directorio donde se exporta (archiva) antes de purgar.
+                "archive_dir": {"type": "string", "default": None},
             },
         },
         "logging": {
@@ -112,7 +114,7 @@ class Config:
             "poll_interval_seconds": 300,
             "sync_interval_seconds": 60,
             "sync_enabled": False,
-            "buffer": {"max_records": 10000, "retention_days": 730},
+            "buffer": {"max_records": 10000, "retention_days": 790},
             "logging": {"level": "INFO"},
         }
         return cfg
