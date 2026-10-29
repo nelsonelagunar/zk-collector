@@ -191,6 +191,7 @@ class TestPacificExport:
         client = app.test_client()
         # Registro persistido en huso Centro (-06:00): 08:00 CDMX = 07:00 Tijuana
         _insert_raw(client, [("1", "2026-10-23T08:00:00-06:00")])
+        _login(client)
         resp = client.get("/attendance/api/attendance")
         assert resp.status_code == 200
         records = resp.get_json()["records"]
@@ -223,7 +224,9 @@ class TestPacificExport:
         client = app.test_client()
         # Sin config, hora local del centro = America/Mexico_City
         _insert_raw(client, [("1", "2026-10-23T08:00:00-06:00")])
+        _login(client)
         resp = client.get("/attendance/api/attendance")
+        assert resp.status_code == 200
         records = resp.get_json()["records"]
         assert records[0]["timestamp"] == "2026-10-23T08:00:00-06:00"
 

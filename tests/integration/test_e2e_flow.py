@@ -310,16 +310,15 @@ class TestE2EFlow:
         assert hasattr(attendance, "list_attendance")
         assert hasattr(attendance, "api_attendance")
         assert hasattr(attendance, "api_devices")
-        assert hasattr(attendance, "export_attendance")
-        assert hasattr(attendance, "attendance_stats")
-        assert hasattr(attendance, "_build_attendance_query")
-        assert hasattr(attendance, "_export_csv")
-        assert hasattr(attendance, "_export_xlsx")
+        assert hasattr(attendance, "export")
+        assert hasattr(attendance, "localize_rows")
+        assert hasattr(attendance, "_parse_export_date")
+        assert hasattr(attendance, "_buffer_has_column")
+        assert hasattr(attendance, "_render_csv")
+        assert hasattr(attendance, "_render_xlsx")
 
     def test_attendance_api_pagination(self, buffer_repo):
         """Test: Attendance API pagination logic"""
-        from src.webgui.routes.attendance import _build_attendance_query
-
         # Add test data
         for i in range(75):
             buffer_repo.add_records(
@@ -333,19 +332,19 @@ class TestE2EFlow:
                 ]
             )
 
-        # Test query building - include all params expected by the function
-        params = {
-            "start_date": "2026-03-01",
-            "end_date": "2026-03-31",
-            "user_id": "USER10",
-            "status": "",
-            "synced": "",
-        }
-        where_clause, query_params = _build_attendance_query(params)
+        # query_records es el contrato paginado que consume la API/export
+        result = buffer_repo.query_records(
+            start_date="2026-03-01", end_date="2026-03-31", page=1, per_page=10
+        )
+        assert result["pagination"]["total"] == 75
+        assert result["pagination"]["pages"] == 8
+        assert len(result["records"]) == 10
 
-        assert "substr(timestamp, 1, 10) >= ?" in where_clause
-        assert "substr(timestamp, 1, 10) <= ?" in where_clause
-        assert "user_id = ?" in where_clause
+        one_user = buffer_repo.query_records(
+            start_date="2026-03-01", end_date="2026-03-31", user_id="USER10"
+        )
+        assert one_user["pagination"]["total"] == 1
+        assert one_user["records"][0]["user_id"] == "USER10"
 
     # ===== TEST 5: Export Functionality =====
     def test_export_csv(self, buffer_repo):
@@ -416,24 +415,17 @@ class TestE2EFlow:
         assert "Entrada" in content
         assert "Salida" in content
 
-    def test_export_xlsx(self, buffer_repo, app):
-        """Test: Export attendance to XLSX"""
-        from src.webgui.routes.attendance import _export_xlsx
+    def test_export_xlsx(self, app):
+        """Test: Export legal attendance to XLSX"""
+        from src.webgui.legal_export import LEGAL_HEADERS
+        from src.webgui.routes.attendance import _render_xlsx
 
-        export_data = [
-            {
-                "id": 1,
-                "user_name": "EMP001",
-                "timestamp": "2026-03-01 08:00:00",
-                "status_label": "Entrada",
-                "device_ip": "192.168.1.101",
-                "punch_type": "entrada",
-                "synced_label": "No",
-            }
-        ]
+        row = {header: "" for header in LEGAL_HEADERS}
+        row["Codigo de empleado"] = "EMP001"
+        row["Fecha/Hora"] = "2026-03-01T08:00:00-06:00"
 
         with app.test_request_context("/"):
-            response = _export_xlsx(export_data)
+            response = _render_xlsx([row], "asistencia_2026-03.xlsx")
 
         assert "spreadsheetml" in response.mimetype
         content_disposition = response.headers.get("Content-Disposition", "")

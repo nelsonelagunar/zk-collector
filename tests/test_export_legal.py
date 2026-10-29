@@ -122,10 +122,25 @@ def _login(client):
 
 def _seed_punches(app, buffer_migration_010=False, annulled_id=None):
     if buffer_migration_010:
+        # Idempotente: record_hash/prev_hash ya existen si el repo aplico la
+        # migracion al inicializar; solo falta annulled en este fixture.
         with app.buffer_repo.get_connection() as conn:
-            conn.executescript(
-                (MIGRATIONS_DIR / "buffer" / "010_attendance_integrity.sql").read_text()
-            )
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(attendance_records)")}
+            for column, ddl in (
+                ("record_hash", "ALTER TABLE attendance_records ADD COLUMN record_hash TEXT"),
+                ("prev_hash", "ALTER TABLE attendance_records ADD COLUMN prev_hash TEXT"),
+                (
+                    "annulled",
+                    "ALTER TABLE attendance_records ADD COLUMN annulled "
+                    "BOOLEAN NOT NULL DEFAULT 0",
+                ),
+                (
+                    "corrects_record_id",
+                    "ALTER TABLE attendance_records ADD COLUMN corrects_record_id INTEGER",
+                ),
+            ):
+                if column not in cols:
+                    conn.execute(ddl)
     with app.buffer_repo.get_connection() as conn:
         conn.executemany(
             "INSERT INTO attendance_records (user_id, timestamp, status, device_ip, punch_type) "
@@ -398,7 +413,8 @@ def test_export_requiere_sesion(tmp_path):
     app = _build_app(tmp_path)
     client = app.test_client()
     resp = client.get("/attendance/export?format=csv")
-    assert resp.status_code == 302
+    # Contrato MYK-485/MYK-492: las rutas de export son API y responden 401
+    assert resp.status_code == 401
 
 
 def test_build_legal_rows_desglose_semanal(tmp_path):

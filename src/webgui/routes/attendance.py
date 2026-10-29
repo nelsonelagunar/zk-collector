@@ -184,6 +184,11 @@ def api_attendance():
         where_conditions.append("synced = ?")
         params.append(int(synced))
 
+    # Los anulados por correccion no se listan (MYK-422). En buffers legados
+    # sin migration 010 la columna no existe: modo degradado sin filtro.
+    if _buffer_has_column(buffer_repo, "attendance_records", "annulled"):
+        where_conditions.append("annulled = 0")
+
     where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 
     # Contar total
