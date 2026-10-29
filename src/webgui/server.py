@@ -118,8 +118,6 @@ def create_app(config=None):
     app.register_blueprint(landing_bp)
     # Pagina /403 amigable para los redirects de require()/users_ui (MYK-485)
     app.register_blueprint(errors_ui_bp)
-    # Portal del trabajador /mi-asistencia (MYK-425) — fuera del login admin
-    app.register_blueprint(mi_asistencia_bp, url_prefix="/mi-asistencia")
     app.register_blueprint(users_ui_bp, url_prefix="/users")
     app.register_blueprint(settings_ui_bp, url_prefix="/settings")
     app.register_blueprint(companies_bp, url_prefix="/api/companies")
