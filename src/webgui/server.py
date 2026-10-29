@@ -112,6 +112,8 @@ def create_app(config=None):
     app.register_blueprint(employees_bp, url_prefix="/api/employees")
     app.register_blueprint(employees_ui_bp, url_prefix="/colaboradores")
     app.register_blueprint(medical_leaves_bp, url_prefix="/api/medical-leaves")
+    # Portal del trabajador /mi-asistencia (MYK-425) — fuera del login admin
+    app.register_blueprint(mi_asistencia_bp, url_prefix="/mi-asistencia")
     # Landing page publica "Attendance Controller" (MYK-409) — fuera del login
     app.register_blueprint(landing_bp)
     # Pagina /403 amigable para los redirects de require()/users_ui (MYK-485)
