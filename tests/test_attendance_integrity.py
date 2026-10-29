@@ -241,7 +241,7 @@ class TestBufferChain:
         )
         assert len(audit) == 1
         assert audit[0]["actor"] == "trigger"
-        assert json.loads(audit[0]["before_values"])["timestamp"] == "2026-10-05T17:00:00"
+        assert json.loads(audit[0]["before_values"])["timestamp"] == "2026-10-05T17:00:00-06:00"
         assert json.loads(audit[0]["after_values"])["timestamp"] == "2026-10-05T16:30:00"
 
     def test_delete_breaks_chain_and_is_audited(self, repo):
@@ -292,7 +292,7 @@ class TestBufferChain:
         assert rows[0]["annulled"] == 1
         assert rows[1]["annulled"] == 0
         assert rows[1]["corrects_record_id"] == 1
-        assert rows[1]["timestamp"] == "2026-10-05T09:05:00"
+        assert rows[1]["timestamp"] == "2026-10-05T09:05:00-06:00"
 
         audit = _fetch_rows(
             repo,
@@ -304,8 +304,8 @@ class TestBufferChain:
         assert all(a["reason"] == "solicitud del colaborador" for a in audit)
         before = json.loads(audit[0]["before_values"])
         after = json.loads(audit[1]["after_values"])
-        assert before["timestamp"] == "2026-10-05T09:00:00"
-        assert after["timestamp"] == "2026-10-05T09:05:00"
+        assert before["timestamp"] == "2026-10-05T09:00:00-06:00"
+        assert after["timestamp"] == "2026-10-05T09:05:00-06:00"
 
     def test_correction_without_reason_or_changes_rejected(self, repo):
         repo.add_records([_record()])
@@ -448,8 +448,10 @@ class TestPurgeGapClassification:
         old = _record(user_id="101", ts=datetime(2026, 9, 1, 9, 0, 0))
         assert repo.add_records([old]) == 1
         repo.mark_as_synced([1])
-        # El siguiente add_records dispara la purga de sincronizados >30d
         assert repo.add_records([_record(user_id="102")]) == 1
+        # MYK-419: la purga por antiguedad ya no es automatica; se aplica
+        # manualmente via purge_synced_older_than() (retencion LFT 804-III)
+        assert repo.purge_synced_older_than(days=30, reason="retencion", operator="test") == 1
 
         report = repo.verify_integrity()
         assert report["valid"] is True
@@ -483,6 +485,8 @@ class TestPurgeGapClassification:
             )
             == 2
         )
+        # Solo se compactan sincronizados: marca la mas antigua antes del overflow
+        repo.mark_as_synced([1])
         # Desborda: la purga elimina la mas antigua (id 1) y lo deja en bitacora
         assert repo.add_records([_record(user_id="103", ts=datetime(2026, 10, 5, 10, 0, 0))]) == 1
 

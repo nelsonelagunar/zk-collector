@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from ..utils.timezones import coerce_timezone, ensure_aware
+from ..utils.timezones import coerce_timezone, ensure_aware, parse_timestamp
 from .integrity import ATTESTED_FIELDS, GENESIS_HASH, compute_hash, verify_chain
 from .models import AttendanceRecordDB
 
@@ -567,6 +567,100 @@ class BufferRepository:
                 for row in rows
             ]
 
+    def query_records(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        user_id: str | None = None,
+        device_ip: str | None = None,
+        status: int | str | None = None,
+        punch_type: str | None = None,
+        synced: int | str | None = None,
+        page: int = 1,
+        per_page: int = 100,
+        sort: str = "timestamp",
+        order: str = "desc",
+    ) -> dict[str, Any]:
+        """
+        Consulta paginada de registros para UI/export (MYK-477/MYK-424).
+
+        Los registros anulados por correccion no se listan: su historial vive
+        en la bitacora (MYK-422). Devuelve {"records", "pagination"} con el
+        mismo contrato que usan la tabla de asistencia y las exportaciones.
+        """
+        allowed_sorts = {
+            "id",
+            "user_id",
+            "timestamp",
+            "status",
+            "device_ip",
+            "punch_type",
+            "synced",
+        }
+        sort = sort if sort in allowed_sorts else "timestamp"
+        order_sql = "ASC" if str(order).lower() == "asc" else "DESC"
+
+        page = max(1, int(page or 1))
+        per_page = max(1, int(per_page or 100))
+        offset = (page - 1) * per_page
+
+        where = ["annulled = 0"]
+        params: list[Any] = []
+
+        if start_date:
+            where.append("substr(timestamp, 1, 10) >= ?")
+            params.append(str(start_date)[:10])
+        if end_date:
+            where.append("substr(timestamp, 1, 10) <= ?")
+            params.append(str(end_date)[:10])
+        if user_id not in (None, ""):
+            where.append("user_id = ?")
+            params.append(str(user_id))
+        if device_ip:
+            where.append("device_ip = ?")
+            params.append(device_ip)
+        if status not in (None, ""):
+            where.append("status = ?")
+            params.append(int(status))
+        if punch_type:
+            where.append("punch_type = ?")
+            params.append(punch_type)
+        if synced not in (None, ""):
+            where.append("synced = ?")
+            params.append(int(synced))
+
+        where_sql = " AND ".join(where)
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT COUNT(*) FROM attendance_records WHERE {where_sql}",
+                params,
+            )
+            total = cursor.fetchone()[0]
+            cursor.execute(
+                f"""
+                SELECT id, user_id, timestamp, status, device_ip, punch_type, synced
+                FROM attendance_records
+                WHERE {where_sql}
+                ORDER BY {sort} {order_sql}, id {order_sql}
+                LIMIT ? OFFSET ?
+                """,
+                params + [per_page, offset],
+            )
+            records = [dict(row) for row in cursor.fetchall()]
+
+        return {
+            "records": records,
+            "total": total,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": total,
+                "pages": (total + per_page - 1) // per_page,
+            },
+        }
+
     def mark_as_synced(self, record_ids: list[int]) -> int:
         """
         Marcar registros como sincronizados
@@ -650,14 +744,23 @@ class BufferRepository:
         with self.get_connection() as conn:
             cursor = conn.cursor()
 
-            cursor.execute(
-                """
-                DELETE FROM attendance_records
-                WHERE synced = 1 AND timestamp < ?
-            """,
-                (cutoff_date,),
-            )
-            deleted = cursor.rowcount if cursor.rowcount is not None else 0
+            purge_ids = [
+                row["id"]
+                for row in cursor.execute(
+                    """
+                    SELECT id FROM attendance_records
+                    WHERE synced = 1 AND timestamp < ?
+                    """,
+                    (cutoff_date,),
+                ).fetchall()
+            ]
+            if purge_ids:
+                placeholders = ",".join("?" * len(purge_ids))
+                cursor.execute(
+                    f"DELETE FROM attendance_records WHERE id IN ({placeholders})",
+                    purge_ids,
+                )
+            deleted = len(purge_ids)
 
             cursor.execute(
                 """
@@ -670,13 +773,14 @@ class BufferRepository:
 
             # Registrar en attendance_audit_log para clasificacion de huecos
             if deleted > 0:
-                cursor.execute(
-                    """
-                    INSERT INTO attendance_audit_log (record_id, action, actor, reason)
-                    VALUES (NULL, 'delete', 'purge', ?)
-                    """,
-                    (f"purge_synced_older_than: {deleted} records < {cutoff_date}",),
-                )
+                for rid in purge_ids:
+                    cursor.execute(
+                        """
+                        INSERT INTO attendance_audit_log (record_id, action, actor, reason)
+                        VALUES (?, 'delete', 'purge', ?)
+                        """,
+                        (rid, f"purge_synced_older_than: registro {rid} < {cutoff_date}"),
+                    )
 
             if deleted > 0:
                 logger.warning(
@@ -920,9 +1024,20 @@ class BufferRepository:
             if original["annulled"]:
                 raise ValueError(f"Registro {record_id} ya esta anulado")
 
+            # Normaliza el timestamp al mismo formato canonico con offset que
+            # usa add_records: si no, la colision natural (user+timestamp+ip)
+            # no se detecta y se insertaria un duplicado activo (MYK-422).
+            new_timestamp = original["timestamp"]
+            if timestamp is not None:
+                parsed = parse_timestamp(timestamp)
+                new_timestamp = (
+                    self._serialize_timestamp(parsed)
+                    if parsed is not None
+                    else timestamp
+                )
             corrected = {
                 "user_id": original["user_id"],
-                "timestamp": timestamp if timestamp is not None else original["timestamp"],
+                "timestamp": new_timestamp,
                 "status": status if status is not None else original["status"],
                 "device_ip": device_ip if device_ip is not None else original["device_ip"],
                 "punch_type": punch_type if punch_type is not None else original["punch_type"],

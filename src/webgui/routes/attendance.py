@@ -222,7 +222,7 @@ def api_attendance():
 
 
 @attendance_bp.route("/export")
-@login_required
+@api_auth_required
 def export():
     """Exportar asistencia a CSV o Excel"""
     repo = get_buffer_repo()
@@ -242,9 +242,6 @@ def export():
         page=1,
         per_page=100000,
     ).get("records", [])
-
-    if not records:
-        return "No hay registros para exportar", 400
 
     # Localize timestamps (MYK-420)
     localize_rows(records, db)

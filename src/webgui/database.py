@@ -415,7 +415,7 @@ class Database:
 
     def get_company_by_rfc(self, rfc: str) -> dict | None:
         """Obtener empresa activa por RFC"""
-        return self.fetch_one("SELECT * FROM companies WHERE rfc = ? AND status = active", (rfc,))
+        return self.fetch_one("SELECT * FROM companies WHERE rfc = ? AND status = 'active'", (rfc,))
 
     def get_companies(self, status: str | None = None) -> list[dict]:
         """Obtener lista de empresas con filtro opcional de status"""
