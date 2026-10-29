@@ -397,11 +397,9 @@ class BufferRepository:
             inserted = 0
 
             for r in records:
-                ts = (
-                    r.timestamp.isoformat()
-                    if hasattr(r.timestamp, "isoformat")
-                    else str(r.timestamp)
-                )
+                # MYK-420: datetime naive del firmware se localiza con el huso
+                # por defecto (America/Mexico_City) antes de persistir.
+                ts = self._serialize_timestamp(r.timestamp)
                 # Coercion de tipos: user_id a str para que el hash sea estable
                 # independientemente de si el caller pasa int o str (MYK-442).
                 user_id = r.user_id
@@ -456,82 +454,50 @@ class BufferRepository:
 
     def _purge_old_and_compact(self, cursor) -> int:
         """
-        Elimina registros sincronizados mayores a 30 dias (LFT 804-III) y
-        compacta por capacidad si excede max_records. Devuelve el total
-        de registros eliminados (sin logging; el caller registra en audit log).
+        Compacta por capacidad cuando el buffer excede max_records.
+
+        Reglas (MYK-419):
+        - Solo se eliminan registros YA SINCRONIZADOS, de los mas antiguos
+          primero. Los pendientes de sincronizar NUNCA se borran, aunque el
+          buffer exceda temporalmente max_records (se perderia asistencia).
+        - No hay purga automatica por antiguedad: la retencion legal
+          (LFT 804-III, 2 anos) se aplica solo via purge_synced_older_than()
+          con bitacora y operador responsable.
+
         Despues de eliminar, re-sella la cadena SHA-256 para que los registros
-        restantes mantengan prev_hash continuo (el primer registro restante
-        cuelga de GENESIS_HASH).
+        restantes mantengan prev_hash continuo (el primero cuelga de GENESIS).
+
+        Devuelve el total de registros eliminados.
         """
         deleted = 0
-        purged_ids = []
+        purged_ids: list[int] = []
 
-        # 1) Purga por antigedad: solo sincronizados, > 30 dias
-        cutoff_date = (datetime.now() - timedelta(days=30)).isoformat()
-        cursor.execute(
-            """
-            SELECT id FROM attendance_records
-            WHERE synced = 1 AND timestamp < ?
-        """,
-            (cutoff_date,),
-        )
-        for row in cursor.fetchall():
-            purged_ids.append(row["id"])
-
-        if purged_ids:
-            placeholders = ",".join("?" * len(purged_ids))
-            cursor.execute(
-                f"DELETE FROM attendance_records WHERE id IN ({placeholders})",
-                purged_ids,
-            )
-            deleted += len(purged_ids)
-
-        # 2) Compaccion por capacidad: solo sincronizados si es posible,
-        # si no, los más antiguos independientemente de sync (LFT 804-III).
         cursor.execute("SELECT COUNT(*) FROM attendance_records")
         count = cursor.fetchone()[0]
         if count > self.max_records:
             excess = count - self.max_records
-            # Primero intentamos solo sincronizados
             cursor.execute(
                 """
                 SELECT id FROM attendance_records
                 WHERE synced = 1
-                ORDER BY timestamp ASC
+                ORDER BY timestamp ASC, id ASC
                 LIMIT ?
-            """,
+                """,
                 (excess,),
             )
-            cap_ids = [row["id"] for row in cursor.fetchall()]
-            # Si no hay suficientes sincronizados, completamos con los más antiguos
-            if len(cap_ids) < excess:
-                cursor.execute(
-                    """
-                    SELECT id FROM attendance_records
-                    ORDER BY timestamp ASC
-                    LIMIT ?
-                """,
-                (excess - len(cap_ids),),
-                )
-                for row in cursor.fetchall():
-                    if row["id"] not in cap_ids:
-                        cap_ids.append(row["id"])
-            if cap_ids:
-                placeholders = ",".join("?" * len(cap_ids))
+            purged_ids = [row["id"] for row in cursor.fetchall()]
+            if purged_ids:
+                placeholders = ",".join("?" * len(purged_ids))
                 cursor.execute(
                     f"DELETE FROM attendance_records WHERE id IN ({placeholders})",
-                    cap_ids,
+                    purged_ids,
                 )
-                deleted += len(cap_ids)
-                purged_ids.extend(cap_ids)
+                deleted = len(purged_ids)
 
         # Re-sellar la cadena: recomputar prev_hash/record_hash de todos los
         # registros restantes empezando por GENESIS_HASH.
         if purged_ids:
             self._reseal_chain(cursor)
-
-        # Registrar la purga en attendance_audit_log con actor='purge'
-        # para que verify_integrity pueda clasificar los huecos.
 
         if deleted > 0:
             # Registrar cada ID purgado en attendance_audit_log con actor='purge'
