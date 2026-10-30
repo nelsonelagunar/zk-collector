@@ -22,6 +22,7 @@ tags:
   - name: health
   - name: companies
   - name: portal
+  - name: reports
   - name: users
 paths:
   /health:
@@ -548,6 +549,42 @@ paths:
                 type: object
                 properties:
                   error: { type: string }
+  /reportes/constancia/{employee_id}/pdf:
+    get:
+      tags: [reports]
+      summary: Generar y descargar constancia de asistencia en PDF (MYK-593)
+      description: >-
+        Constancia de asistencia de un colaborador para un periodo. Los numeros
+        (dias esperados/presentes/ausentes/incapacidades/vacaciones/retardos,
+        puntualidad y ausentismo) se computan con la misma logica del reporte
+        de asistencia `/api/attendance/stats`. Requiere el permiso `reports:export`.
+      security:
+        - bearerAuth: []
+        - sessionCookie: []
+      parameters:
+        - { name: employee_id, in: path, schema: { type: integer }, required: true, description: ID del colaborador activo }
+        - { name: start_date, in: query, schema: { type: string, format: date } }
+        - { name: end_date, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: PDF de la constancia de asistencia (descarga adjunta)
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '400':
+          description: Filtros invalidos (fecha o rango)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+        '401':
+          description: No autenticado
+        '403':
+          description: Sin permiso reports:export
+        '404':
+          description: Empleado no encontrado o inactivo
   /api/companies/:
     get:
       tags: [companies]
