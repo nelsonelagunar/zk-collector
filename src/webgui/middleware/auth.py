@@ -2,6 +2,8 @@
 Middleware de Autenticación - JWT Validation + Personal Access Tokens (MYK-407)
 """
 
+import hashlib
+import sqlite3
 import threading
 import time
 from collections import defaultdict
@@ -51,11 +53,23 @@ def _scope_for_perms(perms: tuple[str, ...]) -> str | None:
 
 
 def _verify_pat(token: str, required_scope: str | None = None) -> dict | None:
-    """Verifica un Personal Access Token contra la tabla api_tokens."""
+    """Verifica un Personal Access Token contra la tabla api_tokens.
+
+    Si la app no expone ``db`` o la tabla api_tokens no existe (migracion 012
+    aun no aplicada, p.ej. tests que montan un subconjunto de migraciones) no
+    hay PATs validos: falla cerrado y devuelve None para que api_require
+    responda 401 en vez de 500/AttributeError.
+    """
     from ..api_tokens import ApiTokenService
 
-    service = ApiTokenService(current_app.db)
-    record = service.verify_token(token)
+    db = getattr(current_app, "db", None)
+    if db is None:
+        return None
+    service = ApiTokenService(db)
+    try:
+        record = service.verify_token(token)
+    except sqlite3.OperationalError:
+        return None
     if record is None:
         return None
     if required_scope:
@@ -155,8 +169,6 @@ def api_require(*perms):
         def decorated_function(*args, **kwargs):
             auth_header = request.headers.get("Authorization")
 
-            # Si hay Authorization: Bearer, validar el token (PAT o JWT) —
-            # la sesion no lo sustituye.
             if auth_header:
                 try:
                     scheme, token = auth_header.split()
@@ -166,8 +178,10 @@ def api_require(*perms):
                 if scheme.lower() != "bearer":
                     return jsonify({"error": "Bearer scheme required"}), 401
 
-                # Rate limiting basico por token
-                client_key = f"{request.remote_addr}:{token[:16]}"
+                # Rate limiting basico por token (usa el token completo como
+                # clave: truncar a 16 colisiona entre JWTs que comparten el
+                # header base64 y agotaba el bucket entre tests de la sesion).
+                client_key = f"{request.remote_addr}:{token}"
                 if not _rate_limit_allow(client_key):
                     return jsonify({"error": "rate limit exceeded"}), 429
 
@@ -175,7 +189,7 @@ def api_require(*perms):
                 if auth_instance is None:
                     return jsonify({"error": "Authentication is not configured"}), 401
 
-                # 2) Bearer JWT
+                # Bearer JWT
                 payload = auth_instance.verify_access_token(token)
                 if payload is not None:
                     g.api_user = payload
@@ -184,7 +198,7 @@ def api_require(*perms):
                         return jsonify({"error": "Insufficient permissions"}), 403
                     return f(*args, **kwargs)
 
-                # 3) Personal Access Token (PAT)
+                # Personal Access Token (PAT)
                 required_scope = _scope_for_perms(perms)
                 pat_record = _verify_pat(token, required_scope=required_scope)
                 if pat_record is not None:
@@ -195,9 +209,38 @@ def api_require(*perms):
                     }
                     return f(*args, **kwargs)
 
+                # Bearer invalido tras JWT y PAT.
+                # Si el token es una PAT real (existe en api_tokens, aunque
+                # este revocada/expirada/sin-scope) se aplica 401 sin caer a
+                # sesion. Si es basura/no reconocida (no hay fila), se cae a
+                # sesion WebGUI: una sesion valida autentica aunque el header
+                # basura este presente (no rompe al navegador del WebGUI).
+                token_hash = hashlib.sha256(token.encode()).hexdigest()
+                pat_es_real = False
+                db = getattr(current_app, "db", None)
+                if db is not None:
+                    try:
+                        pat_es_real = (
+                            db.fetch_one(
+                                "SELECT 1 FROM api_tokens WHERE token_hash = ?",
+                                (token_hash,),
+                            )
+                            is not None
+                        )
+                    except sqlite3.OperationalError:
+                        pat_es_real = False
+
+                if pat_es_real:
+                    return jsonify({"error": "Invalid or expired token"}), 401
+
+                if "user_id" in session:
+                    role = session.get("role")
+                    if perms and not all(has_permission(role, perm) for perm in perms):
+                        return jsonify({"error": "Insufficient permissions"}), 403
+                    return f(*args, **kwargs)
                 return jsonify({"error": "Invalid or expired token"}), 401
 
-            # No Bearer token: usar sesion WebGUI
+            # Sin header Bearer: usar sesion WebGUI
             if "user_id" not in session:
                 return jsonify({"error": "Authorization header required"}), 401
 
